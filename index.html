@@ -293,13 +293,12 @@
       <p>Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.</p>
     </div>
 
-    <div class="hint"><span class="dot"></span> the snake tours the projects, then coils around the name &middot; move your cursor to take control</div>
+    <div class="hint"><span class="dot"></span> the snake tours the projects below, then coils around the name</div>
 
     <nav class="links">
       <a href="https://github.com/ShezinKhais">GitHub</a>
       <a href="https://www.linkedin.com/in/shezinkhaiser/">LinkedIn</a>
-      <a href="mailto:shezinkhais@gmail.com">shezinkhais@gmail.com</a>
-      <button class="tool" id="copyMail" style="border-radius:6px;padding:6px 13px;font-size:13px">Copy email</button>
+      <a href="mailto:shezinkhais@gmail.com" id="mailLink" title="Click to copy">shezinkhais@gmail.com</a>
     </nav>
 
     <div class="stats">
@@ -486,7 +485,6 @@ function resize() {
 // ================= snake =================
 const N = 96, SPACING = 8, MAXW = 15;   // ~770px of body, enough to fill the coil
 const joints = [];
-let pointer = null, pointerAt = -1e9;
 let lastRibs = [];
 
 function seedJoints() {
@@ -575,14 +573,12 @@ function walk(dt) {
 }
 
 function stepSnake(t, dt) {
-  const usePointer = pointer && (t - pointerAt) < 3.0;
-  const tgt = usePointer ? pointer : walk(dt);
+  const tgt = walk(dt);
 
   const h = joints[0];
   const dx = tgt.x - h.x, dy = tgt.y - h.y;
   const d = Math.hypot(dx, dy) || 1;
-  const speed = usePointer ? Math.min(d * 3.4, 620) : clamp(d * 3, 120, 700);
-  const step = Math.min(d, speed * dt);
+  const step = Math.min(d, clamp(d * 3, 120, 700) * dt);
   h.x += dx / d * step;
   h.y += dy / d * step;
 
@@ -874,11 +870,6 @@ function setMotion(on) {
 }
 
 // ================= interaction =================
-addEventListener('pointermove', e => {
-  pointer = { x: e.clientX + scrollX, y: e.clientY + scrollY };
-  pointerAt = performance.now() / 1000;
-}, { passive: true });
-
 const prog = document.getElementById('prog');
 addEventListener('scroll', () => {
   const max = document.body.scrollHeight - innerHeight;
@@ -925,8 +916,9 @@ themeBtn.addEventListener('click', () => {
 
 // ---------- copy email ----------
 const MAIL = 'shezinkhais@gmail.com';
-const copyBtn = document.getElementById('copyMail');
-copyBtn.addEventListener('click', async () => {
+const mailLink = document.getElementById('mailLink');
+
+async function copyMail() {
   let ok = true;
   try { await navigator.clipboard.writeText(MAIL); }
   catch {
@@ -937,9 +929,18 @@ copyBtn.addEventListener('click', async () => {
     try { ok = document.execCommand('copy'); } catch { ok = false; }
     ta.remove();
   }
-  copyBtn.textContent = ok ? 'Copied' : 'Press ⌘C';
-  copyBtn.style.color = ok ? 'var(--sn-lite)' : '';
-  setTimeout(() => { copyBtn.textContent = 'Copy email'; copyBtn.style.color = ''; }, 1400);
+  mailLink.textContent = ok ? 'Copied to clipboard' : 'Press ' + (APPLE ? '⌘C' : 'Ctrl+C') + ' to copy';
+  mailLink.style.color = ok ? 'var(--sn-lite)' : '';
+  clearTimeout(mailLink._t);
+  mailLink._t = setTimeout(() => { mailLink.textContent = MAIL; mailLink.style.color = ''; }, 1500);
+}
+
+// the address stays a real mailto for middle-click and "copy link", but a plain
+// click copies it, which is what people actually want from an address on a page
+mailLink.addEventListener('click', e => {
+  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+  e.preventDefault();
+  copyMail();
 });
 
 // ---------- section rail ----------
@@ -977,7 +978,7 @@ const ITEMS = [...document.querySelectorAll('.card')].map(c => ({
 })).concat([
   { name: 'GitHub', desc: 'github.com/ShezinKhais', kind: 'link', run: () => location.assign('https://github.com/ShezinKhais') },
   { name: 'LinkedIn', desc: 'linkedin.com/in/shezinkhaiser', kind: 'link', run: () => location.assign('https://www.linkedin.com/in/shezinkhaiser/') },
-  { name: 'Email', desc: MAIL, kind: 'link', run: () => location.assign('mailto:' + MAIL) },
+  { name: 'Copy email', desc: MAIL, kind: 'action', run: copyMail },
   { name: 'Toggle theme', desc: 'Switch between light and dark', kind: 'action', run: () => themeBtn.click() },
   { name: 'Toggle motion', desc: 'Pause or resume the snake', kind: 'action', run: () => motionBtn.click() }
 ]);
