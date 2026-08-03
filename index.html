@@ -7,18 +7,38 @@
 <meta name="description" content="Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.">
 <style>
   :root {
-    --bg:#0d1117; --panel:rgba(18,24,32,.72); --panel-hi:rgba(30,39,52,.86);
+    --bg:#0d1117; --panel:rgba(18,24,32,.70); --panel-hi:rgba(30,39,52,.86);
     --fg:#e6edf3; --muted:#8b949e; --dim:#6e7681;
     --line:#22282f; --accent:#58a6ff;
-    --py:#4b8bbe; --py-deep:#2b5b84; --py2:#ffd43b;
+    --py:#4b8bbe; --py2:#ffd43b;
+    /* snake */
+    --sn-deep:#123d1e; --sn-dark:#1d6b33; --sn-mid:#3fa055;
+    --sn-lite:#7ad48f; --sn-belly:#d7e9a8; --sn-eye:#ffd43b;
   }
+  /* dark is the :root default above; light applies when the system asks for it
+     and the user hasn't pinned dark, or when they've explicitly pinned light. */
   @media (prefers-color-scheme: light) {
-    :root {
-      --bg:#fbfcfd; --panel:rgba(255,255,255,.82); --panel-hi:rgba(255,255,255,.95);
+    :root:not([data-theme="dark"]) {
+      --bg:#fbfcfd; --panel:rgba(255,255,255,.80); --panel-hi:rgba(255,255,255,.95);
       --fg:#1f2328; --muted:#57606a; --dim:#7d8590;
       --line:#d8dee4; --accent:#0969da;
-      --py:#4584b6; --py-deep:#27567d; --py2:#d99400;
+      --py:#4584b6; --py2:#d99400;
+      --sn-deep:#0f3419; --sn-dark:#1a5c2c; --sn-mid:#31894a;
+      --sn-lite:#63bd7c; --sn-belly:#c3dc8f; --sn-eye:#e0a800;
     }
+  }
+  :root[data-theme="light"] {
+    --bg:#fbfcfd; --panel:rgba(255,255,255,.80); --panel-hi:rgba(255,255,255,.95);
+    --fg:#1f2328; --muted:#57606a; --dim:#7d8590;
+    --line:#d8dee4; --accent:#0969da;
+    --py:#4584b6; --py2:#d99400;
+    --sn-deep:#0f3419; --sn-dark:#1a5c2c; --sn-mid:#31894a;
+    --sn-lite:#63bd7c; --sn-belly:#c3dc8f; --sn-eye:#e0a800;
+  }
+
+  .vh {
+    position:absolute; width:1px; height:1px; margin:-1px; padding:0;
+    overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; border:0;
   }
   * { box-sizing:border-box; }
   html { scroll-behavior:smooth; }
@@ -32,7 +52,7 @@
   /* scroll progress */
   #prog {
     position:fixed; top:0; left:0; height:2px; width:0;
-    background:linear-gradient(90deg,var(--py),var(--py2));
+    background:linear-gradient(90deg,var(--sn-dark),var(--sn-lite));
     z-index:50; transition:width .08s linear;
   }
 
@@ -51,7 +71,7 @@
     display:flex; align-items:center; gap:8px;
   }
   .hint .dot {
-    width:6px; height:6px; border-radius:50%; background:var(--py2);
+    width:6px; height:6px; border-radius:50%; background:var(--sn-lite);
     animation:pulse 2s ease-in-out infinite;
   }
   @keyframes pulse { 0%,100%{opacity:.35;transform:scale(.8)} 50%{opacity:1;transform:scale(1.15)} }
@@ -65,23 +85,21 @@
   }
   .links a::before {
     content:""; position:absolute; inset:0;
-    background:linear-gradient(90deg,transparent,rgba(255,212,59,.14),transparent);
+    background:linear-gradient(90deg,transparent,rgba(122,212,143,.18),transparent);
     transform:translateX(-100%); transition:transform .55s ease;
   }
-  .links a:hover { color:var(--fg); border-color:var(--accent); transform:translateY(-2px); }
+  .links a:hover { color:var(--fg); border-color:var(--sn-mid); transform:translateY(-2px); }
   .links a:hover::before { transform:translateX(100%); }
 
   /* ---------- stats ---------- */
-  .stats {
-    display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:34px;
-  }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:34px; }
   .stat {
     border:1px solid var(--line); border-radius:10px; padding:14px 16px;
     background:var(--panel); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
     transition:border-color .25s, transform .25s;
   }
-  .stat:hover { border-color:var(--py); transform:translateY(-3px); }
-  .stat b { display:block; font-size:26px; color:var(--py2); font-weight:600; line-height:1.2; }
+  .stat:hover { border-color:var(--sn-mid); transform:translateY(-3px); }
+  .stat b { display:block; font-size:26px; color:var(--sn-lite); font-weight:600; line-height:1.2; }
   .stat span { font-size:11.5px; color:var(--dim); }
   @media (max-width:560px){ .stats{grid-template-columns:1fr;} }
 
@@ -113,29 +131,41 @@
   /* cursor-tracked glow */
   .card::after {
     content:""; position:absolute; inset:0; opacity:0; pointer-events:none;
-    background:radial-gradient(340px circle at var(--mx,50%) var(--my,50%), rgba(88,166,255,.13), transparent 62%);
+    background:radial-gradient(340px circle at var(--mx,50%) var(--my,50%), rgba(122,212,143,.14), transparent 62%);
     transition:opacity .3s;
   }
   .card:hover::after { opacity:1; }
 
   .card::before {
     content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
-    background:linear-gradient(var(--py), var(--py2));
+    background:linear-gradient(var(--sn-dark), var(--sn-lite));
     transform:scaleY(0); transform-origin:top; transition:transform .32s ease;
   }
-  .card:hover { border-color:var(--accent); background:var(--panel-hi); box-shadow:0 10px 34px rgba(0,0,0,.22); }
+  .card:hover { border-color:var(--sn-mid); background:var(--panel-hi); box-shadow:0 10px 34px rgba(0,0,0,.22); }
   .card:hover::before { transform:scaleY(1); }
   .card:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 
   .card h3 { margin:0; font-size:16.5px; color:var(--accent); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
   .card h3 .arrow { opacity:0; transform:translateX(-5px); transition:opacity .25s, transform .25s; }
   .card:hover h3 .arrow { opacity:1; transform:translateX(0); }
-  .card p { margin:9px 0 0; font-size:13.5px; color:var(--muted); }
+  /* overflow:hidden makes this its own formatting context, so the reflow float
+     below is contained here and can never shove .more/.chips around. JS pins an
+     explicit height with two spare lines, so wrapping never resizes the card. */
+  .card > p { margin:9px 0 0; font-size:13.5px; color:var(--muted); overflow:hidden; }
+
+  /* invisible float whose shape-outside is redrawn from the snake's silhouette,
+     so the card copy flows around the body as it passes through. */
+  .flow {
+    float:left; width:100%; height:0; shape-margin:11px;
+    pointer-events:none; user-select:none;
+  }
 
   .more { display:grid; grid-template-rows:0fr; opacity:0; transition:grid-template-rows .35s ease, opacity .35s ease; }
   .card:hover .more, .card:focus-visible .more { grid-template-rows:1fr; opacity:1; }
+  /* no hover on touch, so the detail would otherwise be unreachable there */
+  @media (hover:none) { .more { grid-template-rows:1fr; opacity:1; } }
   .more > div { overflow:hidden; }
-  .more p { font-size:12.5px; color:var(--dim); border-left:2px solid var(--py); padding-left:12px; margin-top:12px; }
+  .more p { font-size:12.5px; color:var(--dim); border-left:2px solid var(--sn-mid); padding-left:12px; margin-top:12px; }
 
   .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:13px; }
   .chip {
@@ -143,11 +173,81 @@
     border-radius:20px; padding:2px 10px;
     transition:color .25s, border-color .25s, transform .25s;
   }
-  .card:hover .chip { color:var(--muted); border-color:var(--py); }
+  .card:hover .chip { color:var(--muted); border-color:var(--sn-mid); }
   .status {
     font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--py2);
     border:1px solid currentColor; border-radius:20px; padding:1px 9px; font-weight:600;
   }
+
+  /* ---------- top-right controls ---------- */
+  .tools {
+    position:fixed; top:16px; right:18px; z-index:40;
+    display:flex; gap:8px; align-items:center;
+  }
+  .tool {
+    font:inherit; font-size:11px; letter-spacing:.04em; color:var(--dim);
+    background:var(--panel); border:1px solid var(--line); border-radius:7px;
+    padding:6px 10px; cursor:pointer; line-height:1;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:color .2s, border-color .2s, transform .2s;
+  }
+  .tool:hover { color:var(--fg); border-color:var(--sn-mid); transform:translateY(-1px); }
+  .tool:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .tool kbd { font:inherit; color:var(--muted); }
+  @media (max-width:720px){
+    .tools { position:static; margin:18px 0 0; padding:0 24px; justify-content:flex-start; flex-wrap:wrap; }
+  }
+
+  /* ---------- section rail ---------- */
+  .rail {
+    position:fixed; right:20px; top:50%; transform:translateY(-50%); z-index:40;
+    display:flex; flex-direction:column; gap:14px; align-items:flex-end;
+  }
+  .rail button {
+    display:flex; align-items:center; gap:9px; background:none; border:0; padding:0;
+    cursor:pointer; font:inherit; font-size:10.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--dim);
+  }
+  .rail span { opacity:0; transform:translateX(6px); transition:opacity .25s, transform .25s; }
+  .rail button:hover span, .rail button[aria-current="true"] span { opacity:1; transform:translateX(0); }
+  .rail i {
+    width:7px; height:7px; border-radius:50%; border:1px solid var(--dim);
+    transition:background .25s, border-color .25s, transform .25s;
+  }
+  .rail button[aria-current="true"] i { background:var(--sn-lite); border-color:var(--sn-lite); transform:scale(1.3); }
+  .rail button:focus-visible { outline:2px solid var(--accent); outline-offset:4px; border-radius:4px; }
+  @media (max-width:900px){ .rail{ display:none; } }
+
+  /* ---------- command palette ---------- */
+  #pal[hidden] { display:none; }
+  #pal {
+    position:fixed; inset:0; z-index:60; display:flex;
+    justify-content:center; padding-top:14vh;
+    background:rgba(0,0,0,.45); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    animation:palIn .18s ease;
+  }
+  @keyframes palIn { from{opacity:0} to{opacity:1} }
+  .palbox {
+    width:min(560px,92vw); align-self:flex-start; max-height:70vh; display:flex; flex-direction:column;
+    background:var(--panel-hi); border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 24px 60px rgba(0,0,0,.42); overflow:hidden;
+    animation:palRise .2s cubic-bezier(.16,1,.3,1);
+  }
+  @keyframes palRise { from{opacity:0;transform:translateY(-10px)} to{opacity:1;transform:translateY(0)} }
+  #palq {
+    font:inherit; font-size:14px; color:var(--fg); background:none;
+    border:0; border-bottom:1px solid var(--line); padding:15px 17px; outline:none;
+  }
+  #palq::placeholder { color:var(--dim); }
+  #pallist { list-style:none; margin:0; padding:6px; overflow-y:auto; }
+  #pallist li {
+    display:flex; align-items:baseline; gap:10px; padding:9px 11px; border-radius:8px;
+    font-size:13px; cursor:pointer; color:var(--muted);
+  }
+  #pallist li em { font-style:normal; color:var(--fg); }
+  #pallist li small { margin-left:auto; font-size:10.5px; color:var(--dim); letter-spacing:.06em; text-transform:uppercase; }
+  #pallist li[aria-selected="true"] { background:var(--panel); color:var(--fg); box-shadow:inset 2px 0 0 var(--sn-lite); }
+  .palempty { padding:20px 17px; font-size:12.5px; color:var(--dim); }
 
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
@@ -158,6 +258,7 @@
     *, *::before, *::after { transition:none !important; animation:none !important; }
     body.anim .card { opacity:1; transform:none; }
     h2::after { transform:scaleX(1); }
+    .flow { display:none; }
   }
 </style>
 </head>
@@ -165,20 +266,40 @@
 <div id="prog"></div>
 <canvas id="bg"></canvas>
 
+<div class="tools">
+  <button class="tool" id="palOpen" aria-haspopup="dialog">Search <kbd>&#8984;K</kbd></button>
+  <button class="tool" id="themeBtn" aria-label="Switch colour theme">Theme</button>
+  <button class="tool" id="motionBtn" aria-pressed="false">Pause motion</button>
+</div>
+
+<nav class="rail" id="rail" aria-label="Sections"></nav>
+
+<div id="pal" hidden role="dialog" aria-modal="true" aria-label="Command palette">
+  <div class="palbox">
+    <input id="palq" type="text" autocomplete="off" spellcheck="false"
+           placeholder="Jump to a project, or type to filter&hellip;" aria-controls="pallist">
+    <ul id="pallist" role="listbox" aria-label="Results"></ul>
+  </div>
+</div>
+
 <div class="wrap">
-  <header>
+  <header id="sec-intro">
+    <!-- The hero is painted on canvas so the text can reflow around the snake.
+         This keeps a real heading for screen readers, search engines and no-JS. -->
+    <h1 class="vh">Shezin Khais: computer science student, Python tooling and research utilities</h1>
+
     <div id="heroSpace"></div>
     <div class="noscript-hero">
-      <h1>Shezin Khais</h1>
       <p>Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.</p>
     </div>
 
-    <div class="hint"><span class="dot"></span> move your cursor &mdash; the snake follows</div>
+    <div class="hint"><span class="dot"></span> the snake tours the projects, then coils around the name &middot; move your cursor to take control</div>
 
     <nav class="links">
       <a href="https://github.com/ShezinKhais">GitHub</a>
       <a href="https://www.linkedin.com/in/shezinkhaiser/">LinkedIn</a>
       <a href="mailto:shezinkhais@gmail.com">shezinkhais@gmail.com</a>
+      <button class="tool" id="copyMail" style="border-radius:6px;padding:6px 13px;font-size:13px">Copy email</button>
     </nav>
 
     <div class="stats">
@@ -188,7 +309,7 @@
     </div>
   </header>
 
-  <section>
+  <section id="sec-featured">
     <h2>Featured</h2>
 
     <a class="card" href="https://github.com/ShezinKhais/codecartographer">
@@ -210,7 +331,7 @@
     </a>
   </section>
 
-  <section>
+  <section id="sec-progress">
     <h2>In progress</h2>
 
     <a class="card" href="https://github.com/ShezinKhais/echolock">
@@ -232,7 +353,7 @@
     </a>
   </section>
 
-  <section>
+  <section id="sec-other">
     <h2>Other projects</h2>
 
     <a class="card" href="https://github.com/ShezinKhais/claimaudit">
@@ -262,7 +383,7 @@
 
   <footer>
     Every project ships with a pytest suite and GitHub Actions CI.
-    Hero text is laid out with <a href="https://github.com/chenglou/pretext">pretext</a> and reflows around the snake in real time.
+    Hero text is laid out with <a href="https://github.com/chenglou/pretext">pretext</a>; the card copy reflows around the snake with a live <code>shape-outside</code> silhouette.
   </footer>
 </div>
 
@@ -273,7 +394,6 @@ import { prepareWithSegments, layoutNextLine }
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
 const canvas = document.getElementById('bg');
 const ctx = canvas.getContext('2d');
-const wrap = document.querySelector('.wrap');
 const heroSpace = document.getElementById('heroSpace');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -284,6 +404,7 @@ let PW = 900, PH = 2000, CW = 852, CX = 24, dpr = 1;
 let fName, fBio, LH_BIO, prepBio, nameSize;
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 function fonts() {
   nameSize = CW < 520 ? 30 : 46;
@@ -303,6 +424,41 @@ function measureHero() {
   return nameSize + 28 + y + 24;
 }
 
+// ================= card text reflow =================
+// One invisible full-width float per card paragraph. Its shape-outside is
+// rewritten from the snake's silhouette, so the copy genuinely wraps around it.
+const flows = [];
+document.querySelectorAll('.card').forEach(card => {
+  const p = card.querySelector(':scope > p');
+  if (!p) return;
+  const f = document.createElement('i');
+  f.className = 'flow';
+  f.setAttribute('aria-hidden', 'true');
+  p.insertBefore(f, p.firstChild);
+  flows.push({ card, p, f, on:false });
+});
+
+function flowOff(o) {
+  if (!o.on) return;
+  o.f.style.height = '0px';
+  o.f.style.shapeOutside = 'none';
+  o.on = false;
+}
+
+// Wrapping around the snake costs extra lines. Pin each paragraph to its natural
+// height plus two spare lines so the card never resizes mid-slither.
+function reserveParagraphs() {
+  for (const o of flows) { flowOff(o); o.p.style.height = ''; }
+  const nat = flows.map(o => ({
+    h: o.p.offsetHeight,
+    lh: parseFloat(getComputedStyle(o.p).lineHeight) || 22
+  }));
+  flows.forEach((o, i) => {
+    o.h = Math.round(nat[i].h + nat[i].lh * 2);
+    o.p.style.height = o.h + 'px';
+  });
+}
+
 function resize() {
   PW = Math.max(320, document.documentElement.clientWidth || innerWidth || 900);
   const col = Math.min(900, PW);
@@ -311,6 +467,7 @@ function resize() {
   fonts();
 
   heroSpace.style.height = measureHero() + 'px';
+  reserveParagraphs();
 
   // Canvas is absolute inside a relative body, so it inflates scrollHeight.
   // Collapse before measuring or each resize compounds the last.
@@ -322,35 +479,109 @@ function resize() {
   canvas.height = Math.round(PH * dpr);
   canvas.style.width  = PW + 'px';
   canvas.style.height = PH + 'px';
+
+  buildPath();
 }
 
 // ================= snake =================
-const N = 78, SPACING = 8, MAXW = 15;
+const N = 96, SPACING = 8, MAXW = 15;   // ~770px of body, enough to fill the coil
 const joints = [];
 let pointer = null, pointerAt = -1e9;
+let lastRibs = [];
 
 function seedJoints() {
   joints.length = 0;
   for (let i = 0; i < N; i++) joints.push({ x: PW * 0.5, y: -i * SPACING });
 }
 
-// Where the head wants to be when the cursor is idle: a slow wander down the page.
-function wander(t) {
-  const span = PH + 500;
-  return {
-    x: PW * 0.5 + Math.sin(t * 0.55) * PW * 0.26,
-    y: ((t * 105) % span) - 250
-  };
+// ---- the route: down through the cards, back up, then coil on the name ----
+let path = [], loopFrom = 0, pathIdx = 0, pathPos = 0;
+
+function nameBox() {
+  ctx.font = fName;
+  const w = ctx.measureText(NAME).width;
+  const top = heroSpace.getBoundingClientRect().top + scrollY;
+  return { x: CX, y: top + nameSize * 0.26, w, h: nameSize * 0.74 };
+}
+
+// A stadium, not an ellipse: straight runs clear above and below the name and the
+// round caps sit past its ends, so the body never lies across a glyph.
+function coilPoints(b) {
+  const ry = b.h / 2 + 28, pad = 14, V = 24, S = 14, v = 52;
+  const cy = b.y + b.h / 2;
+  let x1 = b.x - pad, x2 = b.x + b.w + pad;
+  const shift = Math.max(0, 12 - (x1 - ry));   // keep the left cap on the canvas
+  x1 += shift; x2 += shift;
+
+  const out = [];
+  for (let i = 0; i <= S; i++) out.push({ x: x1 + (x2 - x1) * i / S, y: cy - ry, v });
+  for (let i = 1; i < V; i++) {
+    const a = -Math.PI / 2 + Math.PI * i / V;
+    out.push({ x: x2 + Math.cos(a) * ry, y: cy + Math.sin(a) * ry, v });
+  }
+  for (let i = 0; i <= S; i++) out.push({ x: x2 - (x2 - x1) * i / S, y: cy + ry, v });
+  for (let i = 1; i < V; i++) {
+    const a = Math.PI / 2 + Math.PI * i / V;
+    out.push({ x: x1 + Math.cos(a) * ry, y: cy + Math.sin(a) * ry, v });
+  }
+  return out;
+}
+
+function buildPath() {
+  const pts = [{ x: CX + CW * 0.5, y: -240, v: 380 }];
+  const L = CX + CW * 0.22, R = CX + CW * 0.78;
+
+  document.querySelectorAll('.card').forEach((c, i) => {
+    const r = c.getBoundingClientRect();
+    const top = r.top + scrollY;
+    pts.push({ x: i % 2 ? R : L, y: top + r.height * 0.30, v: 380 });
+    pts.push({ x: i % 2 ? L : R, y: top + r.height * 0.76, v: 380 });
+  });
+
+  const bottom = PH - 70;
+  pts.push({ x: CX + CW * 0.5, y: bottom, v: 400 });
+  pts.push({ x: CX + CW * 0.95, y: bottom - PH * 0.30, v: 470 });
+  pts.push({ x: CX + CW * 0.05, y: bottom - PH * 0.60, v: 470 });
+  pts.push({ x: CX + CW * 0.92, y: bottom - PH * 0.82, v: 470 });
+
+  const box = nameBox();
+  pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 300 });
+
+  loopFrom = pts.length;
+  for (const p of coilPoints(box)) pts.push(p);
+
+  path = pts;
+  if (pathIdx >= path.length) { pathIdx = loopFrom; pathPos = 0; }
+}
+
+const nextIdx = i => (i + 1 >= path.length ? loopFrom : i + 1);
+
+function walk(dt) {
+  if (!path.length) return { x: PW * 0.5, y: PH * 0.5 };
+  let budget = (path[pathIdx].v || 300) * dt, guard = 0;
+  while (budget > 0 && guard++ < 400) {
+    const a = path[pathIdx], b = path[nextIdx(pathIdx)];
+    const seg = Math.hypot(b.x - a.x, b.y - a.y);
+    const remain = seg - pathPos;
+    if (budget < remain) { pathPos += budget; break; }
+    budget -= Math.max(remain, 0);
+    pathIdx = nextIdx(pathIdx);
+    pathPos = 0;
+  }
+  const a = path[pathIdx], b = path[nextIdx(pathIdx)];
+  const seg = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const k = clamp(pathPos / seg, 0, 1);
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
 }
 
 function stepSnake(t, dt) {
-  const usePointer = pointer && (t - pointerAt) < 2.6;
-  const tgt = usePointer ? pointer : wander(t);
+  const usePointer = pointer && (t - pointerAt) < 3.0;
+  const tgt = usePointer ? pointer : walk(dt);
 
   const h = joints[0];
   const dx = tgt.x - h.x, dy = tgt.y - h.y;
   const d = Math.hypot(dx, dy) || 1;
-  const speed = usePointer ? Math.min(d * 3.4, 620) : 240;
+  const speed = usePointer ? Math.min(d * 3.4, 620) : clamp(d * 3, 120, 700);
   const step = Math.min(d, speed * dt);
   h.x += dx / d * step;
   h.y += dy / d * step;
@@ -375,7 +606,7 @@ function ribs(t) {
   for (let i = 0; i < joints.length; i++) {
     const a = joints[Math.max(0, i - 1)], b = joints[Math.min(joints.length - 1, i + 1)];
     const dx = b.x - a.x, dy = b.y - a.y, m = Math.hypot(dx, dy) || 1;
-    const tx = dx / m, ty = dy / m;
+    const tx = dx / m, ty = dy / m;   // points toward the tail
     const f = 1 - i / joints.length;
     // lateral undulation keeps it alive even when the head is still
     const wob = Math.sin(i * 0.34 - t * 5.2) * 3.1 * (1 - f) * 0.9;
@@ -389,39 +620,64 @@ function ribs(t) {
 
 function drawSnake(t) {
   const p = ribs(t);
+  lastRibs = p;
   if (!p.some(q => q.y > -80 && q.y < PH + 80)) return;
 
+  const outline = (k) => {
+    ctx.beginPath();
+    ctx.moveTo(p[0].x + p[0].nx * p[0].hw * k, p[0].y + p[0].ny * p[0].hw * k);
+    for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * k, p[i].y + p[i].ny * p[i].hw * k);
+    for (let i = p.length - 1; i >= 0; i--) ctx.lineTo(p[i].x - p[i].nx * p[i].hw * k, p[i].y - p[i].ny * p[i].hw * k);
+    ctx.closePath();
+  };
+
   // body
-  ctx.beginPath();
-  ctx.moveTo(p[0].x + p[0].nx * p[0].hw, p[0].y + p[0].ny * p[0].hw);
-  for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x + p[i].nx * p[i].hw, p[i].y + p[i].ny * p[i].hw);
-  for (let i = p.length - 1; i >= 0; i--) ctx.lineTo(p[i].x - p[i].nx * p[i].hw, p[i].y - p[i].ny * p[i].hw);
-  ctx.closePath();
-  const g = ctx.createLinearGradient(p[p.length-1].x, p[p.length-1].y, p[0].x, p[0].y);
-  g.addColorStop(0, css('--py-deep'));
-  g.addColorStop(1, css('--py'));
+  outline(1);
+  const g = ctx.createLinearGradient(p[p.length - 1].x, p[p.length - 1].y, p[0].x, p[0].y);
+  g.addColorStop(0, css('--sn-deep'));
+  g.addColorStop(0.45, css('--sn-dark'));
+  g.addColorStop(1, css('--sn-mid'));
   ctx.fillStyle = g; ctx.fill();
 
-  // belly band
+  // belly, on the inner flank
   ctx.beginPath();
-  ctx.moveTo(p[0].x + p[0].nx * p[0].hw * .42, p[0].y + p[0].ny * p[0].hw * .42);
-  for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * .42, p[i].y + p[i].ny * p[i].hw * .42);
-  for (let i = p.length - 1; i >= 0; i--) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * .9, p[i].y + p[i].ny * p[i].hw * .9);
+  ctx.moveTo(p[0].x + p[0].nx * p[0].hw * .40, p[0].y + p[0].ny * p[0].hw * .40);
+  for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * .40, p[i].y + p[i].ny * p[i].hw * .40);
+  for (let i = p.length - 1; i >= 0; i--) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * .92, p[i].y + p[i].ny * p[i].hw * .92);
   ctx.closePath();
-  ctx.fillStyle = css('--py2'); ctx.globalAlpha = .15; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = css('--sn-belly'); ctx.globalAlpha = .22; ctx.fill(); ctx.globalAlpha = 1;
 
-  // scales
-  ctx.strokeStyle = css('--py-deep'); ctx.lineWidth = 1.4;
-  for (let i = 5; i < p.length - 9; i += 3) {
+  // ---- scales: brick-offset rows of small overlapping arcs ----
+  ctx.lineCap = 'round';
+  const dark = css('--sn-deep'), lite = css('--sn-lite');
+  for (let i = 3; i < p.length - 7; i += 2) {
     const q = p[i];
-    ctx.globalAlpha = .18 + .3 * (0.5 + 0.5 * Math.sin(i * 0.5 - t * 5)) * q.f;
-    const w = q.hw * .8;
-    ctx.beginPath();
-    ctx.moveTo(q.x - q.nx * w, q.y - q.ny * w);
-    ctx.quadraticCurveTo(q.x + q.tx * 5, q.y + q.ty * 5, q.x + q.nx * w, q.y + q.ny * w);
-    ctx.stroke();
+    const row = (i >> 1) % 2;
+    const offs = row ? [-0.64, 0, 0.64] : [-0.34, 0.34];
+    const sc = Math.max(q.hw * 0.34, 1.4);
+    const shimmer = 0.5 + 0.5 * Math.sin(i * 0.42 - t * 4.4);
+    ctx.strokeStyle = row ? dark : lite;
+    ctx.globalAlpha = (row ? 0.30 : 0.22) + 0.22 * shimmer * q.f;
+    ctx.lineWidth = 1.15;
+    for (const o of offs) {
+      const bx = q.x + q.nx * q.hw * o, by = q.y + q.ny * q.hw * o;
+      ctx.beginPath();
+      ctx.moveTo(bx - q.nx * sc, by - q.ny * sc);
+      ctx.quadraticCurveTo(bx + q.tx * sc * 1.7, by + q.ty * sc * 1.7, bx + q.nx * sc, by + q.ny * sc);
+      ctx.stroke();
+    }
   }
   ctx.globalAlpha = 1;
+
+  // a thin dorsal highlight so the body reads as round
+  ctx.strokeStyle = lite; ctx.globalAlpha = .16; ctx.lineWidth = 2;
+  ctx.beginPath();
+  for (let i = 0; i < p.length; i++) {
+    const x = p[i].x - p[i].nx * p[i].hw * .5, y = p[i].y - p[i].ny * p[i].hw * .5;
+    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+  }
+  ctx.stroke(); ctx.globalAlpha = 1;
+
   drawHead(p[0], t);
 }
 
@@ -438,26 +694,40 @@ function drawHead(h, t) {
   ctx.quadraticCurveTo(-L * .5, Wd * .34, -L * .12, Wd * .5);
   ctx.quadraticCurveTo(L * .45, Wd * .52, L * .62, 0);
   ctx.closePath();
-  ctx.fillStyle = css('--py'); ctx.fill();
+  ctx.fillStyle = css('--sn-mid'); ctx.fill();
 
+  // brow shading
   ctx.beginPath();
   ctx.ellipse(-L * .05, 0, L * .33, Wd * .38, 0, 0, 7);
-  ctx.fillStyle = css('--py-deep'); ctx.globalAlpha = .34; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = css('--sn-deep'); ctx.globalAlpha = .34; ctx.fill(); ctx.globalAlpha = 1;
 
+  // head scales
+  ctx.strokeStyle = css('--sn-deep'); ctx.globalAlpha = .35; ctx.lineWidth = 1;
   for (const s of [-1, 1]) {
-    ctx.beginPath(); ctx.ellipse(L * .07, s * Wd * .29, 3.7, 3.3, 0, 0, 7);
-    ctx.fillStyle = css('--py2'); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(L * .10, s * Wd * .29, 1.1, 2.5, 0, 0, 7);
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      ctx.arc(-L * .30 + k * L * .16, s * Wd * .17, 3.2, -0.9, 2.2);
+      ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+
+  // eyes with a vertical slit pupil
+  for (const s of [-1, 1]) {
+    ctx.beginPath(); ctx.ellipse(L * .07, s * Wd * .29, 3.9, 3.4, 0, 0, 7);
+    ctx.fillStyle = css('--sn-eye'); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(L * .10, s * Wd * .29, 1.1, 2.6, 0, 0, 7);
     ctx.fillStyle = '#0f1317'; ctx.fill();
   }
-  ctx.fillStyle = css('--py-deep');
+  ctx.fillStyle = css('--sn-deep');
   for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(L * .46, s * Wd * .15, 1.1, .9, 0, 0, 7); ctx.fill(); }
 
+  // forked tongue, flicked on a cycle
   const cyc = (t % 2.3) / 2.3;
   const out = cyc < .25 ? Math.sin(cyc / .25 * Math.PI) : 0;
   if (out > .01) {
     const base = L * .62, len = 17 * out, fork = 6.5 * out, wob = Math.sin(t * 24) * 2.4 * out;
-    ctx.strokeStyle = css('--py2'); ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+    ctx.strokeStyle = '#e0556b'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(base, 0);
     ctx.quadraticCurveTo(base + len * .6, wob, base + len, wob);
@@ -477,6 +747,71 @@ function spanAt(yTop, yBot) {
   return lo === Infinity ? null : [lo - MAXW - 22, hi + MAXW + 30];
 }
 
+// ---- push the silhouette into each card paragraph ----
+const BAND = 14, MAX_EAT = 0.40;
+let flowTick = 0;
+
+function updateFlows() {
+  if (reduced || !flows.length || flowTick++ % 3) return;
+
+  const top = scrollY - 220, bot = scrollY + innerHeight + 220;
+  const reads = [];
+  for (const o of flows) {
+    const r = o.f.getBoundingClientRect();
+    const y = r.top + scrollY, H = o.h || o.p.offsetHeight, w = r.width;
+    if (!w || !H || y + H < top || y > bot) { reads.push(null); flowOff(o); continue; }
+    reads.push({ o, x: r.left + scrollX, y, w, H });
+  }
+
+  for (const rd of reads) {
+    if (!rd) continue;
+    const { o, x, y, w, H } = rd;
+    const rows = Math.max(1, Math.ceil(H / BAND));
+    const lo = new Array(rows).fill(Infinity), hi = new Array(rows).fill(-Infinity);
+    let hit = false, sum = 0, n = 0;
+
+    for (const q of lastRibs) {
+      if (q.y + q.hw < y || q.y - q.hw > y + H) continue;
+      const j0 = Math.max(0, Math.floor((q.y - q.hw - y) / BAND));
+      const j1 = Math.min(rows - 1, Math.floor((q.y + q.hw - y) / BAND));
+      const a = q.x - q.hw - x, b = q.x + q.hw - x;
+      if (b < 0 || a > w) continue;
+      for (let j = j0; j <= j1; j++) {
+        if (a < lo[j]) lo[j] = a;
+        if (b > hi[j]) hi[j] = b;
+      }
+      hit = true; sum += q.x - x; n++;
+    }
+
+    if (!hit) { flowOff(o); continue; }
+
+    const left = (sum / n) < w / 2;         // snake on the left -> shove text right
+    const cap = w * MAX_EAT;
+    const pts = [];
+    if (left) {
+      pts.push([0, 0]);
+      for (let j = 0; j < rows; j++) {
+        const e = hi[j] === -Infinity ? 0 : clamp(hi[j], 0, cap);
+        pts.push([e, j * BAND], [e, Math.min((j + 1) * BAND, H)]);
+      }
+      pts.push([0, H]);
+    } else {
+      pts.push([w, 0]);
+      for (let j = 0; j < rows; j++) {
+        const e = lo[j] === Infinity ? w : clamp(lo[j], w - cap, w);
+        pts.push([e, j * BAND], [e, Math.min((j + 1) * BAND, H)]);
+      }
+      pts.push([w, H]);
+    }
+
+    o.f.style.float = left ? 'left' : 'right';
+    o.f.style.height = H + 'px';
+    o.f.style.shapeOutside =
+      'polygon(' + pts.map(q => q[0].toFixed(1) + 'px ' + q[1].toFixed(1) + 'px').join(',') + ')';
+    o.on = true;
+  }
+}
+
 // ================= frame =================
 const heroTop = () => heroSpace.getBoundingClientRect().top + scrollY;
 
@@ -486,8 +821,18 @@ function draw(t) {
   drawSnake(t);
 
   ctx.textBaseline = 'alphabetic';
+  // name, one glyph at a time on first paint
   ctx.font = fName; ctx.fillStyle = css('--fg');
-  ctx.fillText(NAME, CX, heroTop() + nameSize);
+  const nb = heroTop() + nameSize;
+  let nx = CX;
+  for (const ch of NAME) {
+    const k = reduced ? 1 : clamp((t - 0.15 - nx * 0.0016) / 0.5, 0, 1);
+    const e = 1 - Math.pow(1 - k, 3);
+    ctx.globalAlpha = e;
+    ctx.fillText(ch, nx, nb + (1 - e) * 18);
+    nx += ctx.measureText(ch).width;
+  }
+  ctx.globalAlpha = 1;
 
   ctx.font = fBio; ctx.fillStyle = css('--muted');
   let y = heroTop() + nameSize + 28;
@@ -508,14 +853,24 @@ function draw(t) {
   }
 }
 
-let last = 0;
+let last = 0, rafId = 0, paused = false;
 function frame(ts) {
   const t = ts / 1000;
   const dt = Math.min(last ? t - last : .016, .05);
   last = t;
   stepSnake(t, dt);
   draw(t);
-  requestAnimationFrame(frame);
+  updateFlows();
+  rafId = requestAnimationFrame(frame);
+}
+
+function setMotion(on) {
+  paused = !on;
+  if (paused) { cancelAnimationFrame(rafId); rafId = 0; }
+  else if (!rafId && !reduced) { last = 0; rafId = requestAnimationFrame(frame); }
+  motionBtn.textContent = paused ? 'Resume motion' : 'Pause motion';
+  motionBtn.setAttribute('aria-pressed', String(paused));
+  try { localStorage.setItem('motion', paused ? 'off' : 'on'); } catch {}
 }
 
 // ================= interaction =================
@@ -528,6 +883,7 @@ const prog = document.getElementById('prog');
 addEventListener('scroll', () => {
   const max = document.body.scrollHeight - innerHeight;
   prog.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + '%';
+  syncRail();
 }, { passive: true });
 
 // magnetic card tilt + cursor-tracked glow
@@ -544,6 +900,157 @@ if (!reduced && matchMedia('(hover:hover)').matches) {
     card.addEventListener('pointerleave', () => { card.style.transform = ''; });
   });
 }
+
+// ---------- theme ----------
+const themeBtn = document.getElementById('themeBtn');
+const motionBtn = document.getElementById('motionBtn');
+
+function setTheme(mode) {
+  if (mode) document.documentElement.setAttribute('data-theme', mode);
+  else document.documentElement.removeAttribute('data-theme');
+  try { mode ? localStorage.setItem('theme', mode) : localStorage.removeItem('theme'); } catch {}
+  if (rafId === 0) draw(performance.now() / 1000);   // repaint the canvas when frozen
+}
+motionBtn.addEventListener('click', () => setMotion(paused));
+
+// the palette hint should name the key the visitor actually has
+const APPLE = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+document.querySelector('#palOpen kbd').textContent = APPLE ? '⌘K' : 'Ctrl K';
+
+const systemDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
+themeBtn.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme') || (systemDark() ? 'dark' : 'light');
+  setTheme(cur === 'dark' ? 'light' : 'dark');
+});
+
+// ---------- copy email ----------
+const MAIL = 'shezinkhais@gmail.com';
+const copyBtn = document.getElementById('copyMail');
+copyBtn.addEventListener('click', async () => {
+  let ok = true;
+  try { await navigator.clipboard.writeText(MAIL); }
+  catch {
+    // clipboard API needs a secure context; fall back to a throwaway selection
+    const ta = document.createElement('textarea');
+    ta.value = MAIL; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    try { ok = document.execCommand('copy'); } catch { ok = false; }
+    ta.remove();
+  }
+  copyBtn.textContent = ok ? 'Copied' : 'Press ⌘C';
+  copyBtn.style.color = ok ? 'var(--sn-lite)' : '';
+  setTimeout(() => { copyBtn.textContent = 'Copy email'; copyBtn.style.color = ''; }, 1400);
+});
+
+// ---------- section rail ----------
+const SECTIONS = [
+  ['sec-intro', 'Intro'], ['sec-featured', 'Featured'],
+  ['sec-progress', 'In progress'], ['sec-other', 'Other']
+];
+const rail = document.getElementById('rail');
+const railBtns = SECTIONS.map(([id, label]) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.innerHTML = '<span></span><i></i>';
+  b.querySelector('span').textContent = label;
+  b.setAttribute('aria-label', 'Go to ' + label);
+  b.addEventListener('click', () => document.getElementById(id).scrollIntoView({ block: 'start' }));
+  rail.appendChild(b);
+  return b;
+});
+function syncRail() {
+  const mark = scrollY + innerHeight * 0.32;
+  let active = 0;
+  SECTIONS.forEach(([id], i) => {
+    const el = document.getElementById(id);
+    if (el && el.getBoundingClientRect().top + scrollY <= mark) active = i;
+  });
+  railBtns.forEach((b, i) => b.setAttribute('aria-current', String(i === active)));
+}
+
+// ---------- command palette ----------
+const ITEMS = [...document.querySelectorAll('.card')].map(c => ({
+  name: c.querySelector('h3').textContent.replace(/[→]/g, '').trim(),
+  desc: c.querySelector(':scope > p').textContent.trim(),
+  kind: c.querySelector('.status') ? 'ongoing' : 'project',
+  run: () => location.assign(c.href)
+})).concat([
+  { name: 'GitHub', desc: 'github.com/ShezinKhais', kind: 'link', run: () => location.assign('https://github.com/ShezinKhais') },
+  { name: 'LinkedIn', desc: 'linkedin.com/in/shezinkhaiser', kind: 'link', run: () => location.assign('https://www.linkedin.com/in/shezinkhaiser/') },
+  { name: 'Email', desc: MAIL, kind: 'link', run: () => location.assign('mailto:' + MAIL) },
+  { name: 'Toggle theme', desc: 'Switch between light and dark', kind: 'action', run: () => themeBtn.click() },
+  { name: 'Toggle motion', desc: 'Pause or resume the snake', kind: 'action', run: () => motionBtn.click() }
+]);
+
+const pal = document.getElementById('pal');
+const palq = document.getElementById('palq');
+const pallist = document.getElementById('pallist');
+let shown = [], sel = 0, lastFocus = null;
+
+// subsequence match, so "cdc" finds CodeCartographer
+function fuzzy(q, s) {
+  if (!q) return true;
+  q = q.toLowerCase(); s = s.toLowerCase();
+  let i = 0;
+  for (const ch of s) if (ch === q[i] && ++i === q.length) return true;
+  return false;
+}
+
+function renderPal() {
+  const q = palq.value.trim();
+  shown = ITEMS.filter(it => fuzzy(q, it.name) || it.desc.toLowerCase().includes(q.toLowerCase()));
+  sel = 0;
+  pallist.innerHTML = '';
+  if (!shown.length) {
+    const li = document.createElement('li');
+    li.className = 'palempty'; li.textContent = 'Nothing matches "' + q + '"';
+    pallist.appendChild(li);
+    return;
+  }
+  shown.forEach((it, i) => {
+    const li = document.createElement('li');
+    li.setAttribute('role', 'option');
+    const em = document.createElement('em'); em.textContent = it.name;
+    const sm = document.createElement('small'); sm.textContent = it.kind;
+    li.append(em, sm);
+    li.addEventListener('mouseenter', () => { sel = i; markSel(); });
+    li.addEventListener('click', () => { closePal(); it.run(); });
+    pallist.appendChild(li);
+  });
+  markSel();
+}
+function markSel() {
+  [...pallist.children].forEach((li, i) => li.setAttribute('aria-selected', String(i === sel)));
+  pallist.children[sel]?.scrollIntoView({ block: 'nearest' });
+}
+function openPal() {
+  lastFocus = document.activeElement;
+  pal.hidden = false;
+  palq.value = '';
+  renderPal();
+  palq.focus();
+}
+function closePal() {
+  pal.hidden = true;
+  lastFocus?.focus?.();
+}
+document.getElementById('palOpen').addEventListener('click', openPal);
+pal.addEventListener('click', e => { if (e.target === pal) closePal(); });
+palq.addEventListener('input', renderPal);
+
+addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.hidden ? openPal() : closePal(); return; }
+  if (pal.hidden) {
+    // "/" is a familiar search shortcut, but not while typing somewhere else
+    if (e.key === '/' && !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) { e.preventDefault(); openPal(); }
+    return;
+  }
+  if (e.key === 'Escape') { e.preventDefault(); closePal(); }
+  else if (e.key === 'ArrowDown') { e.preventDefault(); if (shown.length) { sel = (sel + 1) % shown.length; markSel(); } }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); if (shown.length) { sel = (sel - 1 + shown.length) % shown.length; markSel(); } }
+  else if (e.key === 'Enter' && shown[sel]) { e.preventDefault(); const it = shown[sel]; closePal(); it.run(); }
+  else if (e.key === 'Tab') { e.preventDefault(); palq.focus(); }   // keep focus inside the dialog
+});
 
 // count-up stats
 function countUp(el) {
@@ -564,7 +1071,18 @@ document.body.classList.remove('nojs');
 seedJoints();
 resize();
 draw(0);
-if (!reduced) requestAnimationFrame(frame);
+syncRail();
+
+let savedTheme = null, savedMotion = null;
+try { savedTheme = localStorage.getItem('theme'); savedMotion = localStorage.getItem('motion'); } catch {}
+if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+if (reduced) {
+  motionBtn.disabled = true;
+  motionBtn.textContent = 'Motion off';
+  motionBtn.title = 'Your system is set to reduce motion';
+} else {
+  setMotion(savedMotion !== 'off');
+}
 
 let rt;
 addEventListener('resize', () => {
