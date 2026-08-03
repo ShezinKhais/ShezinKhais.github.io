@@ -7,333 +7,377 @@
 <meta name="description" content="Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.">
 <style>
   :root {
-    --bg: #0d1117;
-    --fg: #e6edf3;
-    --muted: #8b949e;
-    --accent: #58a6ff;
+    --bg:#0d1117; --panel:#11161d; --panel-hi:#161c25;
+    --fg:#e6edf3; --muted:#8b949e; --dim:#6e7681;
+    --line:#21262d; --accent:#58a6ff; --py:#4b8bbe; --py2:#ffd43b;
   }
   @media (prefers-color-scheme: light) {
-    :root { --bg: #ffffff; --fg: #1f2328; --muted: #57606a; --accent: #0969da; }
+    :root {
+      --bg:#ffffff; --panel:#f6f8fa; --panel-hi:#eef2f6;
+      --fg:#1f2328; --muted:#57606a; --dim:#7d8590;
+      --line:#d0d7de; --accent:#0969da; --py:#306998; --py2:#e8a400;
+    }
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; background: var(--bg); }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; background:var(--bg); }
   body {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    color: var(--fg);
-    -webkit-font-smoothing: antialiased;
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--fg); -webkit-font-smoothing:antialiased; line-height:1.6;
   }
-  #wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 96px; }
-  #stage { position: relative; }
-  canvas { display: block; width: 100%; }
-  canvas.link { cursor: pointer; }
+  .wrap { max-width:900px; margin:0 auto; padding:0 24px; }
 
-  /* Real, accessible copy for screen readers, crawlers, and no-JS. */
-  .sr {
-    position: absolute; width: 1px; height: 1px;
-    padding: 0; margin: -1px; overflow: hidden;
-    clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-  }
-  /* If JS fails, reveal the real content instead of showing nothing. */
-  .nojs .sr {
-    position: static; width: auto; height: auto;
-    margin: 0; overflow: visible; clip: auto; white-space: normal;
-    line-height: 1.6;
-  }
-  .nojs #stage { display: none; }
-  .sr a { color: var(--accent); }
-  .sr h1 { font-size: 30px; }
-  .sr h2 { font-size: 15px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+  /* ---------- hero ---------- */
+  header { padding:56px 0 8px; }
+  #heroCanvas { display:block; width:100%; }
+  .noscript-hero { display:none; }
+  .nojs .noscript-hero { display:block; }
+  .nojs #heroCanvas { display:none; }
 
-  footer {
-    max-width: 860px; margin: 0 auto; padding: 0 24px 64px;
-    font-size: 13px; color: var(--muted);
+  .links { display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; }
+  .links a {
+    display:inline-flex; align-items:center; gap:7px;
+    font-size:13px; text-decoration:none; color:var(--muted);
+    border:1px solid var(--line); border-radius:6px; padding:6px 12px;
+    transition:color .18s, border-color .18s, background .18s, transform .18s;
   }
-  footer a { color: var(--accent); text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
-  .hint { font-size: 12px; color: var(--muted); margin-top: 28px; }
+  .links a:hover { color:var(--fg); border-color:var(--accent); background:var(--panel); transform:translateY(-2px); }
+
+  /* ---------- sections ---------- */
+  section { margin-top:52px; }
+  h2 {
+    font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--dim); font-weight:600; margin:0 0 16px;
+    display:flex; align-items:center; gap:12px;
+  }
+  h2::after { content:""; flex:1; height:1px; background:var(--line); }
+
+  /* ---------- cards ---------- */
+  .card {
+    position:relative; display:block; text-decoration:none; color:inherit;
+    border:1px solid var(--line); border-radius:10px;
+    background:var(--panel); padding:18px 20px; margin-bottom:12px;
+    overflow:hidden;
+    transition:border-color .22s, background .22s, transform .22s, box-shadow .22s;
+  }
+  /* Cards are visible by default; the entrance animation is opt-in from JS,
+     so a failed module load can never leave the project list invisible. */
+  body.anim .card { opacity:0; transform:translateY(14px); }
+  body.anim .card.in { opacity:1; transform:translateY(0); }
+  .card::before {   /* accent rail that grows on hover */
+    content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
+    background:linear-gradient(var(--py), var(--py2));
+    transform:scaleY(0); transform-origin:top; transition:transform .28s ease;
+  }
+  .card:hover { border-color:var(--accent); background:var(--panel-hi); transform:translateY(-3px); box-shadow:0 6px 22px rgba(0,0,0,.18); }
+  .card:hover::before { transform:scaleY(1); }
+  .card:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  .card h3 { margin:0; font-size:16px; color:var(--accent); display:flex; align-items:center; gap:9px; }
+  .card h3 .arrow { opacity:0; transform:translateX(-4px); transition:opacity .22s, transform .22s; font-size:14px; }
+  .card:hover h3 .arrow { opacity:1; transform:translateX(0); }
+
+  .card p { margin:9px 0 0; font-size:13.5px; color:var(--muted); }
+
+  /* hover-revealed detail */
+  .more {
+    display:grid; grid-template-rows:0fr;
+    transition:grid-template-rows .3s ease, opacity .3s ease;
+    opacity:0;
+  }
+  .card:hover .more, .card:focus-visible .more { grid-template-rows:1fr; opacity:1; }
+  .more > div { overflow:hidden; }
+  .more p { font-size:12.5px; color:var(--dim); border-left:2px solid var(--line); padding-left:11px; margin-top:11px; }
+
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .chip {
+    font-size:11px; color:var(--dim); border:1px solid var(--line);
+    border-radius:20px; padding:2px 10px; transition:color .22s, border-color .22s;
+  }
+  .card:hover .chip { color:var(--muted); border-color:var(--accent); }
+
+  .status { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--py2); border:1px solid currentColor; border-radius:20px; padding:1px 8px; font-weight:600; }
+
+  footer { margin:64px 0 56px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:20px; }
+  footer a { color:var(--muted); text-decoration:none; }
+  footer a:hover { color:var(--accent); text-decoration:underline; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition:none !important; animation:none !important; }
+    .card { opacity:1; transform:none; }
+  }
 </style>
 </head>
 <body class="nojs">
-<div id="wrap">
-  <div id="stage"><canvas id="c"></canvas></div>
+<div class="wrap">
 
-  <div class="sr" id="fallback">
-    <h1>Shezin Khais</h1>
-    <p>Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities. I try to make each one genuinely usable rather than a demo, so every project has a test suite, GitHub Actions CI, and a README that explains both how it works and where it falls short.</p>
+  <header>
+    <canvas id="heroCanvas"></canvas>
+    <div class="noscript-hero">
+      <h1>Shezin Khais</h1>
+      <p>Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.</p>
+    </div>
+
+    <nav class="links">
+      <a href="https://github.com/ShezinKhais">GitHub</a>
+      <a href="https://www.linkedin.com/in/shezinkhaiser/">LinkedIn</a>
+      <a href="mailto:shezinkhais@gmail.com">shezinkhais@gmail.com</a>
+    </nav>
+  </header>
+
+  <section>
     <h2>Featured</h2>
-    <p><a href="https://github.com/ShezinKhais/codecartographer">CodeCartographer</a> Static analysis for Python codebases: module dependency graphs, circular-import detection via Tarjan's strongly connected components, a static call graph, and dead-code detection. No runtime dependencies, and the graph algorithms are implemented from scratch.</p>
-    <p><a href="https://github.com/ShezinKhais/harmonicDNA">HarmonicDNA</a> Applies Smith-Waterman local alignment, the bioinformatics algorithm for comparing DNA sequences, to chord progressions extracted from audio.</p>
-    <h2>In progress</h2>
-    <p><a href="https://github.com/ShezinKhais/echolock">EchoLock</a> A voice-and-passphrase unlock overlay. The MFCC speaker-verification pipeline is implemented from scratch on numpy.</p>
-    <p><a href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">C.L.I.P</a> Team capstone. A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
-    <h2>Other projects</h2>
-    <p><a href="https://github.com/ShezinKhais/claimaudit">claimaudit</a>, <a href="https://github.com/ShezinKhais/Hypothesisgraveyard">Hypothesisgraveyard</a>, <a href="https://github.com/ShezinKhais/argumentminer">argumentminer</a>, <a href="https://github.com/ShezinKhais/federated-aml">federated-aml</a></p>
-  </div>
-</div>
 
-<footer>
-  <a href="https://github.com/ShezinKhais">GitHub</a> ·
-  <a href="https://www.linkedin.com/in/shezinkhaiser/">LinkedIn</a> ·
-  <a href="mailto:shezinkhais@gmail.com">shezinkhais@gmail.com</a>
-  <div class="hint">Text layout by <a href="https://github.com/chenglou/pretext">pretext</a>, relaid every frame as the snake moves.</div>
-</footer>
+    <a class="card" href="https://github.com/ShezinKhais/codecartographer">
+      <h3>CodeCartographer <span class="arrow">→</span></h3>
+      <p>Static analysis for Python codebases: dependency graphs, circular-import detection via Tarjan's strongly connected components, a static call graph, and dead-code detection.</p>
+      <div class="more"><div>
+        <p>Graph algorithms implemented from scratch, no runtime dependencies. Outputs a self-contained interactive HTML map. A live demo runs in the browser.</p>
+      </div></div>
+      <div class="chips"><span class="chip">Python</span><span class="chip">AST</span><span class="chip">graph algorithms</span><span class="chip">zero deps</span></div>
+    </a>
+
+    <a class="card" href="https://github.com/ShezinKhais/harmonicDNA">
+      <h3>HarmonicDNA <span class="arrow">→</span></h3>
+      <p>Applies Smith-Waterman local alignment, the bioinformatics algorithm for comparing DNA sequences, to chord progressions extracted from audio.</p>
+      <div class="more"><div>
+        <p>Two songs in, out comes a similarity score and a visual alignment of the passages that are most harmonically alike.</p>
+      </div></div>
+      <div class="chips"><span class="chip">Python</span><span class="chip">signal processing</span><span class="chip">sequence alignment</span></div>
+    </a>
+  </section>
+
+  <section>
+    <h2>In progress</h2>
+
+    <a class="card" href="https://github.com/ShezinKhais/echolock">
+      <h3>EchoLock <span class="arrow">→</span> <span class="status">ongoing</span></h3>
+      <p>A voice-and-passphrase unlock overlay. The MFCC speaker-verification pipeline is implemented from scratch on numpy.</p>
+      <div class="more"><div>
+        <p>Paired with a passphrase that rotates daily and is checked by an offline speech recognizer. No pretrained speaker model and no cloud calls. The README documents the measured tradeoffs behind the scoring function and threshold.</p>
+      </div></div>
+      <div class="chips"><span class="chip">Python</span><span class="chip">numpy</span><span class="chip">speaker verification</span></div>
+    </a>
+
+    <a class="card" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
+      <h3>C.L.I.P <span class="arrow">→</span> <span class="status">ongoing</span></h3>
+      <p>Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
+      <div class="more"><div>
+        <p>Surfaces real-time engagement to the lecturer while a class is still running, without ever storing video, audio, or transcripts. Runs entirely on self-hosted infrastructure.</p>
+      </div></div>
+      <div class="chips"><span class="chip">FastAPI</span><span class="chip">React</span><span class="chip">PostgreSQL</span><span class="chip">local LLM</span></div>
+    </a>
+  </section>
+
+  <section>
+    <h2>Other projects</h2>
+
+    <a class="card" href="https://github.com/ShezinKhais/claimaudit">
+      <h3>claimaudit <span class="arrow">→</span></h3>
+      <p>Tracks whether a paper's empirical claims are later confirmed, challenged, or extended by the work that cites them.</p>
+      <div class="chips"><span class="chip">Python</span><span class="chip">NLP</span></div>
+    </a>
+
+    <a class="card" href="https://github.com/ShezinKhais/Hypothesisgraveyard">
+      <h3>Hypothesisgraveyard <span class="arrow">→</span></h3>
+      <p>Finds scientific hypotheses that were published and then never meaningfully engaged with by later citations.</p>
+      <div class="chips"><span class="chip">Python</span><span class="chip">citation graphs</span></div>
+    </a>
+
+    <a class="card" href="https://github.com/ShezinKhais/argumentminer">
+      <h3>argumentminer <span class="arrow">→</span></h3>
+      <p>Extracts claims, premises, and logical fallacies from argumentative text and renders the structure as a directed graph.</p>
+      <div class="chips"><span class="chip">Python</span><span class="chip">NLP</span></div>
+    </a>
+
+    <a class="card" href="https://github.com/ShezinKhais/federated-aml">
+      <h3>federated-aml <span class="arrow">→</span></h3>
+      <p>Federated Averaging (FedAvg) for fraud detection across simulated banks: models train locally, only weights are shared.</p>
+      <div class="chips"><span class="chip">Python</span><span class="chip">federated learning</span></div>
+    </a>
+  </section>
+
+  <footer>
+    Every project ships with a pytest suite and GitHub Actions CI.
+    Built with <a href="https://github.com/chenglou/pretext">pretext</a>, which relays the text above as the snake moves.
+  </footer>
+</div>
 
 <script type="module">
 import { prepareWithSegments, layoutNextLine }
   from 'https://cdn.jsdelivr.net/npm/@chenglou/pretext@0.0.8/dist/layout.js';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-const F = {
-  h1:    `600 34px ${MONO}`,
-  h2:    `600 13px ${MONO}`,
-  title: `600 17px ${MONO}`,
-  body:  `15px ${MONO}`,
-  meta:  `italic 13px ${MONO}`,
-};
-const LH = { h1: 44, h2: 26, title: 26, body: 25, meta: 22 };
-const GAP = { h1: 18, h2: 10, title: 6, body: 14, meta: 26 };
-
-const GH = 'https://github.com/ShezinKhais/';
-
-const BLOCKS = [
-  { k:'h1',    t:'Shezin Khais' },
-  { k:'body',  t:'Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities. I try to make each one genuinely usable rather than a demo, so every project has a test suite, GitHub Actions CI, and a README that explains both how it works and where it falls short.' },
-
-  { k:'h2',    t:'FEATURED' },
-  { k:'title', t:'CodeCartographer', url: GH+'codecartographer' },
-  { k:'body',  t:"Static analysis for Python codebases: module dependency graphs, circular-import detection via Tarjan's strongly connected components, a static call graph, and dead-code detection. No runtime dependencies, and the graph algorithms are implemented from scratch." },
-  { k:'meta',  t:'Python · AST · graph algorithms · zero dependencies' },
-  { k:'title', t:'HarmonicDNA', url: GH+'harmonicDNA' },
-  { k:'body',  t:'Applies Smith-Waterman local alignment, the bioinformatics algorithm for comparing DNA sequences, to chord progressions extracted from audio. Two songs in, out comes a similarity score and a visual alignment of the passages that are most harmonically alike.' },
-  { k:'meta',  t:'Python · signal processing · sequence alignment' },
-
-  { k:'h2',    t:'IN PROGRESS' },
-  { k:'title', t:'EchoLock', url: GH+'echolock' },
-  { k:'body',  t:'A voice-and-passphrase unlock overlay. The MFCC speaker-verification pipeline is implemented from scratch on numpy, paired with a passphrase that rotates daily and is checked by an offline speech recognizer. No pretrained speaker model and no cloud calls.' },
-  { k:'meta',  t:'Python · signal processing · speaker verification' },
-  { k:'title', t:'C.L.I.P', url: GH+'Cognitive_Learning_Intelligence_Platform' },
-  { k:'body',  t:"Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides and surfaces real-time engagement, without ever storing video, audio, or transcripts." },
-  { k:'meta',  t:'FastAPI · React · PostgreSQL · local LLM inference' },
-
-  { k:'h2',    t:'OTHER PROJECTS' },
-  { k:'title', t:'claimaudit', url: GH+'claimaudit' },
-  { k:'body',  t:"Tracks whether a paper's empirical claims are later confirmed, challenged, or extended by the work that cites them." },
-  { k:'title', t:'Hypothesisgraveyard', url: GH+'Hypothesisgraveyard' },
-  { k:'body',  t:'Finds scientific hypotheses that were published and then never meaningfully engaged with by later citations.' },
-  { k:'title', t:'argumentminer', url: GH+'argumentminer' },
-  { k:'body',  t:'Extracts claims, premises, and logical fallacies from argumentative text and renders the structure as a directed graph.' },
-  { k:'title', t:'federated-aml', url: GH+'federated-aml' },
-  { k:'body',  t:'Federated Averaging (FedAvg) for fraud detection across simulated banks: models train locally, only weights are shared.' },
-];
-
-const canvas = document.getElementById('c');
+const canvas = document.getElementById('heroCanvas');
 const ctx = canvas.getContext('2d');
-const wrap = document.getElementById('wrap');
-
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-// prepare() is the expensive step; it runs once per block, not per frame.
-let prepared = [];
-function prepareAll() {
-  prepared = BLOCKS.map(b => ({
-    ...b,
-    p: prepareWithSegments(b.t, F[b.k]),
-  }));
+const NAME = 'Shezin Khais';
+const BIO  = 'Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities. Each one ships with a test suite, CI, and a README that says where it falls short.';
+
+let W = 852, H = 300, dpr = 1;
+let fName, fBio, LH_BIO, prepBio, nameSize;
+
+function fonts() {
+  const big = nameSize = W < 520 ? 30 : 44;
+  fName = `600 ${big}px ${MONO}`;
+  fBio  = `${W < 520 ? 13 : 15}px ${MONO}`;
+  LH_BIO = W < 520 ? 22 : 26;
+  prepBio = prepareWithSegments(BIO, fBio);
+  return big;
 }
 
-let W = 812, dpr = 1;
+function css(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
 function resize() {
-  // The pane can report zero width while hidden; never derive a size from that.
-  const avail = wrap.clientWidth || 860;
-  W = Math.max(280, Math.min(avail - 48, 812));
+  const avail = document.querySelector('.wrap').clientWidth || 900;
+  W = Math.max(280, avail - 48);
   dpr = Math.min(devicePixelRatio || 1, 2);
-  canvas.width = Math.round(W * dpr);
+  const big = fonts();
+
+  // measure height needed for the bio at full width, plus name + padding
+  let y = 0, cur = {segmentIndex:0, graphemeIndex:0}, guard = 0;
+  while (guard++ < 60) {
+    const l = layoutNextLine(prepBio, cur, W);
+    if (!l) break;
+    cur = l.end; y += LH_BIO;
+  }
+  H = big + 26 + y + 96;   // headline + gap + bio + room for the snake to swim
+
+  canvas.width  = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
   canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
 }
 
-// --- snake geometry -------------------------------------------------------
-const R = 15;          // body radius used for text avoidance
-const TAIL = 620;      // how far the body trails behind the head
-const AMP = 0.28;      // horizontal sway, as a fraction of width
-
-function snakeCenterX(y, t) {
-  return W * 0.5 + Math.sin(y * 0.0125 + t * 0.7) * (W * AMP);
+// ---- snake -------------------------------------------------------------
+const R = 13, TAIL = 300;
+const bodyAt = (y, t) => W*0.5 + Math.sin(y*0.02 + t*1.1) * (W*0.30);
+function headY(t) {
+  if (reduced) return H * 0.62;
+  const span = H + TAIL + 40;
+  return ((t * 115) % span) - TAIL;
 }
 
-function snakeHeadY(t, total) {
-  if (reduced) return total * 0.5;
-  const span = total + TAIL + 60;
-  return ((t * 135) % span) - TAIL;  // swims top to bottom, loops
-}
+function draw(t) {
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
 
-// --- layout + paint -------------------------------------------------------
-const linkRects = [];
+  const hy = headY(t);
+  const nameBase = nameSize;
 
-function frame(ts) {
-  layoutAndPaint(ts / 1000, true);
-  requestAnimationFrame(frame);
-}
+  // Snake sits behind the type: it reads as passing behind the headline,
+  // which keeps the name legible while still weaving through the block.
+  drawSnake(t, hy);
 
-let totalH = 1400;
+  // name
+  ctx.font = fName;
+  ctx.fillStyle = css('--fg');
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillText(NAME, 0, nameBase);
 
-// Canvas height is fixed per resize, not per frame. The snake only ever
-// narrows a line, which can add lines, so the measured height gets slack.
-function setHeight() {
-  totalH = Math.ceil(layoutAndPaint(0, false, true) + 220);
-  canvas.height = Math.round(totalH * dpr);
-  canvas.style.height = totalH + 'px';
-}
-
-function layoutAndPaint(t, paint, noSnake) {
-  const headY = noSnake ? -1e9 : snakeHeadY(t, totalH);
-
-  if (paint) {
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, totalH);
-  }
-
-  linkRects.length = 0;
-  let y = 0;
-
-  for (const b of prepared) {
-    const lh = LH[b.k];
-    let cursor = { segmentIndex: 0, graphemeIndex: 0 };
-    let guard = 0;
-
-    while (guard++ < 200) {
-      const bandMid = y + lh * 0.5;
-
-      // Where does the snake sit on this line?
-      let x = 0, avail = W;
-      const withinTail = bandMid <= headY && bandMid >= headY - TAIL;
-      if (withinTail) {
-        const cx = snakeCenterX(bandMid, t);
-        const left = cx - R - 14;
-        const right = cx + R + 14;
-        // Flow into whichever side has more room.
-        if (left >= W - right) { x = 0; avail = left; }
-        else { x = right; avail = W - right; }
-        if (avail < 150) { x = 0; avail = W; } // too tight to be readable
-      }
-
-      const line = layoutNextLine(b.p, cursor, Math.max(avail, 60));
-      if (!line) break;
-
-      if (paint) {
-        ctx.font = F[b.k];
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillStyle =
-          b.k === 'h2'   ? cssVar('--muted') :
-          b.k === 'meta' ? cssVar('--muted') :
-          b.k === 'title'? cssVar('--accent') : cssVar('--fg');
-        ctx.fillText(line.text, x, y + lh * 0.72);
-
-        if (b.url) {
-          linkRects.push({ x, y, w: line.width, h: lh, url: b.url });
-        }
-      }
-
-      cursor = line.end;
-      y += lh;
-      if (cursor.segmentIndex >= 1e9) break;
+  // bio, reflowing around the snake
+  ctx.font = fBio;
+  ctx.fillStyle = css('--muted');
+  let y = nameBase + 26, cur = {segmentIndex:0, graphemeIndex:0}, guard = 0;
+  while (guard++ < 60) {
+    const mid = y + LH_BIO*0.5;
+    let x = 0, avail = W;
+    if (mid <= hy && mid >= hy - TAIL) {
+      // clearance covers the body radius plus the head/tongue overhang
+      const cx = bodyAt(mid, t), left = cx - R - 20, right = cx + R + 30;
+      if (left >= W - right) { x = 0; avail = left; }
+      else { x = right; avail = W - right; }
+      if (avail < 140) { x = 0; avail = W; }
     }
-    y += GAP[b.k];
+    const line = layoutNextLine(prepBio, cur, Math.max(avail, 60));
+    if (!line) break;
+    ctx.fillText(line.text, x, y + LH_BIO*0.72);
+    cur = line.end; y += LH_BIO;
   }
-
-  if (paint) drawSnake(t, headY);
-  return y;
 }
 
-function cssVar(n) {
-  return getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-}
-
-function drawSnake(t, headY) {
+function drawSnake(t, hy) {
   const pts = [];
-  for (let d = 0; d <= TAIL; d += 10) {
-    const y = headY - d;
-    pts.push([snakeCenterX(y, t), y]);
+  for (let d = 0; d <= TAIL; d += 8) {
+    const yy = hy - d;
+    if (yy < -40 || yy > H + 40) continue;
+    pts.push([bodyAt(yy, t), yy, d / TAIL]);
   }
-  if (!pts.length) return;
+  if (pts.length < 2) return;
 
-  const accent = '#3776AB';
-
-  // Body, tapering from head to tail.
   for (let i = pts.length - 1; i > 0; i--) {
-    const f = 1 - i / pts.length;          // 0 at tail, 1 at head
+    const f = 1 - pts[i][2];
     ctx.beginPath();
     ctx.moveTo(pts[i][0], pts[i][1]);
     ctx.lineTo(pts[i-1][0], pts[i-1][1]);
-    ctx.strokeStyle = accent;
-    ctx.globalAlpha = 0.25 + 0.75 * f;
-    ctx.lineWidth = 3 + 16 * f;
+    ctx.strokeStyle = css('--py');
+    ctx.globalAlpha = 0.22 + 0.78*f;
+    ctx.lineWidth = 2 + 14*f;
     ctx.lineCap = 'round';
     ctx.stroke();
   }
   ctx.globalAlpha = 1;
 
-  // Belly marks, in Python's yellow.
-  ctx.fillStyle = '#FFD43B';
-  for (let i = 4; i < pts.length - 4; i += 7) {
-    const f = 1 - i / pts.length;
-    ctx.globalAlpha = 0.25 + 0.5 * f;
+  ctx.fillStyle = css('--py2');
+  for (let i = 3; i < pts.length - 3; i += 6) {
+    const f = 1 - pts[i][2];
+    ctx.globalAlpha = 0.25 + 0.5*f;
     ctx.beginPath();
-    ctx.ellipse(pts[i][0], pts[i][1], 2.4, 1.6, 0, 0, Math.PI * 2);
+    ctx.ellipse(pts[i][0], pts[i][1], 2.2, 1.4, 0, 0, 7);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
 
-  // Head.
-  const [hx, hy] = pts[0];
-  const [nx, ny] = pts[1] || [hx, hy + 10];
-  const ang = Math.atan2(hy - ny, hx - nx);
+  const [hx, hyy] = pts[0];
+  const [nx, ny] = pts[1];
   ctx.save();
-  ctx.translate(hx, hy);
-  ctx.rotate(ang);
-  ctx.fillStyle = accent;
+  ctx.translate(hx, hyy);
+  ctx.rotate(Math.atan2(hyy - ny, hx - nx));
+  ctx.fillStyle = css('--py');
+  ctx.beginPath(); ctx.ellipse(0,0,12,9,0,0,7); ctx.fill();
+  ctx.fillStyle = css('--bg');
+  ctx.beginPath(); ctx.ellipse(4,-3,1.6,1.6,0,0,7); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(4, 3,1.6,1.6,0,0,7); ctx.fill();
+  ctx.strokeStyle = css('--py2'); ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.ellipse(0, 0, 13, 10, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#0d1117';
-  ctx.beginPath(); ctx.ellipse(5, -3.4, 1.7, 1.7, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(5,  3.4, 1.7, 1.7, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#FFD43B';
-  ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.moveTo(12, 0); ctx.lineTo(20, 0);
-  ctx.moveTo(20, 0); ctx.lineTo(24, -3);
-  ctx.moveTo(20, 0); ctx.lineTo(24, 3);
+  ctx.moveTo(11,0); ctx.lineTo(18,0);
+  ctx.moveTo(18,0); ctx.lineTo(22,-2.6);
+  ctx.moveTo(18,0); ctx.lineTo(22, 2.6);
   ctx.stroke();
   ctx.restore();
 }
 
-// --- interaction ----------------------------------------------------------
-function hit(e) {
-  const r = canvas.getBoundingClientRect();
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
-  return linkRects.find(l => mx >= l.x && mx <= l.x + l.w && my >= l.y && my <= l.y + l.h);
-}
-canvas.addEventListener('mousemove', e => {
-  canvas.classList.toggle('link', !!hit(e));
-});
-canvas.addEventListener('click', e => {
-  const l = hit(e);
-  if (l) window.open(l.url, '_blank', 'noopener');
-});
+function frame(ts){ draw(ts/1000); requestAnimationFrame(frame); }
 
-// --- boot -----------------------------------------------------------------
+// ---- boot --------------------------------------------------------------
 document.body.classList.remove('nojs');
-prepareAll();
 resize();
-setHeight();
-layoutAndPaint(0, true);
+draw(0);
+if (!reduced) requestAnimationFrame(frame);
 
 let rt;
 addEventListener('resize', () => {
   clearTimeout(rt);
-  rt = setTimeout(() => { resize(); setHeight(); }, 120);
+  rt = setTimeout(() => { resize(); draw(performance.now()/1000); }, 130);
 });
-requestAnimationFrame(frame);
+
+// staggered card entrance
+const cards = document.querySelectorAll('.card');
+if (!reduced) {
+  document.body.classList.add('anim');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('in'), i * 70);
+        io.unobserve(e.target);
+      }
+    });
+  }, { rootMargin: '0px 0px -40px 0px' });
+  cards.forEach(c => io.observe(c));
+
+  // Safety net: if the observer never fires, reveal everything anyway.
+  setTimeout(() => cards.forEach(c => c.classList.add('in')), 1500);
+}
 </script>
 </body>
 </html>
