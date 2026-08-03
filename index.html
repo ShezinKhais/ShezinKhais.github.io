@@ -480,6 +480,8 @@ function resize() {
   canvas.style.height = PH + 'px';
 
   buildPath();
+  // a reflow moved everything; keep aiming at whatever is being pointed at
+  if (focusedCard) routeTo(titleBox(focusedCard));
 }
 
 // ================= snake =================
@@ -561,11 +563,15 @@ function nameBox() {
 // A stadium, not an ellipse: straight runs clear above and below the name and the
 // round caps sit past its ends, so the body never lies across a glyph.
 function coilPoints(b) {
-  const ry = b.h / 2 + 28, pad = 14, V = 24, S = 14, v = 185;
-  const cy = b.y + b.h / 2;
-  let x1 = b.x - pad, x2 = b.x + b.w + pad;
-  const shift = Math.max(0, 12 - (x1 - ry));   // keep the left cap on the canvas
-  x1 += shift; x2 += shift;
+  const ry = Math.max(b.h / 2 + 26, 32), V = 24, S = 14, v = 340;
+  const cy = b.y + b.h / 2, cx = b.x + b.w / 2;
+
+  // Size the straight runs so the loop's perimeter matches the body length. The
+  // coil then closes exactly, whatever the label underneath happens to measure.
+  const span = Math.max(b.w + 24, (BODY - 2 * Math.PI * ry) / 2);
+  let x1 = cx - span / 2, x2 = cx + span / 2;
+  const push = Math.max(0, 12 - (x1 - ry)) - Math.max(0, (x2 + ry) - (PW - 12));
+  x1 += push; x2 += push;
 
   const out = [];
   for (let i = 0; i <= S; i++) out.push({ x: x1 + (x2 - x1) * i / S, y: cy - ry, v });
@@ -582,29 +588,70 @@ function coilPoints(b) {
 }
 
 function buildPath() {
-  const pts = [{ x: CX + CW * 0.5, y: -240, v: 760 }];
+  const pts = [{ x: CX + CW * 0.5, y: -240, v: 1150 }];
   const L = CX + CW * 0.22, R = CX + CW * 0.78;
 
   document.querySelectorAll('.card').forEach((c, i) => {
     const r = c.getBoundingClientRect();
     const top = r.top + scrollY;
-    pts.push({ x: i % 2 ? R : L, y: top + r.height * 0.30, v: 760 });
-    pts.push({ x: i % 2 ? L : R, y: top + r.height * 0.76, v: 760 });
+    pts.push({ x: i % 2 ? R : L, y: top + r.height * 0.30, v: 1150 });
+    pts.push({ x: i % 2 ? L : R, y: top + r.height * 0.76, v: 1150 });
   });
 
   const bottom = PH - 70;
-  pts.push({ x: CX + CW * 0.5, y: bottom, v: 800 });
-  pts.push({ x: CX + CW * 0.95, y: bottom - PH * 0.30, v: 900 });
-  pts.push({ x: CX + CW * 0.05, y: bottom - PH * 0.60, v: 900 });
-  pts.push({ x: CX + CW * 0.92, y: bottom - PH * 0.82, v: 900 });
+  pts.push({ x: CX + CW * 0.5, y: bottom, v: 1200 });
+  pts.push({ x: CX + CW * 0.95, y: bottom - PH * 0.30, v: 1400 });
+  pts.push({ x: CX + CW * 0.05, y: bottom - PH * 0.60, v: 1400 });
+  pts.push({ x: CX + CW * 0.92, y: bottom - PH * 0.82, v: 1400 });
 
   const box = nameBox();
-  pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 600 });
+  pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 950 });
 
   for (const p of coilPoints(box)) pts.push(p);
 
   path = pts;
   if (pathIdx >= path.length) { pathIdx = Math.max(0, path.length - 1); pathPos = 0; }
+}
+
+// ---- point at a project and the snake goes and wraps its title ----
+let focusedCard = null, focusTimer = 0;
+
+function titleBox(card) {
+  const h3 = card.querySelector('h3');
+  const tn = h3 && [...h3.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+  if (!tn) return null;
+  const r = document.createRange();
+  r.selectNodeContents(tn);
+  const b = r.getBoundingClientRect();
+  if (!b.width) return null;
+  // Sit at the title's height but centre on the card: the loop is sized from the
+  // body length, so hanging it off a short left-aligned title throws it into the
+  // page margin.
+  // ...and centre it on the body copy, so the paragraph reflows around it while
+  // it sits there. That wrap is the whole trick, so it should land on the text.
+  const cr = card.getBoundingClientRect();
+  const p = card.querySelector(':scope > p');
+  const pr = (p || card).getBoundingClientRect();
+  return {
+    x: cr.left + scrollX + (cr.width - b.width) / 2,
+    y: pr.top + scrollY + pr.height / 2 - b.height / 2,
+    w: b.width, h: b.height
+  };
+}
+
+// Re-aim: a short approach leg from wherever the head is, then a coil on the box.
+function routeTo(box) {
+  if (!box) return;
+  const pts = [{ x: guide.x, y: guide.y, v: 1400 }];
+  pts.push({ x: box.x + box.w * 0.5, y: box.y + box.h + 130, v: 1100 });
+  for (const p of coilPoints(box)) pts.push(p);
+  path = pts; pathIdx = 0; pathPos = 0;
+}
+
+function snakeFocus(card) {
+  if (card === focusedCard) return;
+  focusedCard = card;
+  routeTo(card ? titleBox(card) : nameBox());
 }
 
 // One pass only: the head runs to the end of the coil and stops there. The body
@@ -628,14 +675,33 @@ function walk(dt) {
   return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
 }
 
+// Serpentine locomotion, done the way the animal does it: the head weaves side
+// to side across the line of travel, and because every segment rides the head's
+// recorded trail, the whole body flows through the same standing S-curves. The
+// sway is keyed to distance covered, not to the clock, so it stops when it stops.
+const SWAY = 26, SWAY_K = 2 * Math.PI / 250;
+const guide = { x: 0, y: 0 }, dir = { x: 0, y: 1 };
+let guideSet = false, travelled = 0, speedNow = 0;
+
 function stepSnake(t, dt) {
   const tgt = walk(dt);
+  if (!guideSet) { guide.x = tgt.x; guide.y = tgt.y; guideSet = true; }
 
-  const h = joints[0];
-  const dx = tgt.x - h.x, dy = tgt.y - h.y;
-  const d = Math.hypot(dx, dy) || 1;
-  const step = Math.min(d, clamp(d * 3.4, 160, 1200) * dt);
-  pushTrail(h.x + dx / d * step, h.y + dy / d * step);
+  // Sit exactly on the route rather than steering toward it. Proportional
+  // steering keeps a lag proportional to speed, and at coil pace that lag
+  // exceeds the cap radius, so the head chords across the corners.
+  const dx = tgt.x - guide.x, dy = tgt.y - guide.y;
+  const step = Math.hypot(dx, dy);
+  guide.x = tgt.x; guide.y = tgt.y;
+  if (step > 0.001) { dir.x = dx / step; dir.y = dy / step; }
+
+  travelled += step;
+  speedNow += (step / Math.max(dt, 1e-4) - speedNow) * Math.min(1, dt * 5);
+
+  // amplitude rides the speed, so it slithers hard while travelling and lies
+  // almost straight as it eases onto the coil
+  const lat = Math.sin(travelled * SWAY_K) * SWAY * Math.min(1, speedNow / 950);
+  pushTrail(guide.x - dir.y * lat, guide.y + dir.x * lat);
   placeJoints();
 }
 
@@ -651,8 +717,9 @@ function ribs(t) {
     const dx = b.x - a.x, dy = b.y - a.y, m = Math.hypot(dx, dy) || 1;
     const tx = dx / m, ty = dy / m;   // points toward the tail
     const f = 1 - i / joints.length;
-    // lateral undulation keeps it alive even when the head is still
-    const wob = Math.sin(i * 0.34 - t * 5.2) * 3.1 * (1 - f) * 0.9;
+    // the trail already carries the travelling wave; this is just a slow breath
+    // so a settled snake still reads as alive rather than as a drawn shape
+    const wob = Math.sin(i * 0.16 - t * 1.5) * 1.2 * (1 - f);
     out.push({
       x: joints[i].x + -ty * wob, y: joints[i].y + tx * wob,
       nx: -ty, ny: tx, tx, ty, f, hw: halfWidth(f)
@@ -1005,9 +1072,18 @@ addEventListener('scroll', () => {
   syncRail();
 }, { passive: true });
 
-// magnetic card tilt + cursor-tracked glow
+// magnetic card tilt + cursor-tracked glow, and the snake goes where you point
 if (!reduced && matchMedia('(hover:hover)').matches) {
   document.querySelectorAll('.card').forEach(card => {
+    card.addEventListener('pointerenter', () => {
+      clearTimeout(focusTimer);
+      if (!paused) snakeFocus(card);
+    });
+    card.addEventListener('pointerleave', () => {
+      // a beat of slack, so sweeping across cards doesn't send it back each time
+      clearTimeout(focusTimer);
+      focusTimer = setTimeout(() => { if (!paused) snakeFocus(null); }, 420);
+    });
     card.addEventListener('pointermove', e => {
       const r = card.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
