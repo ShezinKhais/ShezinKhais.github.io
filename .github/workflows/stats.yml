@@ -1,0 +1,68 @@
+name: refresh stats
+
+on:
+  schedule:
+    - cron: '17 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect the numbers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          USER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+
+          repos=$(gh api "users/$USER" --jq '.public_repos')
+
+          contrib=$(gh api graphql -f login="$USER" -f query='
+            query($login:String!) {
+              user(login:$login) {
+                contributionsCollection {
+                  contributionCalendar { totalContributions }
+                }
+              }
+            }' --jq '.data.user.contributionsCollection.contributionCalendar.totalContributions')
+
+          # Public project repos carrying at least one Actions workflow. The profile
+          # repo and this site are infrastructure, not projects, so they don't count.
+          ci=0
+          for r in $(gh api "users/$USER/repos?per_page=100&type=owner" --paginate \
+                     --jq '.[] | select(.fork | not) | .name'); do
+            if [ "$r" = "$USER" ] || [ "$r" = "$USER.github.io" ]; then
+              continue
+            fi
+            n=$(gh api "repos/$USER/$r/actions/workflows" --jq '.total_count' 2>/dev/null || echo 0)
+            if [ "$n" -gt 0 ]; then ci=$((ci+1)); fi
+          done
+
+          echo "repos=$repos contrib=$contrib ci=$ci"
+          {
+            echo "REPOS=$repos"
+            echo "CONTRIB=$contrib"
+            echo "CI=$ci"
+          } >> "$GITHUB_ENV"
+
+      - name: Write them into index.html
+        run: node .github/scripts/update-stats.js index.html
+
+      - name: Commit if anything moved
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html; then
+            echo "stats unchanged"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "stats - ${REPOS} repos, ${CONTRIB} contributions, ${CI} with CI"
+          git push

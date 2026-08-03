@@ -66,16 +66,6 @@
   .nojs .noscript-hero { display:block; }
   .nojs #bg { display:none; }
 
-  .hint {
-    font-size:11.5px; color:var(--dim); margin-top:14px;
-    display:flex; align-items:center; gap:8px;
-  }
-  .hint .dot {
-    width:6px; height:6px; border-radius:50%; background:var(--sn-lite);
-    animation:pulse 2s ease-in-out infinite;
-  }
-  @keyframes pulse { 0%,100%{opacity:.35;transform:scale(.8)} 50%{opacity:1;transform:scale(1.15)} }
-
   .links { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
   .links a {
     font-size:13px; text-decoration:none; color:var(--muted);
@@ -293,7 +283,6 @@
       <p>Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.</p>
     </div>
 
-    <div class="hint"><span class="dot"></span> the snake tours the projects below, then coils around the name</div>
 
     <nav class="links">
       <a href="https://github.com/ShezinKhais">GitHub</a>
@@ -303,7 +292,7 @@
 
     <div class="stats">
       <div class="stat"><b data-count="9">0</b><span>public repositories</span></div>
-      <div class="stat"><b data-count="80">0</b><span>contributions this year</span></div>
+      <div class="stat"><b data-count="83">0</b><span>contributions this year</span></div>
       <div class="stat"><b data-count="7">0</b><span>projects with CI suites</span></div>
     </div>
   </header>
@@ -342,14 +331,14 @@
       <div class="chips"><span class="chip">Python</span><span class="chip">numpy</span><span class="chip">speaker verification</span></div>
     </a>
 
-    <a class="card" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
-      <h3>C.L.I.P <span class="arrow">&rarr;</span> <span class="status">ongoing</span></h3>
+    <div class="card">
+      <h3>C.L.I.P <span class="status">ongoing</span> <span class="status">private repo</span></h3>
       <p>Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
       <div class="more"><div>
         <p>Surfaces real-time engagement while a class is still running, without ever storing video, audio, or transcripts. Runs entirely on self-hosted infrastructure.</p>
       </div></div>
       <div class="chips"><span class="chip">FastAPI</span><span class="chip">React</span><span class="chip">PostgreSQL</span><span class="chip">local LLM</span></div>
-    </a>
+    </div>
   </section>
 
   <section id="sec-other">
@@ -449,21 +438,32 @@ function flowOff(o) {
 function reserveParagraphs() {
   for (const o of flows) { flowOff(o); o.p.style.height = ''; }
   const nat = flows.map(o => ({
+    w: o.p.offsetWidth,
     h: o.p.offsetHeight,
     lh: parseFloat(getComputedStyle(o.p).lineHeight) || 22
   }));
   flows.forEach((o, i) => {
+    // A collapsed column wraps the copy to one word per line; pinning that height
+    // would bake a wildly tall card in permanently. Leave it auto instead.
+    if (nat[i].w < 120) { o.h = 0; return; }
     o.h = Math.round(nat[i].h + nat[i].lh * 2);
     o.p.style.height = o.h + 'px';
   });
 }
 
 function resize() {
-  PW = Math.max(320, document.documentElement.clientWidth || innerWidth || 900);
+  const vw = document.documentElement.clientWidth || innerWidth || 0;
+
+  // Fonts first and unconditionally: draw() needs prepBio on every path.
+  PW = Math.max(320, vw || 900);
   const col = Math.min(900, PW);
   CX = (PW - col) / 2 + 24;
   CW = Math.max(280, col - 48);
   fonts();
+
+  // A hidden or detached viewport reports zero. Measuring then poisons every
+  // cached height, so skip the layout work and take the next resize event.
+  if (vw < 240) return;
 
   heroSpace.style.height = measureHero() + 'px';
   reserveParagraphs();
@@ -483,17 +483,73 @@ function resize() {
 }
 
 // ================= snake =================
-const N = 96, SPACING = 8, MAXW = 15;   // ~770px of body, enough to fill the coil
+const N = 118, SPACING = 8, MAXW = 16;  // ~940px of body, enough to close the coil
 const joints = [];
 let lastRibs = [];
 
+// getComputedStyle per colour per frame is wasteful; read the set once a frame
+let PAL = {};
+function readPalette() {
+  const s = getComputedStyle(document.documentElement);
+  const v = n => s.getPropertyValue(n).trim();
+  PAL = {
+    deep: v('--sn-deep'), dark: v('--sn-dark'), mid: v('--sn-mid'),
+    lite: v('--sn-lite'), pale: v('--sn-belly'), eye: v('--sn-eye'),
+    fg: v('--fg'), muted: v('--muted')
+  };
+}
+
+// The body rides a breadcrumb trail of head positions rather than a chain of
+// distance constraints. A constraint chain chords across every curve, so on a
+// tight loop most of the body cuts the corner instead of wrapping; sampling the
+// recorded route at fixed arc-length makes it trace the path exactly.
+const BODY = (N - 1) * SPACING;
+const trail = [];
+
 function seedJoints() {
   joints.length = 0;
-  for (let i = 0; i < N; i++) joints.push({ x: PW * 0.5, y: -i * SPACING });
+  trail.length = 0;
+  for (let i = 0; i < N; i++) {
+    joints.push({ x: PW * 0.5, y: -240 - i * SPACING });
+    trail.push({ x: PW * 0.5, y: -240 - i * SPACING });
+  }
+}
+
+function pushTrail(x, y) {
+  const head = trail[0];
+  if (head && Math.hypot(x - head.x, y - head.y) < 0.4) return;
+  trail.unshift({ x, y });
+  let acc = 0;
+  for (let i = 1; i < trail.length; i++) {
+    acc += Math.hypot(trail[i].x - trail[i - 1].x, trail[i].y - trail[i - 1].y);
+    if (acc > BODY + 60) { trail.length = i + 1; break; }
+  }
+}
+
+function placeJoints() {
+  if (!trail.length) return;
+  joints[0].x = trail[0].x; joints[0].y = trail[0].y;
+  let ji = 1, need = SPACING;
+  for (let i = 1; i < trail.length && ji < joints.length; i++) {
+    const a = trail[i - 1], b = trail[i];
+    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+    let pos = 0;
+    while (segLen - pos >= need && ji < joints.length) {
+      pos += need;
+      const k = pos / segLen;
+      joints[ji].x = a.x + (b.x - a.x) * k;
+      joints[ji].y = a.y + (b.y - a.y) * k;
+      ji++; need = SPACING;
+    }
+    need -= (segLen - pos);
+  }
+  // trail shorter than the body (only at start-up): pile the rest on its end
+  const last = trail[trail.length - 1];
+  for (; ji < joints.length; ji++) { joints[ji].x = last.x; joints[ji].y = last.y; }
 }
 
 // ---- the route: down through the cards, back up, then coil on the name ----
-let path = [], loopFrom = 0, pathIdx = 0, pathPos = 0;
+let path = [], pathIdx = 0, pathPos = 0;
 
 function nameBox() {
   ctx.font = fName;
@@ -505,7 +561,7 @@ function nameBox() {
 // A stadium, not an ellipse: straight runs clear above and below the name and the
 // round caps sit past its ends, so the body never lies across a glyph.
 function coilPoints(b) {
-  const ry = b.h / 2 + 28, pad = 14, V = 24, S = 14, v = 52;
+  const ry = b.h / 2 + 28, pad = 14, V = 24, S = 14, v = 185;
   const cy = b.y + b.h / 2;
   let x1 = b.x - pad, x2 = b.x + b.w + pad;
   const shift = Math.max(0, 12 - (x1 - ry));   // keep the left cap on the canvas
@@ -526,47 +582,47 @@ function coilPoints(b) {
 }
 
 function buildPath() {
-  const pts = [{ x: CX + CW * 0.5, y: -240, v: 380 }];
+  const pts = [{ x: CX + CW * 0.5, y: -240, v: 760 }];
   const L = CX + CW * 0.22, R = CX + CW * 0.78;
 
   document.querySelectorAll('.card').forEach((c, i) => {
     const r = c.getBoundingClientRect();
     const top = r.top + scrollY;
-    pts.push({ x: i % 2 ? R : L, y: top + r.height * 0.30, v: 380 });
-    pts.push({ x: i % 2 ? L : R, y: top + r.height * 0.76, v: 380 });
+    pts.push({ x: i % 2 ? R : L, y: top + r.height * 0.30, v: 760 });
+    pts.push({ x: i % 2 ? L : R, y: top + r.height * 0.76, v: 760 });
   });
 
   const bottom = PH - 70;
-  pts.push({ x: CX + CW * 0.5, y: bottom, v: 400 });
-  pts.push({ x: CX + CW * 0.95, y: bottom - PH * 0.30, v: 470 });
-  pts.push({ x: CX + CW * 0.05, y: bottom - PH * 0.60, v: 470 });
-  pts.push({ x: CX + CW * 0.92, y: bottom - PH * 0.82, v: 470 });
+  pts.push({ x: CX + CW * 0.5, y: bottom, v: 800 });
+  pts.push({ x: CX + CW * 0.95, y: bottom - PH * 0.30, v: 900 });
+  pts.push({ x: CX + CW * 0.05, y: bottom - PH * 0.60, v: 900 });
+  pts.push({ x: CX + CW * 0.92, y: bottom - PH * 0.82, v: 900 });
 
   const box = nameBox();
-  pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 300 });
+  pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 600 });
 
-  loopFrom = pts.length;
   for (const p of coilPoints(box)) pts.push(p);
 
   path = pts;
-  if (pathIdx >= path.length) { pathIdx = loopFrom; pathPos = 0; }
+  if (pathIdx >= path.length) { pathIdx = Math.max(0, path.length - 1); pathPos = 0; }
 }
 
-const nextIdx = i => (i + 1 >= path.length ? loopFrom : i + 1);
-
+// One pass only: the head runs to the end of the coil and stops there. The body
+// keeps arriving behind it, so the ring closes and then just breathes.
 function walk(dt) {
   if (!path.length) return { x: PW * 0.5, y: PH * 0.5 };
+  const end = path.length - 1;
   let budget = (path[pathIdx].v || 300) * dt, guard = 0;
-  while (budget > 0 && guard++ < 400) {
-    const a = path[pathIdx], b = path[nextIdx(pathIdx)];
+  while (budget > 0 && pathIdx < end && guard++ < 600) {
+    const a = path[pathIdx], b = path[pathIdx + 1];
     const seg = Math.hypot(b.x - a.x, b.y - a.y);
     const remain = seg - pathPos;
     if (budget < remain) { pathPos += budget; break; }
     budget -= Math.max(remain, 0);
-    pathIdx = nextIdx(pathIdx);
-    pathPos = 0;
+    pathIdx++; pathPos = 0;
   }
-  const a = path[pathIdx], b = path[nextIdx(pathIdx)];
+  if (pathIdx >= end) return { x: path[end].x, y: path[end].y };
+  const a = path[pathIdx], b = path[pathIdx + 1];
   const seg = Math.hypot(b.x - a.x, b.y - a.y) || 1;
   const k = clamp(pathPos / seg, 0, 1);
   return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
@@ -578,18 +634,9 @@ function stepSnake(t, dt) {
   const h = joints[0];
   const dx = tgt.x - h.x, dy = tgt.y - h.y;
   const d = Math.hypot(dx, dy) || 1;
-  const step = Math.min(d, clamp(d * 3, 120, 700) * dt);
-  h.x += dx / d * step;
-  h.y += dy / d * step;
-
-  // each joint trails the one ahead at a fixed distance
-  for (let i = 1; i < joints.length; i++) {
-    const a = joints[i - 1], b = joints[i];
-    const ux = b.x - a.x, uy = b.y - a.y;
-    const m = Math.hypot(ux, uy) || 1;
-    b.x = a.x + ux / m * SPACING;
-    b.y = a.y + uy / m * SPACING;
-  }
+  const step = Math.min(d, clamp(d * 3.4, 160, 1200) * dt);
+  pushTrail(h.x + dx / d * step, h.y + dy / d * step);
+  placeJoints();
 }
 
 const halfWidth = f =>
@@ -627,102 +674,182 @@ function drawSnake(t) {
     ctx.closePath();
   };
 
-  // body
+  // ---- body ----
   outline(1);
   const g = ctx.createLinearGradient(p[p.length - 1].x, p[p.length - 1].y, p[0].x, p[0].y);
-  g.addColorStop(0, css('--sn-deep'));
-  g.addColorStop(0.45, css('--sn-dark'));
-  g.addColorStop(1, css('--sn-mid'));
+  g.addColorStop(0, PAL.deep);
+  g.addColorStop(0.45, PAL.dark);
+  g.addColorStop(1, PAL.mid);
   ctx.fillStyle = g; ctx.fill();
 
-  // belly, on the inner flank
-  ctx.beginPath();
-  ctx.moveTo(p[0].x + p[0].nx * p[0].hw * .40, p[0].y + p[0].ny * p[0].hw * .40);
-  for (let i = 1; i < p.length; i++) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * .40, p[i].y + p[i].ny * p[i].hw * .40);
-  for (let i = p.length - 1; i >= 0; i--) ctx.lineTo(p[i].x + p[i].nx * p[i].hw * .92, p[i].y + p[i].ny * p[i].hw * .92);
-  ctx.closePath();
-  ctx.fillStyle = css('--sn-belly'); ctx.globalAlpha = .22; ctx.fill(); ctx.globalAlpha = 1;
+  // Clip to the silhouette: every marking below can then be drawn generously
+  // without ever spilling past the edge of the body.
+  ctx.save();
+  outline(1);
+  ctx.clip();
 
-  // ---- scales: brick-offset rows of small overlapping arcs ----
-  ctx.lineCap = 'round';
-  const dark = css('--sn-deep'), lite = css('--sn-lite');
-  for (let i = 3; i < p.length - 7; i += 2) {
+  // ---- dorsal saddles: dark blotches with a pale rim, boa/tree-python style ----
+  const at = i => p[Math.max(0, Math.min(p.length - 1, i))];
+  ctx.lineJoin = 'round';
+  for (let c = 10; c < p.length - 8; c += 13) {
+    const a0 = c - 5, a1 = c + 5;
+    const bulge = i => 0.16 + 0.74 * Math.cos((i - c) / 6 * Math.PI / 2);
+    ctx.beginPath();
+    for (let i = a0; i <= a1; i++) {
+      const q = at(i), w = q.hw * bulge(i);
+      const x = q.x + q.nx * w, y = q.y + q.ny * w;
+      i === a0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    for (let i = a1; i >= a0; i--) {
+      const q = at(i), w = q.hw * bulge(i);
+      ctx.lineTo(q.x - q.nx * w, q.y - q.ny * w);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = .55; ctx.fillStyle = PAL.deep; ctx.fill();
+    ctx.globalAlpha = .17; ctx.strokeStyle = PAL.pale; ctx.lineWidth = 1.4; ctx.stroke();
+  }
+
+  // pale vertebral dashes riding the spine between the saddles
+  ctx.globalAlpha = .34; ctx.fillStyle = PAL.pale;
+  for (let c = 17; c < p.length - 8; c += 13) {
+    const q = at(c);
+    ctx.beginPath();
+    ctx.ellipse(q.x, q.y, Math.max(q.hw * .30, 1), Math.max(q.hw * .15, .8),
+                Math.atan2(q.ty, q.tx), 0, 7);
+    ctx.fill();
+  }
+
+  // ---- scales: brick-offset rows of overlapping plates ----
+  const WIDE = [-0.78, -0.39, 0, 0.39, 0.78], NARROW = [-0.585, -0.195, 0.195, 0.585];
+  ctx.lineWidth = 0.9;
+  for (let i = 2; i < p.length - 3; i += 2) {
     const q = p[i];
-    const row = (i >> 1) % 2;
-    const offs = row ? [-0.64, 0, 0.64] : [-0.34, 0.34];
-    const sc = Math.max(q.hw * 0.34, 1.4);
-    const shimmer = 0.5 + 0.5 * Math.sin(i * 0.42 - t * 4.4);
-    ctx.strokeStyle = row ? dark : lite;
-    ctx.globalAlpha = (row ? 0.30 : 0.22) + 0.22 * shimmer * q.f;
-    ctx.lineWidth = 1.15;
-    for (const o of offs) {
+    const ang = Math.atan2(q.ty, q.tx);
+    const cols = ((i >> 1) & 1) ? WIDE : NARROW;
+    const rx = Math.max(q.hw * 0.30, 1.1), ry = Math.max(q.hw * 0.21, 0.9);
+    // a slow travelling sheen, so the scales catch the light as it moves
+    const sheen = 0.5 + 0.5 * Math.sin(i * 0.30 - t * 3.2);
+    for (const o of cols) {
       const bx = q.x + q.nx * q.hw * o, by = q.y + q.ny * q.hw * o;
       ctx.beginPath();
-      ctx.moveTo(bx - q.nx * sc, by - q.ny * sc);
-      ctx.quadraticCurveTo(bx + q.tx * sc * 1.7, by + q.ty * sc * 1.7, bx + q.nx * sc, by + q.ny * sc);
-      ctx.stroke();
+      ctx.ellipse(bx, by, rx, ry, ang, 0, 7);
+      ctx.globalAlpha = .07 + .12 * sheen;
+      ctx.fillStyle = PAL.lite; ctx.fill();
+      ctx.globalAlpha = .34;
+      ctx.strokeStyle = PAL.deep; ctx.stroke();
     }
   }
+
+  // rounded shading: dark along one flank, light along the other
+  ctx.globalAlpha = .18;
+  for (const [k, col] of [[-0.72, PAL.lite], [0.86, PAL.deep]]) {
+    ctx.beginPath();
+    for (let i = 0; i < p.length; i++) {
+      const x = p[i].x + p[i].nx * p[i].hw * k, y = p[i].y + p[i].ny * p[i].hw * k;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    }
+    ctx.strokeStyle = col; ctx.lineWidth = 3.2; ctx.stroke();
+  }
+
+  ctx.restore();
   ctx.globalAlpha = 1;
 
-  // a thin dorsal highlight so the body reads as round
-  ctx.strokeStyle = lite; ctx.globalAlpha = .16; ctx.lineWidth = 2;
-  ctx.beginPath();
-  for (let i = 0; i < p.length; i++) {
-    const x = p[i].x - p[i].nx * p[i].hw * .5, y = p[i].y - p[i].ny * p[i].hw * .5;
-    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
-  }
-  ctx.stroke(); ctx.globalAlpha = 1;
+  // a crisp edge tightens the whole silhouette
+  outline(1);
+  ctx.strokeStyle = PAL.deep; ctx.globalAlpha = .45; ctx.lineWidth = 1.2; ctx.stroke();
+  ctx.globalAlpha = 1;
 
   drawHead(p[0], t);
 }
 
+// A wedge, not an oval: narrow snout flaring to jaws set wider than the neck.
+// That silhouette is what separates a python head from a worm.
 function drawHead(h, t) {
   ctx.save();
   ctx.translate(h.x, h.y);
   ctx.rotate(Math.atan2(-h.ty, -h.tx));
-  const L = 36, Wd = 31;   // head reads as a head only if it out-measures the body
+  const L = 42, W = 37;
 
+  const shape = () => {
+    ctx.beginPath();
+    ctx.moveTo(L * .58, 0);
+    ctx.quadraticCurveTo(L * .52, -W * .21, L * .24, -W * .30);   // snout
+    ctx.quadraticCurveTo(-L * .10, -W * .44, -L * .34, -W * .40); // flare to the jaw
+    ctx.quadraticCurveTo(-L * .56, -W * .34, -L * .54, 0);        // neck
+    ctx.quadraticCurveTo(-L * .56, W * .34, -L * .34, W * .40);
+    ctx.quadraticCurveTo(-L * .10, W * .44, L * .24, W * .30);
+    ctx.quadraticCurveTo(L * .52, W * .21, L * .58, 0);
+    ctx.closePath();
+  };
+
+  shape();
+  const hg = ctx.createLinearGradient(-L * .5, 0, L * .6, 0);
+  hg.addColorStop(0, PAL.dark);
+  hg.addColorStop(1, PAL.mid);
+  ctx.fillStyle = hg; ctx.fill();
+
+  ctx.save(); shape(); ctx.clip();
+
+  // crown shields
+  ctx.strokeStyle = PAL.deep; ctx.globalAlpha = .38; ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(L * .62, 0);
-  ctx.quadraticCurveTo(L * .45, -Wd * .52, -L * .12, -Wd * .5);
-  ctx.quadraticCurveTo(-L * .5, -Wd * .34, -L * .5, 0);
-  ctx.quadraticCurveTo(-L * .5, Wd * .34, -L * .12, Wd * .5);
-  ctx.quadraticCurveTo(L * .45, Wd * .52, L * .62, 0);
-  ctx.closePath();
-  ctx.fillStyle = css('--sn-mid'); ctx.fill();
+  ctx.moveTo(L * .34, 0); ctx.lineTo(-L * .40, 0);                       // midline
+  ctx.moveTo(L * .20, -W * .10); ctx.lineTo(-L * .08, -W * .22);
+  ctx.moveTo(L * .20, W * .10);  ctx.lineTo(-L * .08, W * .22);
+  ctx.moveTo(-L * .08, -W * .22); ctx.lineTo(-L * .38, -W * .26);
+  ctx.moveTo(-L * .08, W * .22);  ctx.lineTo(-L * .38, W * .26);
+  ctx.stroke();
 
-  // brow shading
-  ctx.beginPath();
-  ctx.ellipse(-L * .05, 0, L * .33, Wd * .38, 0, 0, 7);
-  ctx.fillStyle = css('--sn-deep'); ctx.globalAlpha = .34; ctx.fill(); ctx.globalAlpha = 1;
-
-  // head scales
-  ctx.strokeStyle = css('--sn-deep'); ctx.globalAlpha = .35; ctx.lineWidth = 1;
+  // labial scale row along each jaw, plus the heat-pit line
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) {
+      const x = L * .40 - k * L * .17;
+      ctx.moveTo(x, s * W * (.22 + k * .035));
+      ctx.lineTo(x - L * .05, s * W * (.34 + k * .022));
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = .5; ctx.fillStyle = PAL.deep;
   for (const s of [-1, 1]) {
     for (let k = 0; k < 3; k++) {
       ctx.beginPath();
-      ctx.arc(-L * .30 + k * L * .16, s * Wd * .17, 3.2, -0.9, 2.2);
-      ctx.stroke();
+      ctx.ellipse(L * .34 - k * L * .15, s * W * (.25 + k * .03), 1.3, 1, 0, 0, 7);
+      ctx.fill();
     }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  // brow ridge over each eye
+  ctx.strokeStyle = PAL.deep; ctx.globalAlpha = .5; ctx.lineWidth = 2;
+  for (const s of [-1, 1]) {
+    ctx.beginPath();
+    ctx.arc(L * .05, s * W * .27, 6.4, s > 0 ? 0.15 : -Math.PI - 0.15, s > 0 ? Math.PI - 0.15 : 0.15, s < 0);
+    ctx.stroke();
   }
   ctx.globalAlpha = 1;
 
-  // eyes with a vertical slit pupil
+  // eyes: gold iris, vertical slit, catchlight
   for (const s of [-1, 1]) {
-    ctx.beginPath(); ctx.ellipse(L * .07, s * Wd * .29, 3.9, 3.4, 0, 0, 7);
-    ctx.fillStyle = css('--sn-eye'); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(L * .10, s * Wd * .29, 1.1, 2.6, 0, 0, 7);
-    ctx.fillStyle = '#0f1317'; ctx.fill();
+    const ey = s * W * .27;
+    ctx.beginPath(); ctx.ellipse(L * .06, ey, 4.6, 4.1, 0, 0, 7);
+    ctx.fillStyle = PAL.eye; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(L * .08, ey, 1.15, 3.0, 0, 0, 7);
+    ctx.fillStyle = '#0d1013'; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(L * .13, ey - 1.3, 1.1, .9, 0, 0, 7);
+    ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fill();
   }
-  ctx.fillStyle = css('--sn-deep');
-  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(L * .46, s * Wd * .15, 1.1, .9, 0, 0, 7); ctx.fill(); }
+
+  // nostrils
+  ctx.fillStyle = PAL.deep;
+  for (const s of [-1, 1]) { ctx.beginPath(); ctx.ellipse(L * .46, s * W * .13, 1.2, .9, 0, 0, 7); ctx.fill(); }
 
   // forked tongue, flicked on a cycle
   const cyc = (t % 2.3) / 2.3;
   const out = cyc < .25 ? Math.sin(cyc / .25 * Math.PI) : 0;
   if (out > .01) {
-    const base = L * .62, len = 17 * out, fork = 6.5 * out, wob = Math.sin(t * 24) * 2.4 * out;
+    const base = L * .58, len = 19 * out, fork = 7 * out, wob = Math.sin(t * 24) * 2.6 * out;
     ctx.strokeStyle = '#e0556b'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(base, 0);
@@ -812,13 +939,14 @@ function updateFlows() {
 const heroTop = () => heroSpace.getBoundingClientRect().top + scrollY;
 
 function draw(t) {
+  readPalette();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, PW, PH);
   drawSnake(t);
 
   ctx.textBaseline = 'alphabetic';
   // name, one glyph at a time on first paint
-  ctx.font = fName; ctx.fillStyle = css('--fg');
+  ctx.font = fName; ctx.fillStyle = PAL.fg;
   const nb = heroTop() + nameSize;
   let nx = CX;
   for (const ch of NAME) {
@@ -830,7 +958,7 @@ function draw(t) {
   }
   ctx.globalAlpha = 1;
 
-  ctx.font = fBio; ctx.fillStyle = css('--muted');
+  ctx.font = fBio; ctx.fillStyle = PAL.muted;
   let y = heroTop() + nameSize + 28;
   let cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
   while (guard++ < 60) {
@@ -970,12 +1098,17 @@ function syncRail() {
 }
 
 // ---------- command palette ----------
-const ITEMS = [...document.querySelectorAll('.card')].map(c => ({
-  name: c.querySelector('h3').textContent.replace(/[→]/g, '').trim(),
-  desc: c.querySelector(':scope > p').textContent.trim(),
-  kind: c.querySelector('.status') ? 'ongoing' : 'project',
-  run: () => location.assign(c.href)
-})).concat([
+const ITEMS = [...document.querySelectorAll('.card')].map(c => {
+  const href = c.getAttribute('href');
+  return {
+    // first text node only: the h3 also carries the arrow and status badges
+    name: c.querySelector('h3').firstChild.textContent.replace(/[→]/g, '').trim(),
+    desc: c.querySelector(':scope > p').textContent.trim(),
+    kind: href ? (c.querySelector('.status') ? 'ongoing' : 'project') : 'private',
+    // cards without a repo link (private work) just scroll into view
+    run: href ? () => location.assign(href) : () => c.scrollIntoView({ block: 'center' })
+  };
+}).concat([
   { name: 'GitHub', desc: 'github.com/ShezinKhais', kind: 'link', run: () => location.assign('https://github.com/ShezinKhais') },
   { name: 'LinkedIn', desc: 'linkedin.com/in/shezinkhaiser', kind: 'link', run: () => location.assign('https://www.linkedin.com/in/shezinkhaiser/') },
   { name: 'Copy email', desc: MAIL, kind: 'action', run: copyMail },
