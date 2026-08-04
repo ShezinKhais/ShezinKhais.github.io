@@ -433,6 +433,17 @@ function flowOff(o) {
   o.on = false;
 }
 
+// The copy parts around the snake on the opening tour only. That first pass is
+// the introduction; once it has been seen, having every card reshuffle its text
+// each time you point at a project is noise, so from then on the snake simply
+// travels behind the cards and the text holds still.
+let flowsLive = true;
+function endFlows() {
+  if (!flowsLive) return;
+  flowsLive = false;
+  for (const o of flows) flowOff(o);
+}
+
 // Wrapping around the snake costs extra lines. Pin each paragraph to its natural
 // height plus two spare lines so the card never resizes mid-slither.
 function reserveParagraphs() {
@@ -551,7 +562,7 @@ function placeJoints() {
 }
 
 // ---- the route: down through the cards, back up, then coil on the name ----
-let path = [], pathIdx = 0, pathPos = 0;
+let path = [], pathIdx = 0, pathPos = 0, tourPath = true;
 
 function nameBox() {
   ctx.font = fName;
@@ -610,6 +621,7 @@ function buildPath() {
   for (const p of coilPoints(box)) pts.push(p);
 
   path = pts;
+  tourPath = true;
   if (pathIdx >= path.length) { pathIdx = Math.max(0, path.length - 1); pathPos = 0; }
 }
 
@@ -646,11 +658,14 @@ function routeTo(box) {
   pts.push({ x: box.x + box.w * 0.5, y: box.y + box.h + 130, v: 1100 });
   for (const p of coilPoints(box)) pts.push(p);
   path = pts; pathIdx = 0; pathPos = 0;
+  tourPath = false;
 }
 
 function snakeFocus(card) {
   if (card === focusedCard) return;
   focusedCard = card;
+  // pointing at a project ends the tour early, whether or not it had finished
+  if (card) endFlows();
   routeTo(card ? titleBox(card) : nameBox());
 }
 
@@ -686,6 +701,8 @@ let guideSet = false, travelled = 0, speedNow = 0;
 function stepSnake(t, dt) {
   const tgt = walk(dt);
   if (!guideSet) { guide.x = tgt.x; guide.y = tgt.y; guideSet = true; }
+  // head has reached the end of the opening route: the introduction is over
+  if (tourPath && pathIdx >= path.length - 1) endFlows();
 
   // Sit exactly on the route rather than steering toward it. Proportional
   // steering keeps a lag proportional to speed, and at coil pace that lag
@@ -942,7 +959,7 @@ const BAND = 14, MAX_EAT = 0.40;
 let flowTick = 0;
 
 function updateFlows() {
-  if (reduced || !flows.length || flowTick++ % 3) return;
+  if (reduced || !flowsLive || !flows.length || flowTick++ % 3) return;
 
   const top = scrollY - 220, bot = scrollY + innerHeight + 220;
   const reads = [];
