@@ -239,6 +239,67 @@
   #pallist li[aria-selected="true"] { background:var(--panel); color:var(--fg); box-shadow:inset 2px 0 0 var(--sn-lite); }
   .palempty { padding:20px 17px; font-size:12.5px; color:var(--dim); }
 
+  /* ---------- playable demo ---------- */
+  .tryit {
+    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
+    font:inherit; font-size:12.5px; color:var(--muted); cursor:pointer;
+    background:var(--panel); border:1px solid var(--line); border-top:0;
+    border-radius:0 0 12px 12px; padding:9px 21px; margin:-14px 0 13px;
+    transition:color .2s, border-color .2s, background .2s;
+  }
+  .tryit:hover { color:var(--fg); border-color:var(--sn-mid); background:var(--panel-hi); }
+  .tryit:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .tryit .ic { color:var(--sn-lite); font-size:10px; display:inline-block; transition:transform .3s ease; }
+  .tryit[aria-expanded="true"] .ic { transform:rotate(90deg); }
+  .tryit .sub { margin-left:auto; font-size:11px; color:var(--dim); }
+
+  .demo {
+    border:1px solid var(--sn-mid); border-radius:12px; background:var(--panel);
+    padding:17px 19px 19px; margin:-6px 0 15px;
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+  }
+  .demo[hidden] { display:none; }
+  .demo-head { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; }
+  .demo-head label { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); display:block; }
+  .demo-head select {
+    display:block; margin-top:5px; font:inherit; font-size:12.5px; color:var(--fg);
+    background:var(--bg); border:1px solid var(--line); border-radius:6px;
+    padding:5px 8px; cursor:pointer; max-width:230px;
+  }
+  .demo-head select:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+
+  .demo-scroll { overflow-x:auto; margin:15px -4px 0; padding:0 4px; }
+  #hdCv { display:block; }
+
+  .demo-read {
+    font-size:12px; color:var(--muted); margin-top:12px; min-height:3.1em;
+    border-left:2px solid var(--sn-mid); padding-left:12px; line-height:1.55;
+  }
+  .demo-read b { color:var(--sn-lite); font-weight:600; }
+  .demo-read i { color:var(--fg); font-style:normal; }
+
+  .demo-ctl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:13px; }
+  .demo-ctl button {
+    font:inherit; font-size:11.5px; color:var(--muted); cursor:pointer;
+    background:var(--bg); border:1px solid var(--line); border-radius:6px;
+    padding:6px 13px; transition:color .2s, border-color .2s;
+  }
+  .demo-ctl button:hover:not(:disabled) { color:var(--fg); border-color:var(--sn-mid); }
+  .demo-ctl button:disabled { opacity:.4; cursor:default; }
+  .demo-ctl button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .demo-ctl .spd { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--dim); }
+  .demo-ctl input[type=range] { width:104px; accent-color:var(--sn-mid); cursor:pointer; }
+
+  .demo-out { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:15px; }
+  .demo-out div { border:1px solid var(--line); border-radius:8px; padding:9px 11px; background:var(--bg); }
+  .demo-out b { display:block; font-size:17px; color:var(--sn-lite); font-weight:600; line-height:1.3; }
+  .demo-out span { font-size:10.5px; color:var(--dim); }
+  @media (max-width:560px){ .demo-out{grid-template-columns:repeat(2,1fr);} .demo-ctl .spd{margin-left:0;} }
+
+  .demo-note { font-size:11.5px; color:var(--dim); margin:14px 0 0; line-height:1.65; }
+  .demo-note code { color:var(--muted); }
+  .demo-note a { color:var(--muted); }
+
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
   footer a:hover { color:var(--accent); text-decoration:underline; }
@@ -317,6 +378,46 @@
       </div></div>
       <div class="chips"><span class="chip">Python</span><span class="chip">signal processing</span><span class="chip">sequence alignment</span></div>
     </a>
+
+    <button class="tryit" id="hdTry" aria-expanded="false" aria-controls="hdDemo">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Run the alignment
+      <span class="sub">Smith-Waterman, step by step</span>
+    </button>
+
+    <div class="demo" id="hdDemo" hidden>
+      <div class="demo-head">
+        <label for="hdA">Track A<select id="hdA"></select></label>
+        <label for="hdB">Track B<select id="hdB"></select></label>
+      </div>
+
+      <div class="demo-scroll">
+        <canvas id="hdCv" role="img"
+                aria-label="Smith-Waterman scoring matrix for the two chord progressions"></canvas>
+      </div>
+
+      <p class="demo-read" id="hdRead" aria-hidden="true"></p>
+
+      <div class="demo-ctl">
+        <button id="hdPlay">Play</button>
+        <button id="hdStep">Step</button>
+        <button id="hdFill">Fill</button>
+        <button id="hdReset">Reset</button>
+        <span class="spd"><label for="hdSpd">Speed</label>
+          <input type="range" id="hdSpd" min="1" max="60" value="18"></span>
+      </div>
+
+      <div class="demo-out" id="hdOut" aria-live="polite"></div>
+
+      <p class="demo-note">
+        Every number is computed by the same rules the project uses:
+        <code>H[i,j] = max(0, diagonal + s, up + gap, left + gap)</code>, with
+        <code>s</code> scoring the two chords by harmonic relationship rather
+        than by whether the labels are equal, and <code>gap = -0.5</code>. The
+        progressions are illustrative sequences, not transcriptions; the real
+        tool detects them from audio with a beat-synchronous chromagram.
+      </p>
+    </div>
   </section>
 
   <section id="sec-progress">
@@ -1204,6 +1305,8 @@ const ITEMS = [...document.querySelectorAll('.card')].map(c => {
 }).concat([
   { name: 'GitHub', desc: 'github.com/ShezinKhais', kind: 'link', run: () => location.assign('https://github.com/ShezinKhais') },
   { name: 'LinkedIn', desc: 'linkedin.com/in/shezinkhaiser', kind: 'link', run: () => location.assign('https://www.linkedin.com/in/shezinkhaiser/') },
+  { name: 'Run the alignment', desc: 'Step through Smith-Waterman on two chord progressions', kind: 'demo',
+    run: () => { if (hdDemo.hidden) hdTry.click(); hdDemo.scrollIntoView({ block: 'center' }); } },
   { name: 'Copy email', desc: MAIL, kind: 'action', run: copyMail },
   { name: 'Toggle theme', desc: 'Switch between light and dark', kind: 'action', run: () => themeBtn.click() },
   { name: 'Toggle motion', desc: 'Pause or resume the snake', kind: 'action', run: () => motionBtn.click() }
@@ -1293,6 +1396,310 @@ function countUp(el) {
   setTimeout(() => { if (+el.textContent !== target) el.textContent = target; }, 2500);
 }
 
+/* ============ HarmonicDNA, playable ============
+   A direct port of harmonicdna/aligner.py. The substitution scores, the gap
+   penalty, the recurrence and the traceback all match the Python line for
+   line, including the tolerance comparison the traceback needs because 0.3
+   has no exact binary representation. */
+
+const PC   = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const PCI  = Object.fromEntries(PC.map((n, i) => [n, i]));
+const SAME = 2, PARALLEL = 1, RELATIVE = 0.5, FIFTH = 0.3, UNREL = -1, GAP = -0.5;
+const EPS  = 1e-9;
+const mod12 = v => ((v % 12) + 12) % 12;
+
+function parseChord(label) {
+  for (const q of ['maj', 'min']) {
+    if (label.endsWith(q)) {
+      const root = label.slice(0, -q.length);
+      if (root in PCI) return [PCI[root], q];
+    }
+  }
+  return null;
+}
+
+function chordSim(a, b) {
+  if (a === b) return SAME;
+  const pa = parseChord(a), pb = parseChord(b);
+  if (!pa || !pb) return UNREL;
+  const [ra, qa] = pa, [rb, qb] = pb;
+  if (ra === rb) return PARALLEL;
+  if (qa !== qb) {
+    const [maj, min] = qa === 'maj' ? [ra, rb] : [rb, ra];
+    return mod12(maj + 9) === min ? RELATIVE : UNREL;
+  }
+  const d = mod12(rb - ra);
+  return (d === 5 || d === 7) ? FIFTH : UNREL;
+}
+
+function relName(a, b) {
+  const s = chordSim(a, b);
+  return s === SAME ? 'same chord' : s === PARALLEL ? 'parallel major/minor'
+       : s === RELATIVE ? 'relative major/minor' : s === FIFTH ? 'a fifth apart'
+       : 'unrelated';
+}
+
+// Illustrative progressions, labelled as constructs rather than as songs.
+// The rotated and transposed pairs are the interesting ones: the first shows
+// local alignment finding a shared run at a different offset, the second shows
+// relatedness carrying an alignment with no chord in common at all.
+const rep = (xs, n) => Array.from({ length: n }, () => xs).flat();
+const TRACKS = [
+  { name: 'I-V-vi-IV in C',      seq: rep(['Cmaj','Gmaj','Amin','Fmaj'], 3) },
+  { name: 'vi-IV-I-V in C',      seq: rep(['Amin','Fmaj','Cmaj','Gmaj'], 3) },
+  { name: 'I-V-vi-IV in G',      seq: rep(['Gmaj','Dmaj','Emin','Cmaj'], 3) },
+  { name: 'Relative minor of C', seq: rep(['Amin','Emin','Fmaj','Cmaj'], 3) },
+  { name: '12-bar blues in C',   seq: ['Cmaj','Cmaj','Cmaj','Cmaj','Fmaj','Fmaj','Cmaj','Cmaj','Gmaj','Fmaj','Cmaj','Gmaj'] },
+  { name: 'Andalusian cadence',  seq: rep(['Amin','Gmaj','Fmaj','Emaj'], 3) },
+  { name: 'Pachelbel in D',      seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'] }
+];
+
+const hdTry  = document.getElementById('hdTry');
+const hdDemo = document.getElementById('hdDemo');
+const hdCv   = document.getElementById('hdCv');
+const hdCtx  = hdCv.getContext('2d');
+const hdRead = document.getElementById('hdRead');
+const hdOut  = document.getElementById('hdOut');
+const selA   = document.getElementById('hdA');
+const selB   = document.getElementById('hdB');
+const spd    = document.getElementById('hdSpd');
+
+TRACKS.forEach((t, i) => {
+  for (const sel of [selA, selB]) {
+    const o = document.createElement('option');
+    o.value = i; o.textContent = t.name;
+    sel.appendChild(o);
+  }
+});
+selA.value = 0; selB.value = 1;
+
+let A = [], B = [], H = [], order = [], cur = -1;
+let best = { v: 0, i: 0, j: 0 }, tb = [], tbShown = 0;
+let phase = 'idle', timer = 0;
+
+function buildMatrix() {
+  A = TRACKS[+selA.value].seq;
+  B = TRACKS[+selB.value].seq;
+  H = Array.from({ length: A.length + 1 }, () => new Array(B.length + 1).fill(0));
+  order = [];
+  for (let i = 1; i <= A.length; i++)
+    for (let j = 1; j <= B.length; j++) order.push([i, j]);
+  cur = -1; best = { v: 0, i: 0, j: 0 }; tb = []; tbShown = 0; phase = 'idle';
+}
+
+function cellStep() {
+  if (cur >= order.length - 1) return false;
+  const [i, j] = order[++cur];
+  const s = chordSim(A[i - 1], B[j - 1]);
+  const diag = H[i-1][j-1] + s, up = H[i-1][j] + GAP, left = H[i][j-1] + GAP;
+  const v = Math.max(0, diag, up, left);
+  H[i][j] = v;
+  if (v > best.v) best = { v, i, j };
+  hdRead.innerHTML =
+    `<i>${A[i-1]}</i> vs <i>${B[j-1]}</i> &mdash; ${relName(A[i-1], B[j-1])}, s = <b>${s > 0 ? '+' : ''}${s}</b><br>` +
+    `H[${i},${j}] = max(0, ${fmt(H[i-1][j-1])}${s >= 0 ? '+' : ''}${s} = ${fmt(diag)}, ` +
+    `${fmt(H[i-1][j])}-0.5 = ${fmt(up)}, ${fmt(H[i][j-1])}-0.5 = ${fmt(left)}) = <b>${fmt(v)}</b>`;
+  return true;
+}
+
+const fmt = v => (Math.round(v * 10) / 10).toFixed(1).replace(/\.0$/, '');
+
+function traceback() {
+  let { i, j } = best;
+  const path = [];
+  while (i > 0 && j > 0 && H[i][j] > 0) {
+    path.push([i, j]);
+    const s = chordSim(A[i-1], B[j-1]);
+    if (Math.abs(H[i][j] - (H[i-1][j-1] + s)) < EPS) { i--; j--; }
+    else if (Math.abs(H[i][j] - (H[i-1][j] + GAP)) < EPS) { i--; }
+    else { j--; }
+  }
+  return path.reverse();
+}
+
+// Reconstruct the aligned pair from the traceback, then score it the way
+// scoring.py does: normalise against a perfect self-alignment of the longer
+// sequence, and report identity separately so a high score with a low identity
+// reads as "harmonically parallel" rather than "the same".
+function alignResult() {
+  const path = traceback();
+  const al = [];
+  let pi = null;
+  for (const [i, j] of path) {
+    if (pi && i === pi[0]) al.push(['-', B[j-1]]);
+    else if (pi && j === pi[1]) al.push([A[i-1], '-']);
+    else al.push([A[i-1], B[j-1]]);
+    pi = [i, j];
+  }
+  const matches  = al.filter(([x, y]) => x === y).length;
+  const identity = al.length ? matches / al.length : 0;
+  const norm     = Math.min(1, best.v / (Math.max(A.length, B.length) * SAME));
+  const verdict  = norm >= .95 ? 'identical' : norm >= .75 ? 'very similar'
+                 : norm >= .5 ? 'related' : 'distant';
+  return { score: best.v, identity, norm, verdict, al, matches, path };
+}
+
+function finish() {
+  const { identity, norm, verdict, al, matches } = alignResult();
+  tb = traceback();
+  hdOut.innerHTML =
+    `<div><b>${fmt(best.v)}</b><span>alignment score</span></div>` +
+    `<div><b>${norm.toFixed(2)}</b><span>normalised</span></div>` +
+    `<div><b>${Math.round(identity * 100)}%</b><span>identity</span></div>` +
+    `<div><b>${verdict}</b><span>verdict</span></div>`;
+  hdRead.innerHTML = identity < 1 && best.v > 0
+    ? `Traceback recovers <b>${al.length}</b> aligned positions, <b>${matches}</b> of them exact. ` +
+      `The other ${al.length - matches} scored on harmonic relationship rather than on being the ` +
+      `same chord, which is why the identity sits below the score.`
+    : `Traceback recovers <b>${al.length}</b> aligned positions, all exact matches.`;
+  phase = 'done';
+  syncBtns();
+}
+
+// ---- rendering ----
+function hdSize() {
+  const n = A.length + 1, m = B.length + 1;
+  const cell = Math.max(24, Math.min(34, Math.floor((hdDemo.clientWidth - 60) / m)));
+  return { cell, gut: 44, w: 44 + m * cell, h: 44 + n * cell };
+}
+
+function hdDraw() {
+  const { cell, gut, w, h } = hdSize();
+  const d = Math.min(devicePixelRatio || 1, 2);
+  hdCv.width = w * d; hdCv.height = h * d;
+  hdCv.style.width = w + 'px'; hdCv.style.height = h + 'px';
+  const c = hdCtx;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.clearRect(0, 0, w, h);
+  c.font = '10px ' + MONO;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+
+  const lite = css('--sn-lite'), midc = css('--sn-mid');
+  const onPath = new Set(tb.slice(0, tbShown).map(([i, j]) => i + ',' + j));
+
+  for (let i = 0; i <= A.length; i++) {
+    for (let j = 0; j <= B.length; j++) {
+      const x = gut + j * cell, y = gut + i * cell;
+      const idx = (i - 1) * B.length + (j - 1);
+      const filled = i === 0 || j === 0 || idx <= cur;
+      if (!filled) continue;
+      const v = H[i][j];
+      if (v > 0) {
+        c.fillStyle = lite;
+        c.globalAlpha = 0.10 + 0.62 * Math.min(1, v / Math.max(best.v, 1));
+        c.fillRect(x + 1, y + 1, cell - 2, cell - 2);
+        c.globalAlpha = 1;
+      }
+      if (onPath.has(i + ',' + j)) {
+        c.strokeStyle = css('--py2'); c.lineWidth = 2;
+        c.strokeRect(x + 1.5, y + 1.5, cell - 3, cell - 3);
+      } else if (i === best.i && j === best.j && best.v > 0 && phase !== 'idle') {
+        c.strokeStyle = midc; c.lineWidth = 1.5;
+        c.strokeRect(x + 1.5, y + 1.5, cell - 3, cell - 3);
+      }
+      c.fillStyle = v > 0 ? css('--fg') : css('--dim');
+      c.fillText(fmt(v), x + cell / 2, y + cell / 2 + 0.5);
+    }
+  }
+
+  // the current cell being computed
+  if (cur >= 0 && cur < order.length && phase !== 'done') {
+    const [i, j] = order[cur];
+    c.strokeStyle = css('--accent'); c.lineWidth = 2;
+    c.strokeRect(gut + j * cell + 1, gut + i * cell + 1, cell - 2, cell - 2);
+  }
+
+  c.fillStyle = css('--muted'); c.font = '9.5px ' + MONO;
+  for (let j = 1; j <= B.length; j++) c.fillText(B[j-1].replace('maj','').replace('min','m'), gut + j * cell + cell/2, 30);
+  c.textAlign = 'right';
+  for (let i = 1; i <= A.length; i++) c.fillText(A[i-1].replace('maj','').replace('min','m'), gut - 6, gut + i * cell + cell/2);
+}
+
+// ---- controls ----
+const btnPlay = document.getElementById('hdPlay');
+const btnStep = document.getElementById('hdStep');
+const btnFill = document.getElementById('hdFill');
+
+function syncBtns() {
+  const done = phase === 'done';
+  btnPlay.textContent = phase === 'playing' ? 'Pause' : 'Play';
+  btnPlay.disabled = done; btnStep.disabled = done; btnFill.disabled = done;
+}
+
+function advance() {
+  if (!cellStep()) { startTrace(); return false; }
+  hdDraw();
+  return true;
+}
+
+function startTrace() {
+  phase = 'tracing';
+  tb = traceback(); tbShown = 0;
+  const tick = () => {
+    if (phase !== 'tracing') return;
+    tbShown++;
+    hdDraw();
+    if (tbShown >= tb.length) { finish(); hdDraw(); return; }
+    timer = setTimeout(tick, reduced ? 0 : 55);
+  };
+  tick();
+}
+
+function play() {
+  if (phase === 'done') return;
+  phase = 'playing'; syncBtns();
+  const tick = () => {
+    if (phase !== 'playing') return;
+    const perFrame = Math.max(1, Math.round(+spd.value / 6));
+    for (let k = 0; k < perFrame; k++) if (!advance()) return;
+    hdDraw();
+    timer = setTimeout(tick, 1000 / Math.max(1, +spd.value));
+  };
+  tick();
+}
+
+function pause() { phase = 'paused'; clearTimeout(timer); syncBtns(); }
+
+btnPlay.addEventListener('click', () => phase === 'playing' ? pause() : play());
+btnStep.addEventListener('click', () => { pause(); advance(); });
+// Fill means "skip to the answer", so it resolves the traceback immediately
+// rather than handing off to the animated reveal.
+btnFill.addEventListener('click', () => {
+  pause();
+  while (cur < order.length - 1) cellStep();
+  tb = traceback(); tbShown = tb.length;
+  finish();
+  hdDraw();
+});
+document.getElementById('hdReset').addEventListener('click', () => {
+  clearTimeout(timer); buildMatrix(); hdOut.innerHTML = '';
+  hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
+  syncBtns(); hdDraw();
+});
+for (const sel of [selA, selB]) sel.addEventListener('change', () => {
+  clearTimeout(timer); buildMatrix(); hdOut.innerHTML = '';
+  hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
+  syncBtns(); hdDraw();
+});
+
+function openDemo(on) {
+  hdDemo.hidden = !on;
+  hdTry.setAttribute('aria-expanded', String(on));
+  hdTry.querySelector('.sub').textContent = on ? 'collapse' : 'Smith-Waterman, step by step';
+  if (on) {
+    buildMatrix();
+    hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
+    hdOut.innerHTML = ''; syncBtns(); hdDraw();
+  } else {
+    clearTimeout(timer); phase = 'idle';
+  }
+  // the page just changed height, so the snake's route has to be rebuilt
+  resize();
+  draw(performance.now() / 1000);
+}
+hdTry.addEventListener('click', () => openDemo(hdDemo.hidden));
+
+
 // ================= boot =================
 document.body.classList.remove('nojs');
 seedJoints();
@@ -1314,7 +1721,10 @@ if (reduced) {
 let rt;
 addEventListener('resize', () => {
   clearTimeout(rt);
-  rt = setTimeout(() => { resize(); draw(performance.now() / 1000); }, 130);
+  rt = setTimeout(() => {
+    resize(); draw(performance.now() / 1000);
+    if (!hdDemo.hidden) hdDraw();
+  }, 130);
 });
 
 const cards = document.querySelectorAll('.card');
