@@ -704,6 +704,42 @@ function placeJoints() {
   // trail shorter than the body (only at start-up): pile the rest on its end
   const last = trail[trail.length - 1];
   for (; ji < joints.length; ji++) { joints[ji].x = last.x; joints[ji].y = last.y; }
+  relaxSpine();
+}
+
+/* A spine cannot fold. Where the route turns hard, the recorded trail turns
+   hard with it, and the body reproduced that corner literally as a kink. Cap
+   how far each vertebra may turn against the one ahead of it and the same
+   corner comes out as a tight arc instead.
+
+   The cap has to clear the coil comfortably or the loop stops closing. The
+   tightest coil needs about 0.25 rad per joint, and the travelling sway adds
+   another 0.13, so anything near 0.30 binds constantly and the accumulated
+   clamping walks the tail off the loop (measured: 3 of 118 joints still on it).
+   0.55 never binds on a real curve and still stops a fold. */
+const MAX_BEND = 0.55;
+
+function relaxSpine() {
+  for (let i = 2; i < joints.length; i++) {
+    const px = joints[i-1].x - joints[i-2].x, py = joints[i-1].y - joints[i-2].y;
+    const pl = Math.hypot(px, py);
+    if (pl < 1e-6) continue;
+    let dx = joints[i].x - joints[i-1].x, dy = joints[i].y - joints[i-1].y;
+    const dl = Math.hypot(dx, dy);
+    if (dl < 1e-6) continue;
+
+    const pa = Math.atan2(py, px), da = Math.atan2(dy, dx);
+    // signed shortest turn from the segment ahead to this one
+    let turn = da - pa;
+    while (turn >  Math.PI) turn -= 2 * Math.PI;
+    while (turn < -Math.PI) turn += 2 * Math.PI;
+
+    if (Math.abs(turn) > MAX_BEND) {
+      const a = pa + (turn > 0 ? MAX_BEND : -MAX_BEND);
+      joints[i].x = joints[i-1].x + Math.cos(a) * dl;
+      joints[i].y = joints[i-1].y + Math.sin(a) * dl;
+    }
+  }
 }
 
 // ---- the route: down through the cards, back up, then coil on the name ----
@@ -860,10 +896,16 @@ function stepSnake(t, dt) {
   travelled += step;
   speedNow += (step / Math.max(dt, 1e-4) - speedNow) * Math.min(1, dt * 5);
 
-  // amplitude rides the speed, so it slithers hard while travelling and lies
-  // almost straight as it eases onto the coil
-  const lat = Math.sin(travelled * SWAY_K) * SWAY * Math.min(1, speedNow / 950);
-  pushTrail(guide.x - dir.y * lat, guide.y + dir.x * lat);
+  // Record body positions only while the head is actually advancing. The
+  // amplitude rides the speed, so once the head parks at the end of the coil
+  // the sway decays toward zero, and writing that decay into the trail slid
+  // the recorded head sideways by up to SWAY px with no forward travel to
+  // spread it over. The result was a hard fold in the neck. No travel, no new
+  // trail: a coiled snake holds the shape it stopped in.
+  if (step > 0.05) {
+    const lat = Math.sin(travelled * SWAY_K) * SWAY * Math.min(1, speedNow / 950);
+    pushTrail(guide.x - dir.y * lat, guide.y + dir.x * lat);
+  }
   placeJoints();
 }
 
