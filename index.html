@@ -1574,40 +1574,73 @@ function audioCtx() {
   return AC;
 }
 
-// equal temperament from C4; the triad is root/third/fifth, minor flattening
-// the third by a semitone
-function chordFreqs(label) {
+const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+// the three pitch classes of the triad, minor flattening the third
+function triadPCs(label) {
   const p = parseChord(label);
-  if (!p) return [];
+  if (!p) return null;
   const [root, qual] = p;
-  const third = qual === 'maj' ? 4 : 3;
-  return [0, third, 7].map(s => 261.63 * Math.pow(2, (root + s) / 12));
+  return [root, (root + (qual === 'maj' ? 4 : 3)) % 12, (root + 7) % 12];
 }
 
-function playChord(ctx, label, at, dur) {
-  const freqs = chordFreqs(label);
-  if (!freqs.length) return;
+/* Voice each chord as near the previous one as it will sit.
+
+   Spelling every triad in root position upward from C4 is correct in pitch and
+   wrong in music: it moves all three voices the same direction by the same
+   interval on every change, so a progression came out as one fixed shape
+   sliding up and down rather than as harmony. Picking the inversion closest to
+   the chord before is what a player does without thinking about it, and it is
+   the difference between the demo sounding like a keyboard and sounding like a
+   siren. */
+function voiceTriad(pcs, prev) {
+  const target = prev || [60, 64, 67];               // C4 E4 G4 to open on
+  let best = null, bestCost = Infinity;
+  for (let r = 0; r < 3; r++) {                      // try each inversion
+    const notes = []; let cost = 0;
+    for (let k = 0; k < 3; k++) {
+      const pc = pcs[(r + k) % 3], t = target[k];
+      let m = t + ((((pc - t) % 12) + 12) % 12);      // nearest note above
+      if (m - t > 6) m -= 12;                        // or below, if that is closer
+      notes.push(m); cost += Math.abs(m - t);
+    }
+    notes.sort((a, b) => a - b);
+    if (cost < bestCost) { bestCost = cost; best = notes; }
+  }
+  return best;
+}
+
+// the bass steps to the nearest octave of the root instead of leaping with it
+function voiceBass(root, prev) {
+  const t = prev == null ? 40 : prev;
+  let m = t + ((((root - t) % 12) + 12) % 12);
+  if (m - t > 6) m -= 12;
+  while (m < 33) m += 12;
+  while (m > 50) m -= 12;
+  return m;
+}
+
+function playChord(ctx, dest, notes, bass, at, dur) {
   const g = ctx.createGain();
-  g.connect(ctx.destination);
+  g.connect(dest);
   // a soft bell curve per chord, so consecutive chords breathe instead of clicking
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(0.13, at + 0.02);
-  g.gain.setValueAtTime(0.13, at + dur * 0.55);
+  g.gain.exponentialRampToValueAtTime(0.11, at + 0.03);
+  g.gain.setValueAtTime(0.11, at + dur * 0.5);
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
 
-  for (const f of freqs) {
+  for (const m of notes) {
     const o = ctx.createOscillator();
-    o.type = 'triangle'; o.frequency.value = f;
+    o.type = 'triangle'; o.frequency.value = midiHz(m);
     o.connect(g); o.start(at); o.stop(at + dur + 0.02);
   }
-  // root an octave down gives the progression a floor to sit on
   const b = ctx.createOscillator();
-  b.type = 'sine'; b.frequency.value = freqs[0] / 2;
-  const bg = ctx.createGain(); bg.gain.value = 0.5;
+  b.type = 'sine'; b.frequency.value = midiHz(bass);
+  const bg = ctx.createGain(); bg.gain.value = 0.55;
   b.connect(bg); bg.connect(g); b.start(at); b.stop(at + dur + 0.02);
 }
 
-const STEP = 0.46;   // seconds per chord
+const STEP = 0.60;   // seconds per chord
 
 function stopAudio() {
   if (AC) { AC.close(); AC = null; }
@@ -1622,8 +1655,23 @@ function stopAudio() {
 function playSequence(chords, cells) {
   stopAudio();
   const ctx = audioCtx();
+  // one shared chain: a gentle lowpass takes the edge off the triangle waves,
+  // which are otherwise glassy in the upper voices
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = 2000; lp.Q.value = 0.4;
+  const master = ctx.createGain(); master.gain.value = 0.9;
+  lp.connect(master); master.connect(ctx.destination);
+
   const t0 = ctx.currentTime + 0.08;
-  chords.forEach((c, i) => playChord(ctx, c, t0 + i * STEP, STEP * 0.92));
+  let prev = null, prevBass = null;
+  chords.forEach((c, i) => {
+    const pcs = triadPCs(c);
+    if (!pcs) return;
+    const notes = voiceTriad(pcs, prev);
+    const bass = voiceBass(pcs[0], prevBass);
+    playChord(ctx, lp, notes, bass, t0 + i * STEP, STEP * 0.9);
+    prev = notes; prevBass = bass;
+  });
   audioTail = t0 + chords.length * STEP;
 
   playing = { t0, n: chords.length, cells: cells || null, timer: 0 };
