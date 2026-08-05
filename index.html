@@ -1510,8 +1510,12 @@ const TRACKS = [
     seq: ['Cmaj','Dmin','Gmaj','Cmaj','Amin','Dmaj','Gmaj','Cmaj','Cmaj','Dmin','Gmaj','Cmaj'] },
   { g:'Public domain', name:'Mozart, Eine kleine Nachtmusik',
     seq: ['Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Cmaj','Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Gmaj'] },
-  { g:'Public domain', name:'Beethoven, Fur Elise',
-    seq: ['Amin','Emaj','Amin','Emaj','Amin','Cmaj','Gmaj','Amin','Emaj','Amin','Emaj','Amin'] },
+  // The A section is an i-V-i oscillation and nothing else. Fur Elise is
+  // identified by its melody, not its harmony, so at triad resolution it is
+  // indistinguishable from any other Am/E piece. It earns its place here as
+  // the honest demonstration of that limit.
+  { g:'Public domain', name:'Beethoven, Fur Elise (A section)',
+    seq: rep(['Amin','Emaj','Amin'], 4) },
   { g:'Public domain', name:'Satie, Gymnopedie No. 1',
     seq: rep(['Gmaj','Dmaj'], 6) }
 ];
