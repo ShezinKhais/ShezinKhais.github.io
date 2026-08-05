@@ -1615,25 +1615,90 @@ function voiceBass(root, prev) {
   return m;
 }
 
-/* One tone. Everything below is built from this, so timbre stays consistent
-   while the figuration changes. */
-function tone(ctx, dest, midi, at, dur, amp, type, hold) {
-  const g = ctx.createGain();
-  g.connect(dest);
-  g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(amp, at + 0.018);
-  g.gain.setValueAtTime(amp, at + dur * (hold == null ? 0.5 : hold));
-  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  const o = ctx.createOscillator();
-  o.type = type || 'triangle';
-  o.frequency.value = midiHz(midi);
-  o.connect(g); o.start(at); o.stop(at + dur + 0.02);
+/* A struck string, not a held pipe.
+
+   The previous voice was a single triangle with a plateau in its envelope:
+   attack, hold at full level, then release. That is an organ. A piano note
+   starts at once and decays continuously from the instant of the strike, and
+   its upper partials die away faster than the fundamental, so the tone darkens
+   as it rings. Three things do most of the work here: a rich harmonic
+   spectrum, a filter that closes over the life of the note, and a short
+   hammer transient at the onset. */
+// short, dull burst: the felt of the hammer, not a pluck
+function noiseBuf(ctx) {
+  if (ctx._nb) return ctx._nb;
+  const n = Math.floor(ctx.sampleRate * 0.02);
+  const b = ctx.createBuffer(1, n, ctx.sampleRate);
+  const d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 4);
+  ctx._nb = b;
+  return b;
 }
 
+/* Each partial gets its own decay.
+
+   The first attempt shaped one rich oscillator with a closing lowpass, which
+   measured almost flat: the upper partials still held 6% of the fundamental's
+   energy after 0.4s, so the tone stayed bright the whole way down and read as
+   plucked rather than struck. A real string sheds its high partials far faster
+   than its fundamental, and the only honest way to get that is to give every
+   partial its own envelope. Partial 6 dies in a quarter of the time partial 1
+   takes, which is what makes the tone settle and round out as it rings. */
+const PARTIALS = [
+  // [harmonic, relative level, decay time as a fraction of the fundamental's]
+  [1, 1.000, 1.00],
+  [2, 0.300, 0.68],
+  [3, 0.130, 0.48],
+  [4, 0.062, 0.36],
+  [5, 0.030, 0.27],
+  [6, 0.014, 0.21]
+];
+const PARTIAL_SUM = PARTIALS.reduce((t, p) => t + p[1], 0);
+const STIFFNESS = 0.0004;   // real strings run slightly sharp in the upper partials
+
+function pianoTone(ctx, dest, midi, at, dur, amp, opt) {
+  const o0 = opt || {};
+  const f = midiHz(midi);
+  // notes ring well past their slot, the way a piano does
+  const ring = dur + Math.min(1.1, dur * 1.4);
+  // the bass is rounder; the melody keeps a touch more of its upper partials
+  const tilt = o0.dark ? 0.55 : o0.lead ? 1.12 : 1.0;
+  const level = amp / PARTIAL_SUM;
+
+  for (const [n, rel, dmul] of PARTIALS) {
+    const fn = f * n * Math.sqrt(1 + STIFFNESS * n * n);
+    if (fn > 9000) continue;
+    const peak = Math.max(level * rel * (n === 1 ? 1 : tilt), 0.00002);
+    const life = ring * dmul;
+
+    const g = ctx.createGain();
+    g.connect(dest);
+    g.gain.setValueAtTime(0.0001, at);
+    // a hair softer than a hard strike: it is meant to sound weighted, not sharp
+    g.gain.exponentialRampToValueAtTime(peak, at + 0.007);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + life);
+
+    const o = ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = fn;
+    o.connect(g); o.start(at); o.stop(at + life + 0.02);
+  }
+
+  // the knock of the hammer, low and brief so it gives definition without click
+  const nz = ctx.createBufferSource();
+  nz.buffer = noiseBuf(ctx);
+  const lp = ctx.createBiquadFilter();
+  lp.type = 'lowpass'; lp.frequency.value = Math.min(1400, f * 3); lp.Q.value = 0.3;
+  const ng = ctx.createGain(); ng.gain.value = amp * 0.07;
+  nz.connect(lp); lp.connect(ng); ng.connect(dest);
+  nz.start(at); nz.stop(at + 0.02);
+}
+
+const voice = (ctx, d, n, at, dur, amp) => pianoTone(ctx, d, n, at, dur, amp);
 const chordVoices = (ctx, d, notes, at, dur, amp) =>
-  notes.forEach(n => tone(ctx, d, n, at, dur, amp, 'triangle'));
+  notes.forEach(n => pianoTone(ctx, d, n, at, dur, amp));
 const bassNote = (ctx, d, m, at, dur, amp) =>
-  tone(ctx, d, m, at, dur, amp * 1.25, 'sine');
+  pianoTone(ctx, d, m, at, dur, amp * 1.2, { dark: true });
 
 /* Accompaniment figures.
 
@@ -1649,7 +1714,7 @@ function scheduleTexture(tex, ctx, dest, notes, bass, at, step, amp) {
       bassNote(ctx, dest, bass, at, step * 0.98, amp);
       const run = [notes[0], notes[1], notes[2], notes[0], notes[1], notes[2]];
       run.forEach((n, k) =>
-        tone(ctx, dest, n, at + k * step / 6, step / 6 * 0.92, amp, 'triangle', 0.35));
+        voice(ctx, dest, n, at + k * step / 6, step / 6 * 0.92, amp));
       break;
     }
     // low-high-mid-high, the classical-era left hand
@@ -1657,7 +1722,7 @@ function scheduleTexture(tex, ctx, dest, notes, bass, at, step, amp) {
       bassNote(ctx, dest, bass, at, step * 0.98, amp * 0.85);
       const pat = [notes[0], notes[2], notes[1], notes[2]];
       pat.forEach((n, k) =>
-        tone(ctx, dest, n, at + k * step / 4, step / 4 * 0.9, amp * 0.9, 'triangle', 0.4));
+        voice(ctx, dest, n, at + k * step / 4, step / 4 * 0.9, amp * 0.9));
       break;
     }
     // bass on one, chord on two and three
@@ -1680,24 +1745,10 @@ function scheduleTexture(tex, ctx, dest, notes, bass, at, step, amp) {
   }
 }
 
-// The tune sits on top: a sine for body plus a quiet octave above to give it
-// enough edge to be picked out, since the triads occupy the same register.
+// The tune is the same instrument, played a little louder and brighter so it
+// sits in front of the accompaniment rather than beside it.
 function playNote(ctx, dest, midi, at, dur) {
-  const g = ctx.createGain();
-  g.connect(dest);
-  g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(0.22, at + 0.015);
-  g.gain.setValueAtTime(0.22, at + dur * 0.6);
-  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-
-  const o = ctx.createOscillator();
-  o.type = 'sine'; o.frequency.value = midiHz(midi);
-  o.connect(g); o.start(at); o.stop(at + dur + 0.02);
-
-  const h = ctx.createOscillator();
-  h.type = 'triangle'; h.frequency.value = midiHz(midi + 12);
-  const hg = ctx.createGain(); hg.gain.value = 0.16;
-  h.connect(hg); hg.connect(g); h.start(at); h.stop(at + dur + 0.02);
+  pianoTone(ctx, dest, midi, at, dur, 0.26, { lead: true });
 }
 
 // Flatten the two-slot-per-chord grid into notes, letting each ring through any
@@ -1736,8 +1787,10 @@ function playSequence(chords, cells, track) {
   // one shared chain: a gentle lowpass takes the edge off the triangle waves,
   // which are otherwise glassy in the upper voices
   const lp = ctx.createBiquadFilter();
-  lp.type = 'lowpass'; lp.frequency.value = 2000; lp.Q.value = 0.4;
-  const master = ctx.createGain(); master.gain.value = 0.9;
+  lp.type = 'lowpass'; lp.frequency.value = 9000; lp.Q.value = 0.3;
+  // the additive voice normalises its partials, which costs level; this puts
+  // it back without touching the balance between parts
+  const master = ctx.createGain(); master.gain.value = 1.45;
   lp.connect(master); master.connect(ctx.destination);
 
   const t = track || {};
