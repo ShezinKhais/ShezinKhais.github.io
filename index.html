@@ -459,7 +459,10 @@
         reductions, not transcriptions: the detector matches audio against 24
         major and minor templates, so sevenths, inversions and passing chords
         collapse before the aligner sees them. That loss is the method, not a
-        shortcut taken for the demo.
+        shortcut taken for the demo. Where a tune is played it is there so you
+        can recognise the piece; the alignment above is computed from the chords
+        alone, which is exactly why <em>Twinkle Twinkle</em> and the alphabet
+        song come out identical.
       </p>
     </div>
   </section>
@@ -1504,18 +1507,39 @@ const TRACKS = [
   { g:'Progressions', name:'12-bar blues in C',   seq: ['Cmaj','Cmaj','Cmaj','Cmaj','Fmaj','Fmaj','Cmaj','Cmaj','Gmaj','Fmaj','Cmaj','Gmaj'] },
   { g:'Progressions', name:'Andalusian cadence',  seq: rep(['Amin','Gmaj','Fmaj','Emaj'], 3) },
 
+  /* Tunes. `mel` runs parallel to `seq`, two eighth-note slots per chord, MIDI
+     numbers with null for "hold the previous note". The melody exists purely so
+     a piece is recognisable when you play it: the aligner never sees it, and
+     never will, because the detector reduces audio to 24 triad templates and
+     melody is not among them. That is the whole reason a chord reduction of
+     Fur Elise sounds like nothing in particular. */
+  { g:'Tunes', name:'Twinkle Twinkle Little Star',
+    seq: ['Cmaj','Cmaj','Fmaj','Cmaj','Fmaj','Cmaj','Gmaj','Cmaj','Cmaj','Gmaj','Cmaj','Gmaj'],
+    mel: [[60,60],[67,67],[69,69],[67,null],[65,65],[64,64],[62,62],[60,null],
+          [67,67],[65,65],[64,64],[62,null]] },
+  // Same tune, same harmony, different words. Both descend from "Ah! vous
+  // dirai-je, maman" (1761), so the aligner should call them identical, and
+  // being right about that is the point of including both.
+  { g:'Tunes', name:'Alphabet song (A B C D)',
+    seq: ['Cmaj','Cmaj','Fmaj','Cmaj','Fmaj','Cmaj','Gmaj','Cmaj','Cmaj','Gmaj','Cmaj','Gmaj'],
+    mel: [[60,60],[67,67],[69,69],[67,null],[65,65],[64,64],[62,62],[60,null],
+          [67,67],[65,65],[64,64],[62,null]] },
+  { g:'Tunes', name:'Beethoven, Ode to Joy (in C)',
+    seq: ['Cmaj','Cmaj','Gmaj','Gmaj','Cmaj','Cmaj','Gmaj','Gmaj'],
+    mel: [[64,64],[65,67],[67,65],[64,62],[60,60],[62,64],[64,62],[62,null]] },
+  { g:'Tunes', name:'Beethoven, Fur Elise (opening)',
+    seq: ['Amin','Amin','Amin','Amin','Amin','Emaj','Amin','Emaj','Amin','Amin','Amin','Amin'],
+    mel: [[76,75],[76,75],[76,71],[74,72],[69,null],[71,null],[72,null],[76,75],
+          [76,75],[76,71],[74,72],[69,null]] },
+
   { g:'Public domain', name:'Pachelbel, Canon in D',
     seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'] },
+  // This prelude is broken chords and nothing else, so playing the harmony
+  // really is playing the piece.
   { g:'Public domain', name:'Bach, Prelude in C (BWV 846)',
     seq: ['Cmaj','Dmin','Gmaj','Cmaj','Amin','Dmaj','Gmaj','Cmaj','Cmaj','Dmin','Gmaj','Cmaj'] },
   { g:'Public domain', name:'Mozart, Eine kleine Nachtmusik',
     seq: ['Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Cmaj','Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Gmaj'] },
-  // The A section is an i-V-i oscillation and nothing else. Fur Elise is
-  // identified by its melody, not its harmony, so at triad resolution it is
-  // indistinguishable from any other Am/E piece. It earns its place here as
-  // the honest demonstration of that limit.
-  { g:'Public domain', name:'Beethoven, Fur Elise (A section)',
-    seq: rep(['Amin','Emaj','Amin'], 4) },
   { g:'Public domain', name:'Satie, Gymnopedie No. 1',
     seq: rep(['Gmaj','Dmaj'], 6) }
 ];
@@ -1582,13 +1606,14 @@ function voiceBass(root, prev) {
   return m;
 }
 
-function playChord(ctx, dest, notes, bass, at, dur) {
+function playChord(ctx, dest, notes, bass, at, dur, amp) {
+  const peak = amp || 0.11;
   const g = ctx.createGain();
   g.connect(dest);
   // a soft bell curve per chord, so consecutive chords breathe instead of clicking
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(0.11, at + 0.03);
-  g.gain.setValueAtTime(0.11, at + dur * 0.5);
+  g.gain.exponentialRampToValueAtTime(peak, at + 0.03);
+  g.gain.setValueAtTime(peak, at + dur * 0.5);
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
 
   for (const m of notes) {
@@ -1600,6 +1625,43 @@ function playChord(ctx, dest, notes, bass, at, dur) {
   b.type = 'sine'; b.frequency.value = midiHz(bass);
   const bg = ctx.createGain(); bg.gain.value = 0.55;
   b.connect(bg); bg.connect(g); b.start(at); b.stop(at + dur + 0.02);
+}
+
+// The tune sits on top of the chords: a sine for body plus a quiet octave above
+// to give it enough edge to be picked out, since the triads occupy the same
+// register.
+function playNote(ctx, dest, midi, at, dur) {
+  const g = ctx.createGain();
+  g.connect(dest);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.22, at + 0.015);
+  g.gain.setValueAtTime(0.22, at + dur * 0.6);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+
+  const o = ctx.createOscillator();
+  o.type = 'sine'; o.frequency.value = midiHz(midi);
+  o.connect(g); o.start(at); o.stop(at + dur + 0.02);
+
+  const h = ctx.createOscillator();
+  h.type = 'triangle'; h.frequency.value = midiHz(midi + 12);
+  const hg = ctx.createGain(); hg.gain.value = 0.16;
+  h.connect(hg); hg.connect(g); h.start(at); h.stop(at + dur + 0.02);
+}
+
+// Flatten the two-slot-per-chord grid into notes, letting each ring through any
+// nulls that follow it so held notes are actually held rather than retriggered.
+function scheduleMelody(ctx, dest, mel, t0) {
+  const flat = [];
+  mel.forEach((slot, i) => (slot || [null, null]).forEach((n, k) =>
+    flat.push({ n, t: i * STEP + k * STEP / 2 })));
+  const endOfAll = mel.length * STEP;
+  for (let i = 0; i < flat.length; i++) {
+    if (flat[i].n == null) continue;
+    let e = i + 1;
+    while (e < flat.length && flat[e].n == null) e++;
+    const endT = e < flat.length ? flat[e].t : endOfAll;
+    playNote(ctx, dest, flat[i].n, t0 + flat[i].t, (endT - flat[i].t) * 0.95);
+  }
 }
 
 const STEP = 0.60;   // seconds per chord
@@ -1614,7 +1676,7 @@ function stopAudio() {
 
 // `cells` optionally maps each step to a matrix cell, so the grid highlights
 // in time with what you are hearing.
-function playSequence(chords, cells) {
+function playSequence(chords, cells, mel) {
   stopAudio();
   const ctx = audioCtx();
   // one shared chain: a gentle lowpass takes the edge off the triangle waves,
@@ -1625,15 +1687,18 @@ function playSequence(chords, cells) {
   lp.connect(master); master.connect(ctx.destination);
 
   const t0 = ctx.currentTime + 0.08;
+  // back the harmony off when a tune is riding over it, so the melody carries
+  const amp = mel ? 0.075 : 0.11;
   let prev = null, prevBass = null;
   chords.forEach((c, i) => {
     const pcs = triadPCs(c);
     if (!pcs) return;
     const notes = voiceTriad(pcs, prev);
     const bass = voiceBass(pcs[0], prevBass);
-    playChord(ctx, lp, notes, bass, t0 + i * STEP, STEP * 0.9);
+    playChord(ctx, lp, notes, bass, t0 + i * STEP, STEP * 0.9, amp);
     prev = notes; prevBass = bass;
   });
+  if (mel) scheduleMelody(ctx, lp, mel, t0);
   audioTail = t0 + chords.length * STEP;
 
   playing = { t0, n: chords.length, cells: cells || null, timer: 0 };
@@ -1841,21 +1906,27 @@ function syncAudioBtns() {
   audNote.textContent = on ? 'playing' : 'synthesised, nothing plays on its own';
 }
 
-hearA.addEventListener('click', () => playSequence(A));
-hearB.addEventListener('click', () => playSequence(B));
+hearA.addEventListener('click', () => playSequence(A, null, TRACKS[+selA.value].mel));
+hearB.addEventListener('click', () => playSequence(B, null, TRACKS[+selB.value].mel));
 hearAl.addEventListener('click', () => {
   if (phase !== 'done') return;
-  // walk the traceback and voice whichever side actually has a chord at each
-  // step, so gaps hold the previous harmony rather than going silent
-  const chords = [], cells = [];
-  let pi = null;
+  // Walk the traceback and voice whichever side actually has a chord at each
+  // step, so gaps hold the previous harmony rather than going silent. The tune
+  // comes from the same side as the chord, and only for the stretch that
+  // aligned, so you hear the matched passage rather than either piece whole.
+  const mA = TRACKS[+selA.value].mel, mB = TRACKS[+selB.value].mel;
+  const chords = [], cells = [], mel = [];
+  let pi = null, anyMel = false;
   for (const [i, j] of tb) {
     const gapInA = pi && i === pi[0];
     chords.push(gapInA ? B[j-1] : A[i-1]);
     cells.push([i, j]);
+    const src = gapInA ? (mB && mB[j-1]) : (mA && mA[i-1]);
+    if (src) anyMel = true;
+    mel.push(src || [null, null]);
     pi = [i, j];
   }
-  playSequence(chords, cells);
+  playSequence(chords, cells, anyMel ? mel : null);
 });
 btnStop.addEventListener('click', stopAudio);
 
