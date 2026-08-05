@@ -8,9 +8,13 @@
 <style>
   :root {
     --bg:#0d1117; --panel:rgba(18,24,32,.70); --panel-hi:rgba(30,39,52,.86);
-    --fg:#e6edf3; --muted:#8b949e; --dim:#6e7681;
+    --fg:#e6edf3; --muted:#8b949e; --dim:#757d88;
     --line:#22282f; --accent:#58a6ff;
     --py:#4b8bbe; --py2:#ffd43b;
+    /* Text greens and ambers are separate tokens from the snake's, because the
+       snake is a graphic and these have to clear 4.5:1 against the page. Tying
+       them together is what left the light theme reading at 2.25:1. */
+    --num:#7ad48f; --badge:#ffd43b;
     /* snake */
     --sn-deep:#123d1e; --sn-dark:#1d6b33; --sn-mid:#3fa055;
     --sn-lite:#7ad48f; --sn-belly:#d7e9a8; --sn-eye:#ffd43b;
@@ -20,18 +24,20 @@
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
       --bg:#fbfcfd; --panel:rgba(255,255,255,.80); --panel-hi:rgba(255,255,255,.95);
-      --fg:#1f2328; --muted:#57606a; --dim:#7d8590;
+      --fg:#1f2328; --muted:#57606a; --dim:#6d7580;
       --line:#d8dee4; --accent:#0969da;
       --py:#4584b6; --py2:#d99400;
+      --num:#2b8544; --badge:#a96400;
       --sn-deep:#0f3419; --sn-dark:#1a5c2c; --sn-mid:#31894a;
       --sn-lite:#63bd7c; --sn-belly:#c3dc8f; --sn-eye:#e0a800;
     }
   }
   :root[data-theme="light"] {
     --bg:#fbfcfd; --panel:rgba(255,255,255,.80); --panel-hi:rgba(255,255,255,.95);
-    --fg:#1f2328; --muted:#57606a; --dim:#7d8590;
+    --fg:#1f2328; --muted:#57606a; --dim:#6d7580;
     --line:#d8dee4; --accent:#0969da;
     --py:#4584b6; --py2:#d99400;
+    --num:#2b8544; --badge:#a96400;
     --sn-deep:#0f3419; --sn-dark:#1a5c2c; --sn-mid:#31894a;
     --sn-lite:#63bd7c; --sn-belly:#c3dc8f; --sn-eye:#e0a800;
   }
@@ -89,7 +95,7 @@
     transition:border-color .25s, transform .25s;
   }
   .stat:hover { border-color:var(--sn-mid); transform:translateY(-3px); }
-  .stat b { display:block; font-size:26px; color:var(--sn-lite); font-weight:600; line-height:1.2; }
+  .stat b { display:block; font-size:26px; color:var(--num); font-weight:600; line-height:1.2; }
   .stat span { font-size:11.5px; color:var(--dim); }
   @media (max-width:560px){ .stats{grid-template-columns:1fr;} }
 
@@ -165,7 +171,7 @@
   }
   .card:hover .chip { color:var(--muted); border-color:var(--sn-mid); }
   .status {
-    font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--py2);
+    font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--badge);
     border:1px solid currentColor; border-radius:20px; padding:1px 9px; font-weight:600;
   }
 
@@ -249,7 +255,7 @@
   }
   .tryit:hover { color:var(--fg); border-color:var(--sn-mid); background:var(--panel-hi); }
   .tryit:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
-  .tryit .ic { color:var(--sn-lite); font-size:10px; display:inline-block; transition:transform .3s ease; }
+  .tryit .ic { color:var(--num); font-size:10px; display:inline-block; transition:transform .3s ease; }
   .tryit[aria-expanded="true"] .ic { transform:rotate(90deg); }
   .tryit .sub { margin-left:auto; font-size:11px; color:var(--dim); }
 
@@ -275,7 +281,7 @@
     font-size:12px; color:var(--muted); margin-top:12px; min-height:3.1em;
     border-left:2px solid var(--sn-mid); padding-left:12px; line-height:1.55;
   }
-  .demo-read b { color:var(--sn-lite); font-weight:600; }
+  .demo-read b { color:var(--num); font-weight:600; }
   .demo-read i { color:var(--fg); font-style:normal; }
 
   .demo-ctl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:13px; }
@@ -292,7 +298,7 @@
 
   .demo-out { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:15px; }
   .demo-out div { border:1px solid var(--line); border-radius:8px; padding:9px 11px; background:var(--bg); }
-  .demo-out b { display:block; font-size:17px; color:var(--sn-lite); font-weight:600; line-height:1.3; }
+  .demo-out b { display:block; font-size:17px; color:var(--num); font-weight:600; line-height:1.3; }
   .demo-out span { font-size:10.5px; color:var(--dim); }
   @media (max-width:560px){ .demo-out{grid-template-columns:repeat(2,1fr);} .demo-ctl .spd{margin-left:0;} }
 
@@ -303,6 +309,27 @@
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
   footer a:hover { color:var(--accent); text-decoration:underline; }
+
+  /* The 44px minimum is a touch rule, so it applies where there is a finger
+     rather than a cursor. Growing every control to 44px on the desktop would
+     wreck the density this layout depends on. */
+  @media (pointer: coarse) {
+    .tool, .links a, .demo-ctl button, .demo-head select {
+      min-height:44px; display:inline-flex; align-items:center;
+    }
+    .tryit { min-height:48px; }
+    .rail button { padding:11px 8px; }
+    #hdSpd { height:44px; }
+    #pallist li { min-height:48px; }
+  }
+
+  /* Users who ask the OS for more contrast get the accented text pushed to
+     full foreground rather than a tuned-but-still-soft grey. */
+  @media (prefers-contrast: more) {
+    :root { --dim:var(--muted); }
+    .card h3, .stat b, .demo-out b { color:var(--fg); }
+    .chip, .status { border-color:currentColor; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior:auto; }
@@ -472,7 +499,7 @@
 
   <footer>
     Every project ships with a pytest suite and GitHub Actions CI.
-    Hero text is laid out with <a href="https://github.com/chenglou/pretext">pretext</a>; the card copy reflows around the snake with a live <code>shape-outside</code> silhouette.
+    This page is a single file with no build step; the hero is set with <a href="https://github.com/chenglou/pretext">pretext</a>.
   </footer>
 </div>
 
@@ -1252,7 +1279,7 @@ async function copyMail() {
     ta.remove();
   }
   mailLink.textContent = ok ? 'Copied to clipboard' : 'Press ' + (APPLE ? '⌘C' : 'Ctrl+C') + ' to copy';
-  mailLink.style.color = ok ? 'var(--sn-lite)' : '';
+  mailLink.style.color = ok ? 'var(--num)' : '';
   clearTimeout(mailLink._t);
   mailLink._t = setTimeout(() => { mailLink.textContent = MAIL; mailLink.style.color = ''; }, 1500);
 }
