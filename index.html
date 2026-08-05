@@ -454,9 +454,12 @@
         Every number is computed by the same rules the project uses:
         <code>H[i,j] = max(0, diagonal + s, up + gap, left + gap)</code>, with
         <code>s</code> scoring the two chords by harmonic relationship rather
-        than by whether the labels are equal, and <code>gap = -0.5</code>. The
-        progressions are illustrative sequences, not transcriptions; the real
-        tool detects them from audio with a beat-synchronous chromagram.
+        than by whether the labels are equal, and <code>gap = -0.5</code>.
+        The named pieces are public domain and appear here as harmonic
+        reductions, not transcriptions: the detector matches audio against 24
+        major and minor templates, so sevenths, inversions and passing chords
+        collapse before the aligner sees them. That loss is the method, not a
+        shortcut taken for the demo.
       </p>
     </div>
   </section>
@@ -1485,14 +1488,32 @@ function relName(a, b) {
 // local alignment finding a shared run at a different offset, the second shows
 // relatedness carrying an alignment with no chord in common at all.
 const rep = (xs, n) => Array.from({ length: n }, () => xs).flat();
+
+/* Two groups. The abstract progressions are constructs, useful because the
+   rotated and transposed pairs isolate exactly what local alignment is for.
+   The named pieces are all public domain, and every one is a reduction to
+   plain major/minor triads rather than a transcription: the detector matches
+   against 24 templates, so sevenths, inversions and passing harmony collapse
+   before the aligner ever sees them. Reducing by hand here is the same lossy
+   step the chromagram performs on real audio. */
 const TRACKS = [
-  { name: 'I-V-vi-IV in C',      seq: rep(['Cmaj','Gmaj','Amin','Fmaj'], 3) },
-  { name: 'vi-IV-I-V in C',      seq: rep(['Amin','Fmaj','Cmaj','Gmaj'], 3) },
-  { name: 'I-V-vi-IV in G',      seq: rep(['Gmaj','Dmaj','Emin','Cmaj'], 3) },
-  { name: 'Relative minor of C', seq: rep(['Amin','Emin','Fmaj','Cmaj'], 3) },
-  { name: '12-bar blues in C',   seq: ['Cmaj','Cmaj','Cmaj','Cmaj','Fmaj','Fmaj','Cmaj','Cmaj','Gmaj','Fmaj','Cmaj','Gmaj'] },
-  { name: 'Andalusian cadence',  seq: rep(['Amin','Gmaj','Fmaj','Emaj'], 3) },
-  { name: 'Pachelbel in D',      seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'] }
+  { g:'Progressions', name:'I-V-vi-IV in C',      seq: rep(['Cmaj','Gmaj','Amin','Fmaj'], 3) },
+  { g:'Progressions', name:'vi-IV-I-V in C',      seq: rep(['Amin','Fmaj','Cmaj','Gmaj'], 3) },
+  { g:'Progressions', name:'I-V-vi-IV in G',      seq: rep(['Gmaj','Dmaj','Emin','Cmaj'], 3) },
+  { g:'Progressions', name:'Relative minor of C', seq: rep(['Amin','Emin','Fmaj','Cmaj'], 3) },
+  { g:'Progressions', name:'12-bar blues in C',   seq: ['Cmaj','Cmaj','Cmaj','Cmaj','Fmaj','Fmaj','Cmaj','Cmaj','Gmaj','Fmaj','Cmaj','Gmaj'] },
+  { g:'Progressions', name:'Andalusian cadence',  seq: rep(['Amin','Gmaj','Fmaj','Emaj'], 3) },
+
+  { g:'Public domain', name:'Pachelbel, Canon in D',
+    seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'] },
+  { g:'Public domain', name:'Bach, Prelude in C (BWV 846)',
+    seq: ['Cmaj','Dmin','Gmaj','Cmaj','Amin','Dmaj','Gmaj','Cmaj','Cmaj','Dmin','Gmaj','Cmaj'] },
+  { g:'Public domain', name:'Mozart, Eine kleine Nachtmusik',
+    seq: ['Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Cmaj','Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Gmaj'] },
+  { g:'Public domain', name:'Beethoven, Fur Elise',
+    seq: ['Amin','Emaj','Amin','Emaj','Amin','Cmaj','Gmaj','Amin','Emaj','Amin','Emaj','Amin'] },
+  { g:'Public domain', name:'Satie, Gymnopedie No. 1',
+    seq: rep(['Gmaj','Dmaj'], 6) }
 ];
 
 /* ---- chord audio ----
@@ -1587,13 +1608,17 @@ const selA   = document.getElementById('hdA');
 const selB   = document.getElementById('hdB');
 const spd    = document.getElementById('hdSpd');
 
-TRACKS.forEach((t, i) => {
-  for (const sel of [selA, selB]) {
+for (const sel of [selA, selB]) {
+  const groups = {};
+  TRACKS.forEach((t, i) => {
+    const g = groups[t.g] || (groups[t.g] = Object.assign(
+      document.createElement('optgroup'), { label: t.g }));
     const o = document.createElement('option');
     o.value = i; o.textContent = t.name;
-    sel.appendChild(o);
-  }
-});
+    g.appendChild(o);
+  });
+  for (const g of Object.values(groups)) sel.appendChild(g);
+}
 selA.value = 0; selB.value = 1;
 
 let A = [], B = [], H = [], order = [], cur = -1;
