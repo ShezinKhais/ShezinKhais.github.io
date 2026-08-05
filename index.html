@@ -1513,34 +1513,43 @@ const TRACKS = [
      never will, because the detector reduces audio to 24 triad templates and
      melody is not among them. That is the whole reason a chord reduction of
      Fur Elise sounds like nothing in particular. */
-  { g:'Tunes', name:'Twinkle Twinkle Little Star',
+  { g:'Tunes', name:'Twinkle Twinkle Little Star', tex:'alberti', step:0.56,
     seq: ['Cmaj','Cmaj','Fmaj','Cmaj','Fmaj','Cmaj','Gmaj','Cmaj','Cmaj','Gmaj','Cmaj','Gmaj'],
     mel: [[60,60],[67,67],[69,69],[67,null],[65,65],[64,64],[62,62],[60,null],
           [67,67],[65,65],[64,64],[62,null]] },
   // Same tune, same harmony, different words. Both descend from "Ah! vous
   // dirai-je, maman" (1761), so the aligner should call them identical, and
   // being right about that is the point of including both.
-  { g:'Tunes', name:'Alphabet song (A B C D)',
+  { g:'Tunes', name:'Alphabet song (A B C D)', tex:'alberti', step:0.56,
     seq: ['Cmaj','Cmaj','Fmaj','Cmaj','Fmaj','Cmaj','Gmaj','Cmaj','Cmaj','Gmaj','Cmaj','Gmaj'],
     mel: [[60,60],[67,67],[69,69],[67,null],[65,65],[64,64],[62,62],[60,null],
           [67,67],[65,65],[64,64],[62,null]] },
-  { g:'Tunes', name:'Beethoven, Ode to Joy (in C)',
+  { g:'Tunes', name:'Beethoven, Ode to Joy (in C)', tex:'block', step:0.60,
     seq: ['Cmaj','Cmaj','Gmaj','Gmaj','Cmaj','Cmaj','Gmaj','Gmaj'],
     mel: [[64,64],[65,67],[67,65],[64,62],[60,60],[62,64],[64,62],[62,null]] },
-  { g:'Tunes', name:'Beethoven, Fur Elise (opening)',
+  { g:'Tunes', name:'Beethoven, Fur Elise (opening)', tex:'alberti', step:0.50,
     seq: ['Amin','Amin','Amin','Amin','Amin','Emaj','Amin','Emaj','Amin','Amin','Amin','Amin'],
     mel: [[76,75],[76,75],[76,71],[74,72],[69,null],[71,null],[72,null],[76,75],
           [76,75],[76,71],[74,72],[69,null]] },
 
-  { g:'Public domain', name:'Pachelbel, Canon in D',
-    seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'] },
-  // This prelude is broken chords and nothing else, so playing the harmony
-  // really is playing the piece.
-  { g:'Public domain', name:'Bach, Prelude in C (BWV 846)',
+  // The famous first-violin line: a stepwise descent, one note per bar of the
+  // ground bass. Every note is a chord tone of the bar it sits on.
+  { g:'Public domain', name:'Pachelbel, Canon in D', tex:'pulse', step:0.92,
+    seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'],
+    mel: [[78,null],[76,null],[74,null],[73,null],[71,null],[69,null],
+          [71,null],[73,null],[78,null],[76,null],[74,null],[73,null]] },
+  // This prelude has no melody to add: it is broken chords the whole way
+  // through. Playing block triads was the thing that made it unrecognisable,
+  // so it gets the arpeggio figuration instead, which is the piece itself.
+  { g:'Public domain', name:'Bach, Prelude in C (BWV 846)', tex:'arp', step:0.72,
     seq: ['Cmaj','Dmin','Gmaj','Cmaj','Amin','Dmaj','Gmaj','Cmaj','Cmaj','Dmin','Gmaj','Cmaj'] },
-  { g:'Public domain', name:'Mozart, Eine kleine Nachtmusik',
-    seq: ['Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Cmaj','Gmaj','Dmaj','Gmaj','Dmaj','Gmaj','Gmaj'] },
-  { g:'Public domain', name:'Satie, Gymnopedie No. 1',
+  { g:'Public domain', name:'Mozart, Eine kleine Nachtmusik', tex:'pulse', step:0.46,
+    seq: ['Gmaj','Gmaj','Gmaj','Gmaj','Dmaj','Dmaj','Dmaj','Dmaj','Gmaj','Gmaj','Dmaj','Gmaj'],
+    mel: [[67,62],[67,62],[67,71],[74,79],[74,69],[74,69],[74,78],[81,74],
+          [67,62],[67,71],[74,69],[67,null]] },
+  // Left chord-only on purpose: the Gymnopedie is that slow alternation, and
+  // its melody is a long sparse line I am not confident enough to encode.
+  { g:'Public domain', name:'Satie, Gymnopedie No. 1', tex:'waltz', step:1.05,
     seq: rep(['Gmaj','Dmaj'], 6) }
 ];
 
@@ -1606,30 +1615,73 @@ function voiceBass(root, prev) {
   return m;
 }
 
-function playChord(ctx, dest, notes, bass, at, dur, amp) {
-  const peak = amp || 0.11;
+/* One tone. Everything below is built from this, so timbre stays consistent
+   while the figuration changes. */
+function tone(ctx, dest, midi, at, dur, amp, type, hold) {
   const g = ctx.createGain();
   g.connect(dest);
-  // a soft bell curve per chord, so consecutive chords breathe instead of clicking
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(peak, at + 0.03);
-  g.gain.setValueAtTime(peak, at + dur * 0.5);
+  g.gain.exponentialRampToValueAtTime(amp, at + 0.018);
+  g.gain.setValueAtTime(amp, at + dur * (hold == null ? 0.5 : hold));
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-
-  for (const m of notes) {
-    const o = ctx.createOscillator();
-    o.type = 'triangle'; o.frequency.value = midiHz(m);
-    o.connect(g); o.start(at); o.stop(at + dur + 0.02);
-  }
-  const b = ctx.createOscillator();
-  b.type = 'sine'; b.frequency.value = midiHz(bass);
-  const bg = ctx.createGain(); bg.gain.value = 0.55;
-  b.connect(bg); bg.connect(g); b.start(at); b.stop(at + dur + 0.02);
+  const o = ctx.createOscillator();
+  o.type = type || 'triangle';
+  o.frequency.value = midiHz(midi);
+  o.connect(g); o.start(at); o.stop(at + dur + 0.02);
 }
 
-// The tune sits on top of the chords: a sine for body plus a quiet octave above
-// to give it enough edge to be picked out, since the triads occupy the same
-// register.
+const chordVoices = (ctx, d, notes, at, dur, amp) =>
+  notes.forEach(n => tone(ctx, d, n, at, dur, amp, 'triangle'));
+const bassNote = (ctx, d, m, at, dur, amp) =>
+  tone(ctx, d, m, at, dur, amp * 1.25, 'sine');
+
+/* Accompaniment figures.
+
+   Every track used to be a sustained triad with a bass under it, which is why
+   a nursery tune, a hymn and a Baroque prelude all came out sounding like the
+   same organ patch with a different melody on top. A piece is recognisable as
+   much by its accompaniment figure as by its tune, so each one now gets the
+   texture it is actually written with. */
+function scheduleTexture(tex, ctx, dest, notes, bass, at, step, amp) {
+  switch (tex) {
+    // continuous broken chord: BWV 846 is this figure and nothing else
+    case 'arp': {
+      bassNote(ctx, dest, bass, at, step * 0.98, amp);
+      const run = [notes[0], notes[1], notes[2], notes[0], notes[1], notes[2]];
+      run.forEach((n, k) =>
+        tone(ctx, dest, n, at + k * step / 6, step / 6 * 0.92, amp, 'triangle', 0.35));
+      break;
+    }
+    // low-high-mid-high, the classical-era left hand
+    case 'alberti': {
+      bassNote(ctx, dest, bass, at, step * 0.98, amp * 0.85);
+      const pat = [notes[0], notes[2], notes[1], notes[2]];
+      pat.forEach((n, k) =>
+        tone(ctx, dest, n, at + k * step / 4, step / 4 * 0.9, amp * 0.9, 'triangle', 0.4));
+      break;
+    }
+    // bass on one, chord on two and three
+    case 'waltz': {
+      bassNote(ctx, dest, bass, at, step / 3 * 0.85, amp);
+      for (const k of [1, 2])
+        chordVoices(ctx, dest, notes, at + k * step / 3, step / 3 * 0.85, amp * 0.8);
+      break;
+    }
+    // repeated chordal stabs over a held bass
+    case 'pulse': {
+      bassNote(ctx, dest, bass, at, step * 0.98, amp);
+      for (const k of [0, 0.5])
+        chordVoices(ctx, dest, notes, at + k * step, step * 0.4, amp, 0.3);
+      break;
+    }
+    default:                       // sustained: hymns and the bare progressions
+      bassNote(ctx, dest, bass, at, step * 0.98, amp);
+      chordVoices(ctx, dest, notes, at, step * 0.9, amp);
+  }
+}
+
+// The tune sits on top: a sine for body plus a quiet octave above to give it
+// enough edge to be picked out, since the triads occupy the same register.
 function playNote(ctx, dest, midi, at, dur) {
   const g = ctx.createGain();
   g.connect(dest);
@@ -1650,11 +1702,11 @@ function playNote(ctx, dest, midi, at, dur) {
 
 // Flatten the two-slot-per-chord grid into notes, letting each ring through any
 // nulls that follow it so held notes are actually held rather than retriggered.
-function scheduleMelody(ctx, dest, mel, t0) {
+function scheduleMelody(ctx, dest, mel, t0, step) {
   const flat = [];
   mel.forEach((slot, i) => (slot || [null, null]).forEach((n, k) =>
-    flat.push({ n, t: i * STEP + k * STEP / 2 })));
-  const endOfAll = mel.length * STEP;
+    flat.push({ n, t: i * step + k * step / 2 })));
+  const endOfAll = mel.length * step;
   for (let i = 0; i < flat.length; i++) {
     if (flat[i].n == null) continue;
     let e = i + 1;
@@ -1664,7 +1716,7 @@ function scheduleMelody(ctx, dest, mel, t0) {
   }
 }
 
-const STEP = 0.60;   // seconds per chord
+const STEP = 0.60;   // default seconds per chord; tracks override it
 
 function stopAudio() {
   if (AC) { AC.close(); AC = null; }
@@ -1676,7 +1728,9 @@ function stopAudio() {
 
 // `cells` optionally maps each step to a matrix cell, so the grid highlights
 // in time with what you are hearing.
-function playSequence(chords, cells, mel) {
+// `track` carries the piece's own tempo, texture and tune; pass a bare object
+// for the aligned passage, which belongs to neither side.
+function playSequence(chords, cells, track) {
   stopAudio();
   const ctx = audioCtx();
   // one shared chain: a gentle lowpass takes the edge off the triangle waves,
@@ -1686,25 +1740,30 @@ function playSequence(chords, cells, mel) {
   const master = ctx.createGain(); master.gain.value = 0.9;
   lp.connect(master); master.connect(ctx.destination);
 
+  const t = track || {};
+  const step = t.step || STEP;
+  const tex  = t.tex || 'block';
+  const mel  = t.mel;
   const t0 = ctx.currentTime + 0.08;
   // back the harmony off when a tune is riding over it, so the melody carries
   const amp = mel ? 0.075 : 0.11;
+
   let prev = null, prevBass = null;
   chords.forEach((c, i) => {
     const pcs = triadPCs(c);
     if (!pcs) return;
     const notes = voiceTriad(pcs, prev);
     const bass = voiceBass(pcs[0], prevBass);
-    playChord(ctx, lp, notes, bass, t0 + i * STEP, STEP * 0.9, amp);
+    scheduleTexture(tex, ctx, lp, notes, bass, t0 + i * step, step, amp);
     prev = notes; prevBass = bass;
   });
-  if (mel) scheduleMelody(ctx, lp, mel, t0);
-  audioTail = t0 + chords.length * STEP;
+  if (mel) scheduleMelody(ctx, lp, mel, t0, step);
+  audioTail = t0 + chords.length * step;
 
-  playing = { t0, n: chords.length, cells: cells || null, timer: 0 };
+  playing = { t0, n: chords.length, step, cells: cells || null, timer: 0 };
   playing.timer = setInterval(() => {
     if (!AC || !playing) return;
-    const i = Math.floor((AC.currentTime - playing.t0) / STEP);
+    const i = Math.floor((AC.currentTime - playing.t0) / playing.step);
     if (i >= playing.n) { stopAudio(); return; }
     hdMark = playing.cells && i >= 0 ? playing.cells[i] : null;
     hdDraw();
@@ -1906,8 +1965,8 @@ function syncAudioBtns() {
   audNote.textContent = on ? 'playing' : 'synthesised, nothing plays on its own';
 }
 
-hearA.addEventListener('click', () => playSequence(A, null, TRACKS[+selA.value].mel));
-hearB.addEventListener('click', () => playSequence(B, null, TRACKS[+selB.value].mel));
+hearA.addEventListener('click', () => playSequence(A, null, TRACKS[+selA.value]));
+hearB.addEventListener('click', () => playSequence(B, null, TRACKS[+selB.value]));
 hearAl.addEventListener('click', () => {
   if (phase !== 'done') return;
   // Walk the traceback and voice whichever side actually has a chord at each
@@ -1926,7 +1985,9 @@ hearAl.addEventListener('click', () => {
     mel.push(src || [null, null]);
     pi = [i, j];
   }
-  playSequence(chords, cells, anyMel ? mel : null);
+  // the matched passage belongs to neither piece, so it gets a neutral
+  // sustained texture at the default tempo
+  playSequence(chords, cells, { mel: anyMel ? mel : null });
 });
 btnStop.addEventListener('click', stopAudio);
 
