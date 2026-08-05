@@ -296,6 +296,11 @@
   .demo-ctl .spd { margin-left:auto; display:flex; align-items:center; gap:8px; font-size:11px; color:var(--dim); }
   .demo-ctl input[type=range] { width:104px; accent-color:var(--sn-mid); cursor:pointer; }
 
+  .demo-audio { margin-top:9px; padding-top:11px; border-top:1px solid var(--line); }
+  .demo-ctl button.aud { color:var(--num); border-color:var(--sn-mid); }
+  .demo-ctl button.aud:disabled { color:var(--dim); border-color:var(--line); }
+  #hdStop { color:var(--badge); border-color:var(--badge); }
+
   .demo-out { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:15px; }
   .demo-out div { border:1px solid var(--line); border-radius:8px; padding:9px 11px; background:var(--bg); }
   .demo-out b { display:block; font-size:17px; color:var(--num); font-weight:600; line-height:1.3; }
@@ -432,6 +437,15 @@
         <button id="hdReset">Reset</button>
         <span class="spd"><label for="hdSpd">Speed</label>
           <input type="range" id="hdSpd" min="1" max="60" value="18"></span>
+      </div>
+
+      <div class="demo-ctl demo-audio">
+        <button id="hdHearA" class="aud">Hear A</button>
+        <button id="hdHearB" class="aud">Hear B</button>
+        <button id="hdHearAl" class="aud" disabled
+                title="Fill the matrix first">Hear the aligned passage</button>
+        <button id="hdStop" hidden>Stop</button>
+        <span class="spd" id="hdAudNote">synthesised, nothing plays on its own</span>
       </div>
 
       <div class="demo-out" id="hdOut" aria-live="polite"></div>
@@ -1481,6 +1495,88 @@ const TRACKS = [
   { name: 'Pachelbel in D',      seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'] }
 ];
 
+/* ---- chord audio ----
+   The project is about harmony, so the demo should be audible: hearing
+   I-V-vi-IV against vi-IV-I-V makes the rotation obvious in a way a grid of
+   numbers never will. Synthesised with Web Audio rather than shipping samples,
+   which keeps the page a single file with no network fetches.
+
+   Nothing ever plays unattended. The context is created on the first click,
+   which is also what browser autoplay policy requires. */
+let AC = null, playing = null, audioTail = 0;
+
+function audioCtx() {
+  if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+
+// equal temperament from C4; the triad is root/third/fifth, minor flattening
+// the third by a semitone
+function chordFreqs(label) {
+  const p = parseChord(label);
+  if (!p) return [];
+  const [root, qual] = p;
+  const third = qual === 'maj' ? 4 : 3;
+  return [0, third, 7].map(s => 261.63 * Math.pow(2, (root + s) / 12));
+}
+
+function playChord(ctx, label, at, dur) {
+  const freqs = chordFreqs(label);
+  if (!freqs.length) return;
+  const g = ctx.createGain();
+  g.connect(ctx.destination);
+  // a soft bell curve per chord, so consecutive chords breathe instead of clicking
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.13, at + 0.02);
+  g.gain.setValueAtTime(0.13, at + dur * 0.55);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+
+  for (const f of freqs) {
+    const o = ctx.createOscillator();
+    o.type = 'triangle'; o.frequency.value = f;
+    o.connect(g); o.start(at); o.stop(at + dur + 0.02);
+  }
+  // root an octave down gives the progression a floor to sit on
+  const b = ctx.createOscillator();
+  b.type = 'sine'; b.frequency.value = freqs[0] / 2;
+  const bg = ctx.createGain(); bg.gain.value = 0.5;
+  b.connect(bg); bg.connect(g); b.start(at); b.stop(at + dur + 0.02);
+}
+
+const STEP = 0.46;   // seconds per chord
+
+function stopAudio() {
+  if (AC) { AC.close(); AC = null; }
+  if (playing) { clearInterval(playing.timer); playing = null; }
+  hdMark = null;
+  syncAudioBtns();
+  hdDraw();
+}
+
+// `cells` optionally maps each step to a matrix cell, so the grid highlights
+// in time with what you are hearing.
+function playSequence(chords, cells) {
+  stopAudio();
+  const ctx = audioCtx();
+  const t0 = ctx.currentTime + 0.08;
+  chords.forEach((c, i) => playChord(ctx, c, t0 + i * STEP, STEP * 0.92));
+  audioTail = t0 + chords.length * STEP;
+
+  playing = { t0, n: chords.length, cells: cells || null, timer: 0 };
+  playing.timer = setInterval(() => {
+    if (!AC || !playing) return;
+    const i = Math.floor((AC.currentTime - playing.t0) / STEP);
+    if (i >= playing.n) { stopAudio(); return; }
+    hdMark = playing.cells && i >= 0 ? playing.cells[i] : null;
+    hdDraw();
+  }, 40);
+  syncAudioBtns();
+  hdDraw();
+}
+
+let hdMark = null;
+
 const hdTry  = document.getElementById('hdTry');
 const hdDemo = document.getElementById('hdDemo');
 const hdCv   = document.getElementById('hdCv');
@@ -1581,6 +1677,7 @@ function finish() {
     : `Traceback recovers <b>${al.length}</b> aligned positions, all exact matches.`;
   phase = 'done';
   syncBtns();
+  syncAudioBtns();
 }
 
 // ---- rendering ----
@@ -1636,6 +1733,16 @@ function hdDraw() {
     c.strokeRect(gut + j * cell + 1, gut + i * cell + 1, cell - 2, cell - 2);
   }
 
+  // the cell whose chord is sounding right now
+  if (hdMark) {
+    const [i, j] = hdMark;
+    c.strokeStyle = css('--accent'); c.lineWidth = 3;
+    c.strokeRect(gut + j * cell + 1, gut + i * cell + 1, cell - 2, cell - 2);
+    c.fillStyle = css('--accent'); c.globalAlpha = 0.16;
+    c.fillRect(gut + j * cell + 1, gut + i * cell + 1, cell - 2, cell - 2);
+    c.globalAlpha = 1;
+  }
+
   c.fillStyle = css('--muted'); c.font = '9.5px ' + MONO;
   for (let j = 1; j <= B.length; j++) c.fillText(B[j-1].replace('maj','').replace('min','m'), gut + j * cell + cell/2, 30);
   c.textAlign = 'right';
@@ -1643,6 +1750,38 @@ function hdDraw() {
 }
 
 // ---- controls ----
+const hearA  = document.getElementById('hdHearA');
+const hearB  = document.getElementById('hdHearB');
+const hearAl = document.getElementById('hdHearAl');
+const btnStop = document.getElementById('hdStop');
+const audNote = document.getElementById('hdAudNote');
+
+function syncAudioBtns() {
+  const on = !!playing;
+  btnStop.hidden = !on;
+  for (const b of [hearA, hearB]) b.disabled = on;
+  hearAl.disabled = on || phase !== 'done';
+  audNote.textContent = on ? 'playing' : 'synthesised, nothing plays on its own';
+}
+
+hearA.addEventListener('click', () => playSequence(A));
+hearB.addEventListener('click', () => playSequence(B));
+hearAl.addEventListener('click', () => {
+  if (phase !== 'done') return;
+  // walk the traceback and voice whichever side actually has a chord at each
+  // step, so gaps hold the previous harmony rather than going silent
+  const chords = [], cells = [];
+  let pi = null;
+  for (const [i, j] of tb) {
+    const gapInA = pi && i === pi[0];
+    chords.push(gapInA ? B[j-1] : A[i-1]);
+    cells.push([i, j]);
+    pi = [i, j];
+  }
+  playSequence(chords, cells);
+});
+btnStop.addEventListener('click', stopAudio);
+
 const btnPlay = document.getElementById('hdPlay');
 const btnStep = document.getElementById('hdStep');
 const btnFill = document.getElementById('hdFill');
@@ -1699,12 +1838,12 @@ btnFill.addEventListener('click', () => {
   hdDraw();
 });
 document.getElementById('hdReset').addEventListener('click', () => {
-  clearTimeout(timer); buildMatrix(); hdOut.innerHTML = '';
+  clearTimeout(timer); stopAudio(); buildMatrix(); hdOut.innerHTML = '';
   hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
-  syncBtns(); hdDraw();
+  syncBtns(); syncAudioBtns(); hdDraw();
 });
 for (const sel of [selA, selB]) sel.addEventListener('change', () => {
-  clearTimeout(timer); buildMatrix(); hdOut.innerHTML = '';
+  clearTimeout(timer); stopAudio(); buildMatrix(); hdOut.innerHTML = '';
   hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
   syncBtns(); hdDraw();
 });
@@ -1718,7 +1857,7 @@ function openDemo(on) {
     hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
     hdOut.innerHTML = ''; syncBtns(); hdDraw();
   } else {
-    clearTimeout(timer); phase = 'idle';
+    clearTimeout(timer); stopAudio(); phase = 'idle';
   }
   // the page just changed height, so the snake's route has to be rebuilt
   resize();
