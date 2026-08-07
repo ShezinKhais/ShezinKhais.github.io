@@ -8,7 +8,9 @@
 <style>
   :root {
     --bg:#0d1117; --panel:rgba(18,24,32,.70); --panel-hi:rgba(30,39,52,.86);
-    --fg:#e6edf3; --muted:#8b949e; --dim:#757d88;
+    /* --dim has to clear 4.5:1 against the lightest surface it lands on, which
+       is --panel-hi (the status bar and the palette), not the page itself. */
+    --fg:#e6edf3; --muted:#8b949e; --dim:#808894;
     --line:#22282f; --accent:#58a6ff;
     --py:#4b8bbe; --py2:#ffd43b;
     /* Text greens and ambers are separate tokens from the snake's, because the
@@ -53,6 +55,8 @@
     font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     color:var(--fg); -webkit-font-smoothing:antialiased; line-height:1.6;
     position:relative; overflow-x:hidden;
+    counter-reset:proj;              /* index numbers run 01.. across all sections */
+    padding-bottom:46px;             /* clearance for the fixed status bar */
   }
 
   /* scroll progress */
@@ -75,7 +79,7 @@
   .links { display:flex; flex-wrap:wrap; gap:10px; margin-top:20px; }
   .links a {
     font-size:13px; text-decoration:none; color:var(--muted);
-    border:1px solid var(--line); border-radius:6px; padding:6px 13px;
+    border:1px solid var(--line); border-radius:0; padding:6px 13px;
     background:var(--panel); position:relative; overflow:hidden;
     transition:color .2s, border-color .2s, transform .2s;
   }
@@ -90,7 +94,7 @@
   /* ---------- stats ---------- */
   .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:34px; }
   .stat {
-    border:1px solid var(--line); border-radius:10px; padding:14px 16px;
+    border:1px solid var(--line); border-radius:0; padding:14px 16px;
     background:var(--panel); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
     transition:border-color .25s, transform .25s;
   }
@@ -100,54 +104,84 @@
   @media (max-width:560px){ .stats{grid-template-columns:1fr;} }
 
   /* ---------- sections ---------- */
-  section { margin-top:56px; }
+  section { margin-top:74px; }
   h2 {
-    font-size:12px; letter-spacing:.15em; text-transform:uppercase;
-    color:var(--dim); font-weight:600; margin:0 0 18px;
+    font-size:11.5px; letter-spacing:.16em; text-transform:lowercase;
+    color:var(--dim); font-weight:600; margin:0 0 6px;
     display:flex; align-items:center; gap:14px;
   }
+  /* bracketed labels: the section name is a token, not a headline */
+  h2 span::before { content:"["; color:var(--sn-mid); margin-right:5px; }
+  h2 span::after  { content:"]"; color:var(--sn-mid); margin-left:5px; }
   h2::after {
     content:""; flex:1; height:1px; background:var(--line);
     transform:scaleX(0); transform-origin:left; transition:transform .7s ease;
   }
   h2.in::after { transform:scaleX(1); }
 
-  /* ---------- cards ---------- */
+  /* ---------- index rows ----------
+     The projects are an index, not a deck of panels: one hairline-ruled row
+     each, numbered, with the name set large. Everything a panel used to carry
+     (fill, shadow, radius) is gone, so the only things that move on hover are
+     the rule drawing itself in and the name stepping right. */
   .card {
     position:relative; display:block; text-decoration:none; color:inherit;
-    border:1px solid var(--line); border-radius:12px;
-    background:var(--panel); padding:19px 21px; margin-bottom:13px;
-    overflow:hidden; transform-style:preserve-3d;
-    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
-    transition:border-color .25s, background .25s, box-shadow .25s, transform .18s ease-out;
+    border:0; border-bottom:1px solid var(--line); border-radius:0;
+    background:none; padding:26px 0 24px 52px; margin:0;
+    counter-increment:proj;
+    /* the accent rule is painted as a background so both pseudo-elements stay
+       free: ::before is the index number, ::after is the cursor glow */
+    background-image:linear-gradient(90deg, var(--sn-mid), var(--sn-mid));
+    background-repeat:no-repeat; background-position:left bottom;
+    background-size:0% 1px;
+    transition:background-size .5s cubic-bezier(.16,1,.3,1);
   }
-  body.anim .card { opacity:0; transform:translateY(16px); }
-  body.anim .card.in { opacity:1; transform:translateY(0); transition:opacity .5s ease, transform .5s ease, border-color .25s, background .25s, box-shadow .25s; }
+  body.anim .card { opacity:0; transform:translateY(14px); }
+  body.anim .card.in {
+    opacity:1; transform:none;
+    transition:opacity .5s cubic-bezier(.16,1,.3,1), transform .5s cubic-bezier(.16,1,.3,1), background-size .5s cubic-bezier(.16,1,.3,1);
+  }
 
   /* cursor-tracked glow */
   .card::after {
     content:""; position:absolute; inset:0; opacity:0; pointer-events:none;
-    background:radial-gradient(340px circle at var(--mx,50%) var(--my,50%), rgba(122,212,143,.14), transparent 62%);
+    background:radial-gradient(420px circle at var(--mx,50%) var(--my,50%), rgba(122,212,143,.10), transparent 66%);
     transition:opacity .3s;
   }
-  .card:hover::after { opacity:1; }
+  .card:hover::after, .card.kbd::after { opacity:1; }
 
   .card::before {
-    content:""; position:absolute; left:0; top:0; bottom:0; width:3px;
-    background:linear-gradient(var(--sn-dark), var(--sn-lite));
-    transform:scaleY(0); transform-origin:top; transition:transform .32s ease;
+    content:counter(proj, decimal-leading-zero);
+    position:absolute; left:0; top:31px;
+    font-size:11px; letter-spacing:.14em; color:var(--dim);
+    font-variant-numeric:tabular-nums;
+    transition:color .28s;
   }
-  .card:hover { border-color:var(--sn-mid); background:var(--panel-hi); box-shadow:0 10px 34px rgba(0,0,0,.22); }
-  .card:hover::before { transform:scaleY(1); }
+  .card:hover, .card:focus-visible, .card.kbd { background-size:100% 1px; }
+  .card:hover::before, .card:focus-visible::before, .card.kbd::before { color:var(--sn-lite); }
   .card:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+  @media (max-width:560px) { .card { padding-left:0; padding-top:34px; } .card::before { top:12px; } }
 
-  .card h3 { margin:0; font-size:16.5px; color:var(--accent); display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .card h3 .arrow { opacity:0; transform:translateX(-5px); transition:opacity .25s, transform .25s; }
-  .card:hover h3 .arrow { opacity:1; transform:translateX(0); }
+  .card h3 {
+    margin:0; font-size:clamp(21px,4.2vw,33px); line-height:1.06;
+    letter-spacing:-.03em; font-weight:600; color:var(--fg);
+    display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
+    transition:transform .34s cubic-bezier(.16,1,.3,1), color .25s;
+  }
+  .card:hover h3, .card:focus-visible h3, .card.kbd h3 { color:var(--accent); transform:translateX(11px); }
+  /* the name wipes up from its own baseline as the row enters */
+  body.anim .card h3 { clip-path:inset(0 0 105% 0); }
+  body.anim .card.in h3 {
+    clip-path:inset(0 0 -25% 0);
+    transition:clip-path .7s cubic-bezier(.16,1,.3,1) .06s, transform .34s cubic-bezier(.16,1,.3,1), color .25s;
+  }
+  /* kept visible at rest so the row reads as a link without relying on hover */
+  .card h3 .arrow { font-size:.62em; opacity:.34; transform:translateX(-5px); transition:opacity .25s, transform .25s; }
+  .card:hover h3 .arrow, .card:focus-visible h3 .arrow, .card.kbd h3 .arrow { opacity:1; transform:translateX(0); }
   /* overflow:hidden makes this its own formatting context, so the reflow float
      below is contained here and can never shove .more/.chips around. JS pins an
      explicit height with two spare lines, so wrapping never resizes the card. */
-  .card > p { margin:9px 0 0; font-size:13.5px; color:var(--muted); overflow:hidden; }
+  .card > p { margin:13px 0 0; font-size:13.5px; color:var(--muted); overflow:hidden; max-width:62ch; }
 
   /* invisible float whose shape-outside is redrawn from the snake's silhouette,
      so the card copy flows around the body as it passes through. */
@@ -163,16 +197,19 @@
   .more > div { overflow:hidden; }
   .more p { font-size:12.5px; color:var(--dim); border-left:2px solid var(--sn-mid); padding-left:12px; margin-top:12px; }
 
-  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:13px; }
+  /* the stack reads as one wide-tracked run of type, not a row of pills */
+  .chips { display:flex; flex-wrap:wrap; margin-top:15px; }
   .chip {
-    font-size:11px; color:var(--dim); border:1px solid var(--line);
-    border-radius:20px; padding:2px 10px;
-    transition:color .25s, border-color .25s, transform .25s;
+    font-size:10.5px; letter-spacing:.15em; text-transform:uppercase;
+    color:var(--dim); border:0; border-radius:0; padding:0;
+    transition:color .25s;
   }
-  .card:hover .chip { color:var(--muted); border-color:var(--sn-mid); }
+  .chip + .chip::before { content:"/"; margin:0 10px; color:var(--line); }
+  .card:hover .chip, .card.kbd .chip { color:var(--muted); }
   .status {
-    font-size:10px; letter-spacing:.09em; text-transform:uppercase; color:var(--badge);
-    border:1px solid currentColor; border-radius:20px; padding:1px 9px; font-weight:600;
+    font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--badge);
+    border:1px solid currentColor; border-radius:0; padding:2px 8px; font-weight:600;
+    align-self:center;
   }
 
   /* ---------- top-right controls ---------- */
@@ -182,7 +219,7 @@
   }
   .tool {
     font:inherit; font-size:11px; letter-spacing:.04em; color:var(--dim);
-    background:var(--panel); border:1px solid var(--line); border-radius:7px;
+    background:var(--panel); border:1px solid var(--line); border-radius:0;
     padding:6px 10px; cursor:pointer; line-height:1;
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
     transition:color .2s, border-color .2s, transform .2s;
@@ -211,7 +248,7 @@
     transition:background .25s, border-color .25s, transform .25s;
   }
   .rail button[aria-current="true"] i { background:var(--sn-lite); border-color:var(--sn-lite); transform:scale(1.3); }
-  .rail button:focus-visible { outline:2px solid var(--accent); outline-offset:4px; border-radius:4px; }
+  .rail button:focus-visible { outline:2px solid var(--accent); outline-offset:4px; border-radius:0; }
   @media (max-width:900px){ .rail{ display:none; } }
 
   /* ---------- command palette ---------- */
@@ -225,7 +262,7 @@
   @keyframes palIn { from{opacity:0} to{opacity:1} }
   .palbox {
     width:min(560px,92vw); align-self:flex-start; max-height:70vh; display:flex; flex-direction:column;
-    background:var(--panel-hi); border:1px solid var(--line); border-radius:12px;
+    background:var(--panel-hi); border:1px solid var(--line); border-radius:0;
     box-shadow:0 24px 60px rgba(0,0,0,.42); overflow:hidden;
     animation:palRise .2s cubic-bezier(.16,1,.3,1);
   }
@@ -237,7 +274,7 @@
   #palq::placeholder { color:var(--dim); }
   #pallist { list-style:none; margin:0; padding:6px; overflow-y:auto; }
   #pallist li {
-    display:flex; align-items:baseline; gap:10px; padding:9px 11px; border-radius:8px;
+    display:flex; align-items:baseline; gap:10px; padding:9px 11px; border-radius:0;
     font-size:13px; cursor:pointer; color:var(--muted);
   }
   #pallist li em { font-style:normal; color:var(--fg); }
@@ -246,22 +283,25 @@
   .palempty { padding:20px 17px; font-size:12.5px; color:var(--dim); }
 
   /* ---------- playable demo ---------- */
+  /* continues the index rhythm rather than docking under a panel */
   .tryit {
-    display:flex; align-items:center; gap:11px; width:100%; text-align:left;
-    font:inherit; font-size:12.5px; color:var(--muted); cursor:pointer;
-    background:var(--panel); border:1px solid var(--line); border-top:0;
-    border-radius:0 0 12px 12px; padding:9px 21px; margin:-14px 0 13px;
-    transition:color .2s, border-color .2s, background .2s;
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    font:inherit; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--num); cursor:pointer;
+    background:none; border:0; border-bottom:1px solid var(--line);
+    border-radius:0; padding:16px 0 16px 52px; margin:0;
+    transition:color .2s, background .3s;
   }
-  .tryit:hover { color:var(--fg); border-color:var(--sn-mid); background:var(--panel-hi); }
+  .tryit:hover { color:var(--fg); background:var(--panel); }
   .tryit:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .tryit .ic { color:var(--num); font-size:10px; display:inline-block; transition:transform .3s ease; }
   .tryit[aria-expanded="true"] .ic { transform:rotate(90deg); }
-  .tryit .sub { margin-left:auto; font-size:11px; color:var(--dim); }
+  .tryit .sub { margin-left:auto; font-size:10.5px; color:var(--dim); text-transform:none; letter-spacing:.06em; }
+  @media (max-width:560px) { .tryit { padding-left:0; } .tryit .sub { display:none; } }
 
   .demo {
-    border:1px solid var(--sn-mid); border-radius:12px; background:var(--panel);
-    padding:17px 19px 19px; margin:-6px 0 15px;
+    border:0; border-left:2px solid var(--sn-mid); border-radius:0; background:var(--panel);
+    padding:19px 0 20px 20px; margin:4px 0 18px;
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
   }
   .demo[hidden] { display:none; }
@@ -269,7 +309,7 @@
   .demo-head label { font-size:11px; letter-spacing:.06em; text-transform:uppercase; color:var(--dim); display:block; }
   .demo-head select {
     display:block; margin-top:5px; font:inherit; font-size:12.5px; color:var(--fg);
-    background:var(--bg); border:1px solid var(--line); border-radius:6px;
+    background:var(--bg); border:1px solid var(--line); border-radius:0;
     padding:5px 8px; cursor:pointer; max-width:230px;
   }
   .demo-head select:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
@@ -287,7 +327,7 @@
   .demo-ctl { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:13px; }
   .demo-ctl button {
     font:inherit; font-size:11.5px; color:var(--muted); cursor:pointer;
-    background:var(--bg); border:1px solid var(--line); border-radius:6px;
+    background:var(--bg); border:1px solid var(--line); border-radius:0;
     padding:6px 13px; transition:color .2s, border-color .2s;
   }
   .demo-ctl button:hover:not(:disabled) { color:var(--fg); border-color:var(--sn-mid); }
@@ -302,7 +342,7 @@
   #hdStop { color:var(--badge); border-color:var(--badge); }
 
   .demo-out { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:15px; }
-  .demo-out div { border:1px solid var(--line); border-radius:8px; padding:9px 11px; background:var(--bg); }
+  .demo-out div { border:1px solid var(--line); border-radius:0; padding:9px 11px; background:var(--bg); }
   .demo-out b { display:block; font-size:17px; color:var(--num); font-weight:600; line-height:1.3; }
   .demo-out span { font-size:10.5px; color:var(--dim); }
   @media (max-width:560px){ .demo-out{grid-template-columns:repeat(2,1fr);} .demo-ctl .spd{margin-left:0;} }
@@ -310,6 +350,39 @@
   .demo-note { font-size:11.5px; color:var(--dim); margin:14px 0 0; line-height:1.65; }
   .demo-note code { color:var(--muted); }
   .demo-note a { color:var(--muted); }
+
+  /* ---------- status bar ----------
+     Decorative and duplicated by the rail and the footer, so it is hidden from
+     assistive tech: a clock ticking once a second is noise in a screen reader. */
+  .statusbar {
+    position:fixed; left:0; right:0; bottom:0; z-index:45;
+    display:flex; align-items:center; gap:20px; height:32px; padding:0 18px;
+    /* --muted rather than --dim: this bar sits on --panel-hi, the lightest
+       surface on the page, where --dim only reaches 4.37:1 at this size */
+    font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted);
+    background:var(--panel-hi); border-top:1px solid var(--line);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+  }
+  .statusbar b { font-weight:600; color:var(--fg); }
+  .sb-dot {
+    width:6px; height:6px; border-radius:50%; background:var(--sn-lite);
+    display:inline-block; margin-right:8px; vertical-align:middle;
+    animation:sbpulse 2.4s ease-in-out infinite;
+  }
+  @keyframes sbpulse { 0%,100%{opacity:1} 50%{opacity:.28} }
+  .sb-l, .sb-r { flex:none; white-space:nowrap; }
+  .sb-r { margin-left:auto; }
+  .sb-r span { color:var(--num); font-variant-numeric:tabular-nums; }
+  .sb-m {
+    flex:1; min-width:0; overflow:hidden;
+    -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
+    mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
+  }
+  .sb-track { display:inline-block; white-space:nowrap; will-change:transform; animation:sbroll 42s linear infinite; }
+  .sb-track i { font-style:normal; color:var(--line); margin:0 14px; }
+  @keyframes sbroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
+  body.still .sb-track, body.still .sb-dot { animation-play-state:paused; }
+  @media (max-width:620px) { .sb-m { display:none; } .statusbar { gap:12px; } }
 
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
@@ -340,6 +413,7 @@
     html { scroll-behavior:auto; }
     *, *::before, *::after { transition:none !important; animation:none !important; }
     body.anim .card { opacity:1; transform:none; }
+    body.anim .card h3, body.anim .card.in h3 { clip-path:none; }
     h2::after { transform:scaleX(1); }
     .flow { display:none; }
   }
@@ -391,7 +465,7 @@
   </header>
 
   <section id="sec-featured">
-    <h2>Featured</h2>
+    <h2><span>featured</span></h2>
 
     <a class="card" href="https://github.com/ShezinKhais/codecartographer">
       <h3>CodeCartographer <span class="arrow">&rarr;</span></h3>
@@ -468,7 +542,7 @@
   </section>
 
   <section id="sec-progress">
-    <h2>In progress</h2>
+    <h2><span>in progress</span></h2>
 
     <a class="card" href="https://github.com/ShezinKhais/echolock">
       <h3>EchoLock <span class="arrow">&rarr;</span> <span class="status">ongoing</span></h3>
@@ -490,7 +564,7 @@
   </section>
 
   <section id="sec-other">
-    <h2>Other projects</h2>
+    <h2><span>other projects</span></h2>
 
     <a class="card" href="https://github.com/ShezinKhais/claimaudit">
       <h3>claimaudit <span class="arrow">&rarr;</span></h3>
@@ -521,6 +595,12 @@
     Every project ships with a pytest suite and GitHub Actions CI.
     This page is a single file with no build step; the hero is set with <a href="https://github.com/chenglou/pretext">pretext</a>.
   </footer>
+</div>
+
+<div class="statusbar" id="statusbar" aria-hidden="true">
+  <span class="sb-l"><i class="sb-dot"></i><b id="sbSec">intro</b></span>
+  <span class="sb-m"><span class="sb-track" id="sbTrack"></span></span>
+  <span class="sb-r"><span id="sbClock">--:--:--</span> &middot; Dubai</span>
 </div>
 
 <script type="module">
@@ -596,6 +676,9 @@ function endFlows() {
 // height plus two spare lines so the card never resizes mid-slither.
 function reserveParagraphs() {
   for (const o of flows) { flowOff(o); o.p.style.height = ''; }
+  // updateFlows bails out entirely under reduced motion, so there is no wrap to
+  // make room for. Reserving anyway left two blank lines under every paragraph.
+  if (reduced) { for (const o of flows) o.h = 0; return; }
   const nat = flows.map(o => ({
     w: o.p.offsetWidth,
     h: o.p.offsetHeight,
@@ -1222,6 +1305,8 @@ function frame(ts) {
 
 function setMotion(on) {
   paused = !on;
+  // the button pauses everything that moves on its own, ticker included
+  document.body.classList.toggle('still', paused);
   if (paused) { cancelAnimationFrame(rafId); rafId = 0; }
   else if (!rafId && !reduced) { last = 0; rafId = requestAnimationFrame(frame); }
   motionBtn.textContent = paused ? 'Resume motion' : 'Pause motion';
@@ -1237,7 +1322,8 @@ addEventListener('scroll', () => {
   syncRail();
 }, { passive: true });
 
-// magnetic card tilt + cursor-tracked glow, and the snake goes where you point
+// cursor-tracked glow, and the snake goes where you point. The old 3D tilt went
+// with the panels: a full-width index row has no edges to lift off the page.
 if (!reduced && matchMedia('(hover:hover)').matches) {
   document.querySelectorAll('.card').forEach(card => {
     card.addEventListener('pointerenter', () => {
@@ -1254,10 +1340,7 @@ if (!reduced && matchMedia('(hover:hover)').matches) {
       const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
       card.style.setProperty('--mx', px * 100 + '%');
       card.style.setProperty('--my', py * 100 + '%');
-      card.style.transform =
-        `perspective(760px) rotateX(${(0.5 - py) * 4}deg) rotateY(${(px - 0.5) * 6}deg) translateY(-3px)`;
     });
-    card.addEventListener('pointerleave', () => { card.style.transform = ''; });
   });
 }
 
@@ -1328,6 +1411,7 @@ const railBtns = SECTIONS.map(([id, label]) => {
   rail.appendChild(b);
   return b;
 });
+const sbSec = document.getElementById('sbSec');
 function syncRail() {
   const mark = scrollY + innerHeight * 0.32;
   let active = 0;
@@ -1336,7 +1420,53 @@ function syncRail() {
     if (el && el.getBoundingClientRect().top + scrollY <= mark) active = i;
   });
   railBtns.forEach((b, i) => b.setAttribute('aria-current', String(i === active)));
+  sbSec.textContent = SECTIONS[active][1].toLowerCase();
 }
+
+// ---------- status bar ----------
+// The ticker is the stack, deduplicated from the chips already on the page, so
+// it can never drift out of step with what the projects actually say they use.
+const STACK = [...new Set([...document.querySelectorAll('.chip')].map(c => c.textContent.trim()))];
+const sbTrack = document.getElementById('sbTrack');
+const run = STACK.map(s => s + '<i>/</i>').join('');
+sbTrack.innerHTML = run + run;   // doubled, so translateX(-50%) loops seamlessly
+
+const sbClock = document.getElementById('sbClock');
+function tick() {
+  // the visitor's own clock, not a hardcoded timezone
+  sbClock.textContent = new Date().toLocaleTimeString([], { hour12: false });
+}
+tick();
+setInterval(tick, 1000);
+document.querySelector('.sb-r').lastChild.textContent =
+  ' · ' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local').split('/').pop().replace(/_/g, ' ');
+
+// ---------- keyboard index ----------
+// j/k walk the rows and Enter opens one, so the index is usable without a mouse
+// or the palette. The rows are real links, so Tab still works as it always did.
+const rows = [...document.querySelectorAll('.card')];
+let kbd = -1;
+function markRow(next) {
+  rows[kbd]?.classList.remove('kbd');
+  kbd = Math.max(0, Math.min(rows.length - 1, next));
+  const el = rows[kbd];
+  el.classList.add('kbd');
+  el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  if (!paused) snakeFocus(el);
+}
+addEventListener('keydown', e => {
+  if (!pal.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
+  if (e.key === 'j') { e.preventDefault(); markRow(kbd + 1); }
+  else if (e.key === 'k') { e.preventDefault(); markRow(kbd < 0 ? 0 : kbd - 1); }
+  else if (e.key === 'Enter' && kbd >= 0) {
+    const href = rows[kbd].getAttribute('href');
+    if (href) { e.preventDefault(); location.assign(href); }
+  } else if (e.key === 'Escape' && kbd >= 0) {
+    rows[kbd].classList.remove('kbd'); kbd = -1;
+    if (!paused) snakeFocus(null);
+  }
+});
 
 // ---------- command palette ----------
 const ITEMS = [...document.querySelectorAll('.card')].map(c => {
