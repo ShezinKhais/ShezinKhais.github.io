@@ -313,6 +313,10 @@
     padding:5px 8px; cursor:pointer; max-width:230px;
   }
   .demo-head select:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .demo-head input[type=range] { display:block; margin-top:7px; width:150px; accent-color:var(--sn-mid); cursor:pointer; }
+  .demo-thr { color:var(--num); font-weight:600; text-transform:none; letter-spacing:0; }
+  .verdict-ok  { color:var(--num) !important; }
+  .verdict-no  { color:var(--badge) !important; }
 
   .demo-scroll { overflow-x:auto; margin:15px -4px 0; padding:0 4px; }
   #hdCv { display:block; }
@@ -476,6 +480,48 @@
       <div class="chips"><span class="chip">Python</span><span class="chip">AST</span><span class="chip">graph algorithms</span><span class="chip">zero deps</span></div>
     </a>
 
+    <button class="tryit" id="ccTry" aria-expanded="false" aria-controls="ccDemo">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Find the circular imports
+      <span class="sub">Tarjan's SCC, step by step</span>
+    </button>
+
+    <div class="demo" id="ccDemo" hidden>
+      <div class="demo-head">
+        <label for="ccPick">Import graph<select id="ccPick"></select></label>
+      </div>
+
+      <div class="demo-scroll">
+        <canvas id="ccCv" role="img"
+                aria-label="Module import graph with Tarjan's algorithm running over it"></canvas>
+      </div>
+
+      <p class="demo-read" id="ccRead" aria-hidden="true"></p>
+
+      <div class="demo-ctl">
+        <button id="ccPlay">Play</button>
+        <button id="ccStep">Step</button>
+        <button id="ccRun">Run</button>
+        <button id="ccReset">Reset</button>
+        <span class="spd"><label for="ccSpd">Speed</label>
+          <input type="range" id="ccSpd" min="1" max="40" value="9"></span>
+      </div>
+
+      <div class="demo-out" id="ccOut" aria-live="polite"></div>
+
+      <p class="demo-note">
+        Each node is a module, each arrow an import. Tarjan's algorithm walks the
+        graph depth-first, stamping every node with the order it was discovered
+        (<code>index</code>) and the lowest index reachable from its subtree
+        (<code>lowlink</code>). A node whose <code>lowlink</code> comes back equal
+        to its own <code>index</code> is the root of a strongly connected
+        component: everything above it on the stack imports its way back round to
+        it. Components larger than one node are circular imports. It is one pass,
+        <code>O(V+E)</code>, which is why the real tool can run it on a whole
+        codebase without you noticing.
+      </p>
+    </div>
+
     <a class="card" href="https://github.com/ShezinKhais/harmonicDNA">
       <h3>HarmonicDNA <span class="arrow">&rarr;</span></h3>
       <p>Applies Smith-Waterman local alignment, the bioinformatics algorithm for comparing DNA sequences, to chord progressions extracted from audio.</p>
@@ -552,6 +598,58 @@
       </div></div>
       <div class="chips"><span class="chip">Python</span><span class="chip">numpy</span><span class="chip">speaker verification</span></div>
     </a>
+
+    <button class="tryit" id="elTry" aria-expanded="false" aria-controls="elDemo">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Try to get past the voice check
+      <span class="sub">MFCC pipeline, end to end</span>
+    </button>
+
+    <div class="demo" id="elDemo" hidden>
+      <div class="demo-head">
+        <label for="elVoice">Speaker at the door<select id="elVoice"></select></label>
+        <label for="elThr">Threshold <b id="elThrV" class="demo-thr">0.970</b>
+          <input type="range" id="elThr" min="800" max="999" value="970"></label>
+      </div>
+
+      <div class="demo-scroll">
+        <canvas id="elCv" role="img"
+                aria-label="Waveform, mel filterbank energies and MFCC vector for the enrolled and presented voices"></canvas>
+      </div>
+
+      <p class="demo-read" id="elRead" aria-hidden="true"></p>
+
+      <div class="demo-ctl">
+        <span class="spd" style="margin-left:0">
+          <label for="elF1">Vocal tract</label>
+          <input type="range" id="elF1" min="0" max="100" value="0">
+        </span>
+        <span class="spd">
+          <label for="elPitch">Pitch</label>
+          <input type="range" id="elPitch" min="0" max="100" value="0">
+        </span>
+      </div>
+
+      <div class="demo-out" id="elOut" aria-live="polite"></div>
+
+      <p class="demo-note">
+        The same pipeline the project runs, in the browser: the signal is framed
+        and windowed, an FFT gives the magnitude spectrum, a bank of 26
+        triangular filters spaced on the mel scale sums it into bands, the log is
+        taken, and a DCT decorrelates those bands into cepstral coefficients.
+        Coefficients 1 to 12 are the voiceprint. C0 is dropped because it is
+        loudness, not identity, which is what stops the check from being fooled
+        by someone simply speaking louder. Verification is cosine similarity
+        against the enrolled vector, after mean and variance normalisation.
+        Notice that the pitch slider barely moves the score while the vocal-tract
+        slider moves it a long way: MFCCs describe the shape of the tract doing
+        the filtering, not the vocal folds driving it, so singing the passphrase
+        higher does not lock you out. Raise the threshold past <code>0.98</code>
+        and you start rejecting the owner over a phone line; lower it and the
+        flatmate gets in. That line is a tradeoff someone has to pick, not a
+        setting with a correct value.
+      </p>
+    </div>
 
     <div class="card">
       <h3>C.L.I.P <span class="status">ongoing</span> <span class="status">private repo</span></h3>
@@ -1484,6 +1582,10 @@ const ITEMS = [...document.querySelectorAll('.card')].map(c => {
   { name: 'LinkedIn', desc: 'linkedin.com/in/shezinkhaiser', kind: 'link', run: () => location.assign('https://www.linkedin.com/in/shezinkhaiser/') },
   { name: 'Run the alignment', desc: 'Step through Smith-Waterman on two chord progressions', kind: 'demo',
     run: () => { if (hdDemo.hidden) hdTry.click(); hdDemo.scrollIntoView({ block: 'center' }); } },
+  { name: 'Find the circular imports', desc: "Step through Tarjan's SCC on a module import graph", kind: 'demo',
+    run: () => { if (ccDemo.hidden) ccTry.click(); ccDemo.scrollIntoView({ block: 'center' }); } },
+  { name: 'Try to get past the voice check', desc: 'Run the MFCC speaker-verification pipeline', kind: 'demo',
+    run: () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({ block: 'center' }); } },
   { name: 'Copy email', desc: MAIL, kind: 'action', run: copyMail },
   { name: 'Toggle theme', desc: 'Switch between light and dark', kind: 'action', run: () => themeBtn.click() },
   { name: 'Toggle motion', desc: 'Pause or resume the snake', kind: 'action', run: () => motionBtn.click() }
@@ -2248,7 +2350,7 @@ document.getElementById('hdReset').addEventListener('click', () => {
 for (const sel of [selA, selB]) sel.addEventListener('change', () => {
   clearTimeout(timer); stopAudio(); buildMatrix(); hdOut.innerHTML = '';
   hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
-  syncBtns(); hdDraw();
+  syncBtns(); hdDraw(); writeState();
 });
 
 function openDemo(on) {
@@ -2266,8 +2368,508 @@ function openDemo(on) {
   resize();
   draw(performance.now() / 1000);
 }
-hdTry.addEventListener('click', () => openDemo(hdDemo.hidden));
+hdTry.addEventListener('click', () => { openDemo(hdDemo.hidden); writeState(); });
 
+/* ============ CodeCartographer, playable ============
+   Tarjan's strongly connected components, the same single pass the project runs
+   over a real import graph. The trace is recorded up front as a list of states
+   so Step, Play and Run all replay one array rather than each re-deriving the
+   algorithm. */
+const CC_GRAPHS = [
+  { name: 'Layered app, no cycles',
+    n: ['cli','app','routes','service','models','db','config','utils'],
+    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[1,6],[3,7],[2,7],[5,6]] },
+  { name: 'One circular import',
+    n: ['cli','app','routes','service','models','db','config','utils'],
+    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,4],[1,6],[3,7],[2,7]] },
+  { name: 'Tangled core',
+    n: ['cli','app','routes','service','models','db','config','utils'],
+    e: [[0,1],[1,2],[2,3],[3,4],[4,5],[5,3],[4,2],[1,6],[3,7],[7,1]] }
+];
+
+function tarjanTrace(g) {
+  const N = g.n.length;
+  const adj = Array.from({ length: N }, () => []);
+  for (const [a, b] of g.e) adj[a].push(b);
+
+  const index = new Array(N).fill(-1), low = new Array(N).fill(-1);
+  const onstack = new Array(N).fill(false), stack = [], comps = [], ev = [];
+  let counter = 0;
+  const nm = i => g.n[i];
+  const snap = (msg, x) => ev.push(Object.assign({
+    msg, index: index.slice(), low: low.slice(), stack: stack.slice(),
+    onstack: onstack.slice(), comps: comps.map(c => c.slice())
+  }, x || {}));
+
+  function connect(v) {
+    index[v] = low[v] = counter++;
+    stack.push(v); onstack[v] = true;
+    snap(`<i>${nm(v)}</i> discovered: index = lowlink = <b>${index[v]}</b>`, { at: v });
+    for (const w of adj[v]) {
+      if (index[w] === -1) {
+        snap(`<i>${nm(v)}</i> imports <i>${nm(w)}</i>, unvisited: descend`, { at: v, edge: [v, w] });
+        connect(w);
+        low[v] = Math.min(low[v], low[w]);
+        snap(`back at <i>${nm(v)}</i>: lowlink = min(self, ${nm(w)}) = <b>${low[v]}</b>`, { at: v, edge: [v, w] });
+      } else if (onstack[w]) {
+        low[v] = Math.min(low[v], index[w]);
+        snap(`<i>${nm(w)}</i> is still on the stack, so this closes a loop: lowlink = <b>${low[v]}</b>`, { at: v, edge: [v, w] });
+      } else {
+        snap(`<i>${nm(w)}</i> already belongs to a finished component: skip`, { at: v, edge: [v, w] });
+      }
+    }
+    if (low[v] === index[v]) {
+      const c = []; let w;
+      do { w = stack.pop(); onstack[w] = false; c.push(w); } while (w !== v);
+      comps.push(c);
+      snap(`lowlink = index at <i>${nm(v)}</i>, so it is a component root: <b>{${c.map(nm).join(', ')}}</b>`,
+           { at: v, pop: c.slice() });
+    }
+  }
+  for (let v = 0; v < N; v++) if (index[v] === -1) connect(v);
+  snap('Done. Every component with more than one module is a circular import.', { done: true });
+  return { ev, comps, adj };
+}
+
+const ccTry = document.getElementById('ccTry');
+const ccDemo = document.getElementById('ccDemo');
+const ccCv = document.getElementById('ccCv');
+const ccCtx = ccCv.getContext('2d');
+const ccPick = document.getElementById('ccPick');
+const ccRead = document.getElementById('ccRead');
+const ccOut = document.getElementById('ccOut');
+const ccSpd = document.getElementById('ccSpd');
+
+CC_GRAPHS.forEach((g, i) => ccPick.add(new Option(g.name, i)));
+
+let ccTrace = null, ccAt = -1, ccTimer = 0, ccPlaying = false;
+
+function ccBuild() {
+  ccTrace = tarjanTrace(CC_GRAPHS[+ccPick.value]);
+  ccAt = -1; ccStop();
+  ccRead.innerHTML = 'Ready. Step walks the depth-first search one move at a time.';
+  ccOut.innerHTML = '';
+  ccDraw();
+}
+function ccStop() { clearTimeout(ccTimer); ccTimer = 0; ccPlaying = false; ccSync(); }
+function ccSync() {
+  const end = ccTrace && ccAt >= ccTrace.ev.length - 1;
+  document.getElementById('ccPlay').textContent = ccPlaying ? 'Pause' : 'Play';
+  document.getElementById('ccStep').disabled = !!end;
+  document.getElementById('ccRun').disabled = !!end;
+}
+
+// node positions: a ring reads the cycles more clearly than a layered dag would
+function ccLayout(N, w, h) {
+  const cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 34;
+  return Array.from({ length: N }, (_, i) => {
+    const a = -Math.PI / 2 + (i / N) * Math.PI * 2;
+    return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
+  });
+}
+
+function ccDraw() {
+  if (!ccTrace) return;
+  const g = CC_GRAPHS[+ccPick.value];
+  const wrapW = ccDemo.querySelector('.demo-scroll').clientWidth || 520;
+  const w = Math.max(340, Math.min(560, wrapW)), h = Math.round(w * 0.72);
+  const d = Math.min(devicePixelRatio || 1, 2);
+  ccCv.width = w * d; ccCv.height = h * d;
+  ccCv.style.width = w + 'px'; ccCv.style.height = h + 'px';
+  const c = ccCtx;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.clearRect(0, 0, w, h);
+  c.font = '10px ' + MONO;
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+
+  const st = ccAt >= 0 ? ccTrace.ev[ccAt] : null;
+  const pos = ccLayout(g.n.length, w, h);
+  const line = css('--line'), dim = css('--dim'), fg = css('--fg');
+  const lite = css('--sn-lite'), mid = css('--sn-mid'), badge = css('--badge');
+
+  // which component (if any) each node has been assigned to
+  const comp = new Array(g.n.length).fill(-1);
+  if (st) st.comps.forEach((cs, k) => cs.forEach(v => comp[v] = k));
+  const cyclic = new Set();
+  if (st) st.comps.forEach(cs => { if (cs.length > 1) cs.forEach(v => cyclic.add(v)); });
+
+  for (const [a, b] of g.e) {
+    const p = pos[a], q = pos[b];
+    const dx = q.x - p.x, dy = q.y - p.y, L = Math.hypot(dx, dy) || 1;
+    const R = 17, sx = p.x + dx / L * R, sy = p.y + dy / L * R;
+    const ex = q.x - dx / L * R, ey = q.y - dy / L * R;
+    const live = st && st.edge && st.edge[0] === a && st.edge[1] === b;
+    const inCycle = cyclic.has(a) && cyclic.has(b) && comp[a] === comp[b];
+    c.strokeStyle = live ? badge : inCycle ? mid : line;
+    c.lineWidth = live ? 2.2 : inCycle ? 1.8 : 1;
+    c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.stroke();
+    const a2 = Math.atan2(dy, dx);
+    c.beginPath();
+    c.moveTo(ex, ey);
+    c.lineTo(ex - 7 * Math.cos(a2 - 0.4), ey - 7 * Math.sin(a2 - 0.4));
+    c.lineTo(ex - 7 * Math.cos(a2 + 0.4), ey - 7 * Math.sin(a2 + 0.4));
+    c.fillStyle = c.strokeStyle; c.fill();
+  }
+
+  g.n.forEach((name, i) => {
+    const p = pos[i];
+    const onStack = st && st.onstack[i];
+    const here = st && st.at === i && !st.done;
+    const seen = st && st.index[i] >= 0;
+    c.beginPath(); c.arc(p.x, p.y, 17, 0, Math.PI * 2);
+    c.fillStyle = cyclic.has(i) ? mid : onStack ? css('--panel-hi') : css('--bg');
+    c.fill();
+    c.strokeStyle = here ? badge : cyclic.has(i) ? mid : seen ? lite : line;
+    c.lineWidth = here ? 2.4 : 1.4;
+    c.stroke();
+    c.fillStyle = cyclic.has(i) ? css('--bg') : seen ? fg : dim;
+    c.fillText(name.slice(0, 7), p.x, p.y - 3);
+    if (seen) {
+      c.fillStyle = cyclic.has(i) ? css('--bg') : dim;
+      c.font = '9px ' + MONO;
+      c.fillText(st.index[i] + '/' + st.low[i], p.x, p.y + 7);
+      c.font = '10px ' + MONO;
+    }
+  });
+
+  // the stack itself, drawn along the bottom: it is the part of the algorithm
+  // that is hardest to picture from the pseudocode
+  c.textAlign = 'left';
+  c.fillStyle = dim;
+  c.fillText('stack', 6, h - 12);
+  if (st) st.stack.forEach((v, k) => {
+    const x = 46 + k * 46;
+    c.fillStyle = css('--panel-hi'); c.fillRect(x, h - 22, 42, 19);
+    c.strokeStyle = lite; c.lineWidth = 1; c.strokeRect(x + .5, h - 21.5, 41, 18);
+    c.fillStyle = fg; c.textAlign = 'center';
+    c.fillText(g.n[v].slice(0, 5), x + 21, h - 12);
+    c.textAlign = 'left';
+  });
+}
+
+function ccStepOnce() {
+  if (!ccTrace || ccAt >= ccTrace.ev.length - 1) return false;
+  ccAt++;
+  const st = ccTrace.ev[ccAt];
+  ccRead.innerHTML = st.msg;
+  ccDraw();
+  if (st.done) ccReport();
+  return true;
+}
+function ccReport() {
+  const cycles = ccTrace.comps.filter(c => c.length > 1);
+  const g = CC_GRAPHS[+ccPick.value];
+  const worst = cycles.reduce((m, c) => Math.max(m, c.length), 0);
+  ccOut.innerHTML = [
+    ['modules', g.n.length], ['imports', g.e.length],
+    ['components', ccTrace.comps.length], ['circular', cycles.length]
+  ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+  ccRead.innerHTML = cycles.length
+    ? `Found <b>${cycles.length}</b> circular import${cycles.length > 1 ? 's' : ''}, the largest spanning <b>${worst}</b> modules: ` +
+      cycles.map(c => '<i>' + c.map(v => g.n[v]).join(' &rarr; ') + '</i>').join(', ')
+    : 'No cycles. Every component is a single module, so the import graph is a DAG and can be loaded in topological order.';
+}
+function ccLoop() {
+  if (!ccStepOnce()) { ccStop(); return; }
+  ccTimer = setTimeout(ccLoop, 1100 / +ccSpd.value);
+}
+
+document.getElementById('ccPlay').addEventListener('click', () => {
+  if (ccPlaying) { ccStop(); return; }
+  if (ccAt >= ccTrace.ev.length - 1) ccBuild();
+  ccPlaying = true; ccSync(); ccLoop();
+});
+document.getElementById('ccStep').addEventListener('click', () => { ccStop(); ccStepOnce(); ccSync(); });
+document.getElementById('ccRun').addEventListener('click', () => {
+  ccStop();
+  while (ccStepOnce());
+  ccSync();
+});
+document.getElementById('ccReset').addEventListener('click', ccBuild);
+ccPick.addEventListener('change', () => { ccBuild(); writeState(); });
+
+function ccOpen(on) {
+  ccDemo.hidden = !on;
+  ccTry.setAttribute('aria-expanded', String(on));
+  ccTry.querySelector('.sub').textContent = on ? 'collapse' : "Tarjan's SCC, step by step";
+  if (on) ccBuild(); else ccStop();
+  resize(); draw(performance.now() / 1000);
+}
+ccTry.addEventListener('click', () => { ccOpen(ccDemo.hidden); writeState(); });
+
+/* ============ EchoLock, playable ============
+   The real MFCC front end, not a mock-up of one: window, FFT, mel filterbank,
+   log, DCT. The only thing standing in for a microphone is the source signal,
+   which is synthesised from a pitch and three formants because a page cannot
+   ask for the visitor's voice without a permission prompt nobody wants. */
+const EL_SR = 16000, EL_N = 512, EL_BANDS = 26, EL_KEEP = 12;
+
+function fftMag(x) {
+  const n = x.length, re = Float64Array.from(x), im = new Float64Array(n);
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) { const t = re[i]; re[i] = re[j]; re[j] = t; }
+  }
+  for (let len = 2; len <= n; len <<= 1) {
+    const ang = -2 * Math.PI / len, half = len >> 1;
+    for (let i = 0; i < n; i += len) {
+      for (let k = 0; k < half; k++) {
+        const wr = Math.cos(ang * k), wi = Math.sin(ang * k);
+        const ar = re[i + k], ai = im[i + k];
+        const br = re[i + k + half], bi = im[i + k + half];
+        const vr = br * wr - bi * wi, vi = br * wi + bi * wr;
+        re[i + k] = ar + vr; im[i + k] = ai + vi;
+        re[i + k + half] = ar - vr; im[i + k + half] = ai - vi;
+      }
+    }
+  }
+  const m = new Float64Array(n / 2 + 1);
+  for (let i = 0; i < m.length; i++) m[i] = (re[i] * re[i] + im[i] * im[i]) / n;
+  return m;
+}
+
+const hz2mel = f => 2595 * Math.log10(1 + f / 700);
+const mel2hz = m => 700 * (Math.pow(10, m / 2595) - 1);
+
+// built once: the bank does not depend on the signal
+const EL_BANK = (() => {
+  const lo = hz2mel(80), hi = hz2mel(EL_SR / 2), bins = EL_N / 2 + 1;
+  const pts = Array.from({ length: EL_BANDS + 2 }, (_, i) =>
+    Math.floor(mel2hz(lo + (hi - lo) * i / (EL_BANDS + 1)) / (EL_SR / EL_N)));
+  return Array.from({ length: EL_BANDS }, (_, b) => {
+    const f = new Float64Array(bins);
+    const [a, c, d] = [pts[b], pts[b + 1], pts[b + 2]];
+    for (let k = a; k < c; k++) if (k < bins && c > a) f[k] = (k - a) / (c - a);
+    for (let k = c; k < d; k++) if (k < bins && d > c) f[k] = (d - k) / (d - c);
+    return f;
+  });
+})();
+
+function melEnergies(sig) {
+  const win = new Float64Array(EL_N);
+  for (let i = 0; i < EL_N; i++)                       // Hamming
+    win[i] = sig[i] * (0.54 - 0.46 * Math.cos(2 * Math.PI * i / (EL_N - 1)));
+  const p = fftMag(win);
+  return EL_BANK.map(f => {
+    let s = 0;
+    for (let k = 0; k < f.length; k++) s += f[k] * p[k];
+    return Math.log(s + 1e-10);
+  });
+}
+
+function mfcc(sig) {
+  const lg = melEnergies(sig), out = [];
+  // DCT-II. k starts at 1: C0 is frame loudness, not identity, so keeping it
+  // would let anyone in simply by speaking at the enrolled volume.
+  for (let k = 1; k <= EL_KEEP; k++) {
+    let s = 0;
+    for (let m = 0; m < EL_BANDS; m++) s += lg[m] * Math.cos(Math.PI * k * (m + 0.5) / EL_BANDS);
+    out.push(s * Math.sqrt(2 / EL_BANDS));
+  }
+  // Cepstral mean and variance normalisation. Without it C1 dwarfs the rest and
+  // the cosine mostly measures spectral tilt, which every human voice shares:
+  // a flatmate scored 0.957 against the enrolled speaker before this was added.
+  const mu = out.reduce((a, b) => a + b, 0) / out.length;
+  const sd = Math.sqrt(out.reduce((a, b) => a + (b - mu) * (b - mu), 0) / out.length) || 1;
+  return out.map(v => (v - mu) / sd);
+}
+
+// glottal source with three resonances: the shape of the vocal tract is what
+// the cepstrum is actually measuring
+function synth(f0, formants) {
+  const x = new Float64Array(EL_N);
+  for (let h = 1; h * f0 < EL_SR / 2; h++) {
+    const f = h * f0;
+    let a = 1 / Math.pow(h, 1.1);
+    for (const [fc, bw, g] of formants) a += g / (1 + Math.pow((f - fc) / bw, 2));
+    const wf = 2 * Math.PI * f / EL_SR;
+    for (let i = 0; i < EL_N; i++) x[i] += a * Math.sin(wf * i);
+  }
+  let pk = 0;
+  for (let i = 0; i < EL_N; i++) pk = Math.max(pk, Math.abs(x[i]));
+  if (pk) for (let i = 0; i < EL_N; i++) x[i] /= pk;
+  return x;
+}
+
+const EL_ENROLLED = { f0: 118, fm: [[730, 80, 3.2], [1090, 100, 2.4], [2440, 130, 1.5]] };
+const EL_VOICES = [
+  { name: 'You (the enrolled voice)', f0: 118, fm: EL_ENROLLED.fm },
+  { name: 'You, with a cold',         f0: 112, fm: [[755, 105, 2.9], [1130, 130, 2.2], [2400, 160, 1.3]] },
+  { name: 'You, over a phone line',   f0: 118, fm: [[730, 80, 3.2], [1090, 100, 2.4], [2440, 130, 0.5]] },
+  { name: 'Your flatmate',            f0: 132, fm: [[640, 90, 3.0], [1240, 110, 2.6], [2600, 140, 1.6]] },
+  { name: 'A stranger',               f0: 196, fm: [[520, 95, 2.7], [1660, 120, 2.9], [2900, 150, 1.8]] }
+];
+
+const elTry = document.getElementById('elTry');
+const elDemo = document.getElementById('elDemo');
+const elCv = document.getElementById('elCv');
+const elCtx = elCv.getContext('2d');
+const elVoice = document.getElementById('elVoice');
+const elThr = document.getElementById('elThr');
+const elThrV = document.getElementById('elThrV');
+const elF1 = document.getElementById('elF1');
+const elPitch = document.getElementById('elPitch');
+const elRead = document.getElementById('elRead');
+const elOut = document.getElementById('elOut');
+
+EL_VOICES.forEach((v, i) => elVoice.add(new Option(v.name, i)));
+
+const REF_SIG = synth(EL_ENROLLED.f0, EL_ENROLLED.fm);
+const REF_MEL = melEnergies(REF_SIG), REF_MFCC = mfcc(REF_SIG);
+
+function cosine(a, b) {
+  let d = 0, na = 0, nb = 0;
+  for (let i = 0; i < a.length; i++) { d += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  return d / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+}
+
+function elCurrent() {
+  const v = EL_VOICES[+elVoice.value];
+  const tract = 1 + (+elF1.value / 100) * 0.55;          // lengthen the vocal tract
+  const pitch = 1 + (+elPitch.value / 100) * 0.75;
+  return { f0: v.f0 * pitch, fm: v.fm.map(([fc, bw, g]) => [fc * tract, bw, g]) };
+}
+
+function elDraw() {
+  const cur = elCurrent();
+  const sig = synth(cur.f0, cur.fm);
+  const mel = melEnergies(sig), mf = mfcc(sig);
+  const sim = cosine(REF_MFCC, mf);
+  const thr = +elThr.value / 1000;
+  const pass = sim >= thr;
+
+  const wrapW = elDemo.querySelector('.demo-scroll').clientWidth || 520;
+  const w = Math.max(340, Math.min(560, wrapW)), h = 268;
+  const d = Math.min(devicePixelRatio || 1, 2);
+  elCv.width = w * d; elCv.height = h * d;
+  elCv.style.width = w + 'px'; elCv.style.height = h + 'px';
+  const c = elCtx;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.clearRect(0, 0, w, h);
+  c.font = '9px ' + MONO;
+  c.textBaseline = 'middle'; c.textAlign = 'left';
+
+  const line = css('--line'), dim = css('--dim'), lite = css('--sn-lite'), badge = css('--badge');
+  const label = (t, y) => { c.fillStyle = dim; c.fillText(t, 0, y); };
+
+  // 1. waveform
+  label('WAVEFORM  ' + Math.round(cur.f0) + ' Hz', 8);
+  c.strokeStyle = pass ? lite : badge; c.lineWidth = 1;
+  c.beginPath();
+  for (let i = 0; i < EL_N; i++) {
+    const x = i / (EL_N - 1) * w, y = 44 - sig[i] * 22;
+    i ? c.lineTo(x, y) : c.moveTo(x, y);
+  }
+  c.stroke();
+
+  // 2. mel filterbank, enrolled behind, presented in front
+  label('MEL FILTERBANK  ' + EL_BANDS + ' bands', 84);
+  const lo = Math.min(...REF_MEL, ...mel), hi = Math.max(...REF_MEL, ...mel);
+  const bw = w / EL_BANDS, base = 158, tall = 56;
+  const norm = v => (v - lo) / (hi - lo || 1);
+  for (let b = 0; b < EL_BANDS; b++) {
+    c.fillStyle = line;
+    c.fillRect(b * bw, base - norm(REF_MEL[b]) * tall, bw - 1, norm(REF_MEL[b]) * tall);
+    c.fillStyle = pass ? lite : badge;
+    c.globalAlpha = 0.75;
+    c.fillRect(b * bw + 1, base - norm(mel[b]) * tall, bw - 3, norm(mel[b]) * tall);
+    c.globalAlpha = 1;
+  }
+
+  // 3. the 12 coefficients that are actually compared
+  label('MFCC  C1-C' + EL_KEEP, 182);
+  const mid = 224, sc = 14 / Math.max(1, Math.max(...mf.concat(REF_MFCC).map(Math.abs)));
+  c.strokeStyle = line;
+  c.beginPath(); c.moveTo(0, mid); c.lineTo(w, mid); c.stroke();
+  const cw = w / EL_KEEP;
+  for (let k = 0; k < EL_KEEP; k++) {
+    const x = k * cw + cw / 2;
+    c.fillStyle = line;
+    c.fillRect(x - 6, mid - REF_MFCC[k] * sc, 5, Math.max(1, Math.abs(REF_MFCC[k] * sc)) * Math.sign(REF_MFCC[k] || 1));
+    c.fillStyle = pass ? lite : badge;
+    c.fillRect(x + 1, mid - mf[k] * sc, 5, Math.max(1, Math.abs(mf[k] * sc)) * Math.sign(mf[k] || 1));
+  }
+  c.fillStyle = dim; c.textAlign = 'center';
+  c.fillText('enrolled', 34, 252); c.fillText('presented', 100, 252);
+  c.fillStyle = line; c.fillRect(2, 248, 8, 8);
+  c.fillStyle = pass ? lite : badge; c.fillRect(64, 248, 8, 8);
+
+  elOut.innerHTML = [
+    ['cosine similarity', sim.toFixed(3)],
+    ['threshold', thr.toFixed(3)],
+    ['margin', (sim - thr >= 0 ? '+' : '') + (sim - thr).toFixed(3)],
+    ['verdict', pass ? 'unlock' : 'denied']
+  ].map(([k, v], i) => `<div><b class="${i === 3 ? (pass ? 'verdict-ok' : 'verdict-no') : ''}">${v}</b><span>${k}</span></div>`).join('');
+
+  elRead.innerHTML = pass
+    ? `Accepted at <b>${sim.toFixed(3)}</b>. The twelve coefficients line up closely enough with the enrolled vector to clear <b>${thr.toFixed(3)}</b>.`
+    : `Rejected at <b>${sim.toFixed(3)}</b>, short of <b>${thr.toFixed(3)}</b>. Drop the threshold and this voice gets in; that is the whole tradeoff.`;
+}
+
+function elOpen(on) {
+  elDemo.hidden = !on;
+  elTry.setAttribute('aria-expanded', String(on));
+  elTry.querySelector('.sub').textContent = on ? 'collapse' : 'MFCC pipeline, end to end';
+  if (on) elDraw();
+  resize(); draw(performance.now() / 1000);
+}
+elTry.addEventListener('click', () => { elOpen(elDemo.hidden); writeState(); });
+for (const el of [elVoice, elThr, elF1, elPitch]) {
+  el.addEventListener('input', () => { elThrV.textContent = (+elThr.value / 1000).toFixed(3); elDraw(); });
+  el.addEventListener('change', writeState);
+}
+
+/* ---- deep links ----
+   A demo you have set up is worth sending to someone, so the open panel and its
+   controls live in the URL. replaceState rather than pushState: dragging a
+   slider should not fill the back button with history. */
+let stateLock = false;
+function writeState() {
+  if (stateLock) return;
+  const p = new URLSearchParams();
+  if (!hdDemo.hidden) { p.set('d', 'hd'); p.set('a', selA.value); p.set('b', selB.value); }
+  else if (!ccDemo.hidden) { p.set('d', 'cc'); p.set('g', ccPick.value); }
+  else if (!elDemo.hidden) {
+    p.set('d', 'el'); p.set('v', elVoice.value); p.set('t', elThr.value);
+    p.set('f', elF1.value); p.set('p', elPitch.value);
+  }
+  const q = p.toString();
+  history.replaceState(null, '', q ? '#' + q : location.pathname + location.search);
+}
+
+function readState() {
+  const raw = location.hash.replace(/^#/, '');
+  if (!raw) return;
+  const p = new URLSearchParams(raw);
+  const num = (k, el) => {
+    const v = p.get(k);
+    if (v == null) return;
+    if (el.tagName === 'SELECT' && !el.querySelector(`option[value="${CSS.escape(v)}"]`)) return;
+    el.value = v;
+  };
+  stateLock = true;
+  switch (p.get('d')) {
+    case 'hd':
+      num('a', selA); num('b', selB);
+      openDemo(true);
+      break;
+    case 'cc':
+      num('g', ccPick);
+      ccOpen(true);
+      break;
+    case 'el':
+      num('v', elVoice); num('t', elThr); num('f', elF1); num('p', elPitch);
+      elThrV.textContent = (+elThr.value / 1000).toFixed(3);
+      elOpen(true);
+      break;
+    default: stateLock = false; return;
+  }
+  stateLock = false;
+  document.getElementById(p.get('d') === 'hd' ? 'hdDemo' : p.get('d') === 'cc' ? 'ccDemo' : 'elDemo')
+    .scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+}
 
 // ================= boot =================
 document.body.classList.remove('nojs');
@@ -2293,6 +2895,8 @@ addEventListener('resize', () => {
   rt = setTimeout(() => {
     resize(); draw(performance.now() / 1000);
     if (!hdDemo.hidden) hdDraw();
+    if (!ccDemo.hidden) ccDraw();
+    if (!elDemo.hidden) elDraw();
   }, 130);
 });
 
@@ -2322,6 +2926,10 @@ setTimeout(() => {
   document.querySelectorAll('[data-count]').forEach(s => { if (s.textContent === '0') countUp(s); });
   resize(); draw(performance.now() / 1000);
 }, 1700);
+
+// a shared demo link opens the panel it names and restores the controls with it
+readState();
+addEventListener('hashchange', readState);
 </script>
 </body>
 </html>
