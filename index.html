@@ -540,6 +540,41 @@
   /* no cursor to follow, and no room to put it */
   @media (hover:none), (max-width:900px) { #peek { display:none !important; } }
 
+  /* ---------- about ---------- */
+  .about { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:56px; align-items:start; }
+  @media (max-width:900px) { .about { grid-template-columns:1fr; gap:34px; } }
+  .about-lead { font-size:clamp(15px,1.9vw,18px); color:var(--fg); margin:6px 0 0; max-width:54ch; line-height:1.62; }
+  .about-lead + p { font-size:13.5px; color:var(--muted); max-width:58ch; margin:15px 0 0; }
+
+  .facts { margin:30px 0 0; display:grid; gap:0; }
+  .facts > div {
+    display:grid; grid-template-columns:130px minmax(0,1fr); gap:18px;
+    padding:11px 0; border-top:1px solid var(--line);
+  }
+  .facts dt { font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim); }
+  .facts dd { margin:0; font-size:13px; color:var(--muted); }
+  .facts dd b { color:var(--fg); font-weight:600; }
+  @media (max-width:520px) { .facts > div { grid-template-columns:1fr; gap:4px; } }
+
+  .about-links { display:flex; flex-wrap:wrap; gap:0 26px; margin-top:26px; }
+  .about-links a {
+    font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--num); text-decoration:none; padding:12px 0;
+    border-bottom:1px solid transparent; transition:color .2s, border-color .2s;
+  }
+  .about-links a:hover { color:var(--fg); border-bottom-color:var(--sn-mid); }
+  .about-links a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+
+  /* the badge hangs from a cord and swings; drag it and let go */
+  .idwrap { position:relative; }
+  #idCv { display:block; width:100%; height:auto; touch-action:none; cursor:grab; }
+  #idCv.held { cursor:grabbing; }
+  .idhint {
+    display:block; margin-top:8px; text-align:center;
+    font-size:9.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim);
+  }
+  @media (hover:none) { .idhint { display:none; } }
+
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
   footer a:hover { color:var(--accent); text-decoration:underline; }
@@ -548,7 +583,7 @@
      rather than a cursor. Growing every control to 44px on the desktop would
      wreck the density this layout depends on. */
   @media (pointer: coarse) {
-    .tool, .links a, .demo-ctl button, .demo-head select {
+    .tool, .links a, .demo-ctl button, .demo-head select, .about-links a {
       min-height:44px; display:inline-flex; align-items:center;
     }
     .tryit { min-height:48px; }
@@ -916,6 +951,43 @@
       <p>Federated Averaging (FedAvg) for fraud detection across simulated banks: models train locally, only weights are shared.</p>
       <div class="chips"><span class="chip">Python</span><span class="chip">federated learning</span></div>
     </a>
+  </section>
+
+  <section id="sec-about">
+    <h2><span>about</span></h2>
+    <div class="about">
+      <div class="about-copy">
+        <p class="about-lead">I am a final-year computer science student in Dubai who builds
+          small, self-contained tools, usually because I wanted to know whether an
+          idea would actually work.</p>
+        <p>Most of what is above started as a question rather than a product. Can a
+          bioinformatics alignment algorithm say something useful about two chord
+          progressions? Can you verify a speaker without a pretrained model or a
+          single network call? The answer is sometimes no, and the README says so
+          when it is. Every project ships with a pytest suite and CI, because a
+          claim you have not tested is just a claim.</p>
+
+        <dl class="facts">
+          <div><dt>Focus</dt><dd>Python tooling, static analysis, signal processing, <b>things that run offline</b></dd></div>
+          <div><dt>Education</dt><dd>BSc Computer Science, <b>University of Wollongong in Dubai</b></dd></div>
+          <div><dt>Currently</dt><dd>Capstone (CSIT321): a Microsoft Teams app that generates comprehension checkpoints from lecture slides</dd></div>
+          <div><dt>Based in</dt><dd>Dubai, United Arab Emirates</dd></div>
+          <div><dt>Working in</dt><dd>Python, numpy, FastAPI, React, PostgreSQL</dd></div>
+        </dl>
+
+        <nav class="about-links" aria-label="Elsewhere">
+          <a href="https://github.com/ShezinKhais">GitHub</a>
+          <a href="https://www.linkedin.com/in/shezinkhaiser/">LinkedIn</a>
+          <a href="mailto:shezinkhais@gmail.com" id="mailLink2">Email</a>
+        </nav>
+      </div>
+
+      <div class="idwrap">
+        <canvas id="idCv" role="img"
+                aria-label="An ID badge on a lanyard showing Shezin Khais, computer science"></canvas>
+        <span class="idhint">drag the badge</span>
+      </div>
+    </div>
   </section>
 
   <footer>
@@ -1637,6 +1709,7 @@ function setMotion(on) {
   paused = !on;
   if (paused) { cancelAnimationFrame(rafId); rafId = 0; }
   else if (!rafId && !reduced) { last = 0; rafId = requestAnimationFrame(frame); }
+  if (!paused) idWake();
   motionBtn.textContent = paused ? 'Resume motion' : 'Pause motion';
   motionBtn.setAttribute('aria-pressed', String(paused));
   try { localStorage.setItem('motion', paused ? 'off' : 'on'); } catch {}
@@ -1649,6 +1722,207 @@ addEventListener('scroll', () => {
   prog.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + '%';
   syncRail();
 }, { passive: true });
+
+/* ---- the badge ----
+   Verlet integration: every point keeps its previous position instead of a
+   velocity, so a step is "move by however far you moved last time, plus
+   gravity", and a constraint is satisfied by simply moving points until the
+   distance is right. Momentum falls out of that for free, which is why throwing
+   the badge works without any collision or impulse code.
+
+   The cord is a chain of points pinned at the top. The card is two more points,
+   one at the punch hole and one at its bottom edge: holding those a fixed
+   distance apart is what gives the card an orientation to swing through. */
+const idCv = document.getElementById('idCv');
+const idCtx = idCv.getContext('2d');
+const ID_W = 300, ID_H = 400;             // logical drawing space
+const SEG = 10, GRAV = 0.62, DAMP = 0.983, ITER = 9;
+const CARD_W = 122, CARD_H = 176, HOLE_DY = 15;
+
+let cord = [], cardA = null, cardB = null, segLen = 0, idRun = 0, idHeld = null;
+
+function idInit() {
+  const anchor = { x: ID_W / 2, y: 12 };
+  const drop = 108;
+  segLen = drop / SEG;
+  cord = Array.from({ length: SEG + 1 }, (_, i) => ({
+    x: anchor.x, y: anchor.y + i * segLen, px: anchor.x, py: anchor.y + i * segLen
+  }));
+  const ay = anchor.y + drop;
+  cardA = { x: anchor.x, y: ay, px: anchor.x, py: ay };
+  cardB = { x: anchor.x, y: ay + CARD_H, px: anchor.x, py: ay + CARD_H };
+}
+
+function verlet(p) {
+  const vx = (p.x - p.px) * DAMP, vy = (p.y - p.py) * DAMP;
+  p.px = p.x; p.py = p.y;
+  p.x += vx; p.y += vy + GRAV;
+}
+
+// pull two points together (or apart) until they sit `len` apart; w is how much
+// of the correction the first point takes, so pinning is just w = 0
+function link(a, b, len, w) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  const d = Math.hypot(dx, dy) || 0.0001;
+  const k = (d - len) / d;
+  a.x += dx * k * w;       a.y += dy * k * w;
+  b.x -= dx * k * (1 - w); b.y -= dy * k * (1 - w);
+}
+
+function idStep() {
+  for (let i = 1; i < cord.length; i++) verlet(cord[i]);
+  if (!idHeld) { verlet(cardA); verlet(cardB); }
+  else verlet(cardB);
+
+  for (let it = 0; it < ITER; it++) {
+    cord[0].x = ID_W / 2; cord[0].y = 12;                 // the hook
+    for (let i = 0; i < cord.length - 1; i++)
+      link(cord[i], cord[i + 1], segLen, i === 0 ? 0 : 0.5);
+    if (idHeld) { cardA.x = idHeld.x; cardA.y = idHeld.y; }
+    link(cord[cord.length - 1], cardA, 4, idHeld ? 1 : 0.5);
+    link(cardA, cardB, CARD_H - HOLE_DY, idHeld ? 0 : 0.5);
+    // the card cannot fold back over its own cord
+    if (cardB.y < cardA.y + 8) cardB.y = cardA.y + 8;
+  }
+}
+
+function idDraw() {
+  const d = Math.min(devicePixelRatio || 1, 2);
+  const w = idCv.clientWidth || ID_W, s = w / ID_W;
+  // both dimensions, or a canvas that happens to already be the right width
+  // keeps the 300x150 default height it was born with
+  const bw = Math.round(w * d), bh = Math.round(ID_H * s * d);
+  if (idCv.width !== bw || idCv.height !== bh) { idCv.width = bw; idCv.height = bh; }
+  const c = idCtx;
+  c.setTransform(d * s, 0, 0, d * s, 0, 0);
+  c.clearRect(0, 0, ID_W, ID_H);
+
+  const line = css('--line'), dim = css('--dim'), fg = css('--fg');
+  const mid = css('--sn-mid'), lite = css('--sn-lite'), panel = css('--panel-hi');
+
+  // the cord, drawn as a smooth curve through the chain
+  c.strokeStyle = mid; c.lineWidth = 2.4; c.lineJoin = 'round';
+  c.beginPath(); c.moveTo(cord[0].x, cord[0].y);
+  for (let i = 1; i < cord.length - 1; i++)
+    c.quadraticCurveTo(cord[i].x, cord[i].y,
+      (cord[i].x + cord[i + 1].x) / 2, (cord[i].y + cord[i + 1].y) / 2);
+  c.lineTo(cardA.x, cardA.y); c.stroke();
+
+  // the hook it hangs from
+  c.fillStyle = dim;
+  c.beginPath(); c.arc(cord[0].x, cord[0].y, 4, 0, 7); c.fill();
+
+  const ang = Math.atan2(cardB.x - cardA.x, cardB.y - cardA.y);
+  c.save();
+  c.translate(cardA.x, cardA.y);
+  c.rotate(-ang);
+  c.translate(-CARD_W / 2, -HOLE_DY);
+
+  c.fillStyle = panel; c.strokeStyle = mid; c.lineWidth = 1;
+  c.fillRect(0, 0, CARD_W, CARD_H); c.strokeRect(.5, .5, CARD_W - 1, CARD_H - 1);
+  c.strokeStyle = line;
+  c.beginPath(); c.moveTo(0, 30); c.lineTo(CARD_W, 30); c.stroke();
+
+  c.fillStyle = mid;
+  c.beginPath(); c.ellipse(CARD_W / 2, HOLE_DY, 9, 4.5, 0, 0, 7); c.fill();
+  c.fillStyle = css('--bg');
+  c.beginPath(); c.ellipse(CARD_W / 2, HOLE_DY, 6.5, 2.8, 0, 0, 7); c.fill();
+
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  c.fillStyle = dim; c.font = '7px ' + MONO;
+  c.fillText('S T A F F   P A S S', 11, 47);
+
+  // portrait block: initials over a hatch, rather than a photo the page has to fetch
+  c.fillStyle = css('--bg'); c.fillRect(11, 55, 44, 52);
+  c.strokeStyle = line; c.strokeRect(11.5, 55.5, 43, 51);
+  c.save(); c.beginPath(); c.rect(11, 55, 44, 52); c.clip();
+  c.strokeStyle = line;
+  for (let k = -52; k < 44; k += 6) { c.beginPath(); c.moveTo(11 + k, 107); c.lineTo(11 + k + 52, 55); c.stroke(); }
+  c.restore();
+  c.fillStyle = lite; c.font = '600 19px ' + MONO;
+  c.fillText('SK', 21, 88);
+
+  c.fillStyle = fg; c.font = '600 12px ' + MONO;
+  c.fillText('SHEZIN', 63, 71); c.fillText('KHAIS', 63, 85);
+  c.fillStyle = dim; c.font = '6.5px ' + MONO;
+  c.fillText('C O M P  S C I', 63, 99);
+
+  c.strokeStyle = line;
+  c.beginPath(); c.moveTo(11, 120); c.lineTo(CARD_W - 11, 120); c.stroke();
+
+  c.fillStyle = dim; c.font = '6.5px ' + MONO;
+  c.fillText('DUBAI, UAE', 11, 134);
+  c.fillText('NO. 2026-0421', 11, 146);
+
+  // a barcode, seeded off the name so it is the same one every time
+  let seed = 4021;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  c.fillStyle = fg;
+  let bx = 11;
+  while (bx < CARD_W - 11) {
+    const bw = 1 + Math.floor(rnd() * 3);
+    if (rnd() > 0.38) c.fillRect(bx, CARD_H - 30, bw, 18);
+    bx += bw + 1;
+  }
+  c.restore();
+}
+
+// the card as a rotated rectangle, so a hit test has to undo the rotation
+function idHit(x, y) {
+  const ang = Math.atan2(cardB.x - cardA.x, cardB.y - cardA.y);
+  const dx = x - cardA.x, dy = y - cardA.y;
+  const lx = dx * Math.cos(ang) - dy * Math.sin(ang);
+  const ly = dx * Math.sin(ang) + dy * Math.cos(ang);
+  return lx > -CARD_W / 2 - 6 && lx < CARD_W / 2 + 6 && ly > -HOLE_DY - 6 && ly < CARD_H - HOLE_DY + 6;
+}
+
+const idPt = e => {
+  const r = idCv.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / (r.width / ID_W), y: (e.clientY - r.top) / (r.width / ID_W) };
+};
+
+idCv.addEventListener('pointerdown', e => {
+  const p = idPt(e);
+  if (!idHit(p.x, p.y)) return;
+  idHeld = { x: cardA.x, y: cardA.y, ox: cardA.x - p.x, oy: cardA.y - p.y };
+  idCv.classList.add('held');
+  idCv.setPointerCapture(e.pointerId);
+  e.preventDefault();
+  idWake();
+});
+idCv.addEventListener('pointermove', e => {
+  if (!idHeld) return;
+  const p = idPt(e);
+  idHeld.x = p.x + idHeld.ox; idHeld.y = p.y + idHeld.oy;
+  idWake();
+});
+const idDrop = () => {
+  if (!idHeld) return;
+  idHeld = null; idCv.classList.remove('held');
+  idWake();
+};
+idCv.addEventListener('pointerup', idDrop);
+idCv.addEventListener('pointercancel', idDrop);
+
+// The badge only simulates while it is on screen and actually moving: once it
+// hangs still there is nothing to compute, and it wakes on the next touch.
+let idSeen = false, idQuiet = 0;
+function idFrame() {
+  idRun = 0;
+  if (paused || reduced || !idSeen) return;
+  idStep();
+  idDraw();
+  const move = Math.abs(cardA.x - cardA.px) + Math.abs(cardA.y - cardA.py)
+             + Math.abs(cardB.x - cardB.px) + Math.abs(cardB.y - cardB.py);
+  idQuiet = (move < 0.05 && !idHeld) ? idQuiet + 1 : 0;
+  if (idQuiet < 40) idRun = requestAnimationFrame(idFrame);
+}
+function idWake() { idQuiet = 0; if (!idRun && !paused && !reduced && idSeen) idRun = requestAnimationFrame(idFrame); }
+
+new IntersectionObserver(es => {
+  idSeen = es[0].isIntersecting;
+  if (idSeen) idWake(); else { cancelAnimationFrame(idRun); idRun = 0; }
+}, { rootMargin: '120px' }).observe(idCv);
 
 /* ---- pinned method section ----
    Progress through the tall wrapper is the timeline: how far the sticky stage
@@ -2031,16 +2305,18 @@ async function copyMail() {
 
 // the address stays a real mailto for middle-click and "copy link", but a plain
 // click copies it, which is what people actually want from an address on a page
-mailLink.addEventListener('click', e => {
-  if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
-  e.preventDefault();
-  copyMail();
-});
+for (const a of [mailLink, document.getElementById('mailLink2')]) {
+  a.addEventListener('click', e => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+    e.preventDefault();
+    copyMail();
+  });
+}
 
 // ---------- section rail ----------
 const SECTIONS = [
   ['sec-intro', 'Intro'], ['sec-method', 'Method'], ['sec-featured', 'Featured'],
-  ['sec-progress', 'In progress'], ['sec-other', 'Other']
+  ['sec-progress', 'In progress'], ['sec-other', 'Other'], ['sec-about', 'About']
 ];
 const rail = document.getElementById('rail');
 const railBtns = SECTIONS.map(([id, label]) => {
@@ -3595,6 +3871,7 @@ addEventListener('resize', () => {
     if (!ccDemo.hidden) ccDraw();
     if (!elDemo.hidden) elDraw();
     pinSize(); pinAt = -1; pinSync();
+    idDraw();
   }, 130);
 });
 
@@ -3626,6 +3903,7 @@ setTimeout(() => {
 }, 1700);
 
 pinSize(); pinSync();
+idInit(); idDraw();
 
 // a shared demo link opens the panel it names and restores the controls with it
 readState();
