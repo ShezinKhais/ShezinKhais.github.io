@@ -56,7 +56,6 @@
     color:var(--fg); -webkit-font-smoothing:antialiased; line-height:1.6;
     position:relative; overflow-x:hidden;
     counter-reset:proj;              /* index numbers run 01.. across all sections */
-    padding-bottom:46px;             /* clearance for the fixed status bar */
   }
 
   /* scroll progress */
@@ -68,7 +67,10 @@
 
   /* full-document canvas: the snake roams the whole page, behind everything */
   #bg { position:absolute; top:0; left:0; z-index:0; pointer-events:none; display:block; }
-  .wrap { max-width:900px; margin:0 auto; padding:0 24px; position:relative; z-index:1; }
+  :root { --colw:1180px; --gut:24px; }
+  /* how far each side of the column is from the viewport edge */
+  :root { --bleed:max(0px, (100vw - (min(100vw, var(--colw)) - var(--gut) * 2)) / 2); }
+  .wrap { max-width:var(--colw); margin:0 auto; padding:0 var(--gut); position:relative; z-index:1; }
 
   header { padding:60px 0 8px; }
   #heroSpace { display:block; }
@@ -206,6 +208,38 @@
   }
   .chip + .chip::before { content:"/"; margin:0 10px; color:var(--line); }
   .card:hover .chip, .card.kbd .chip { color:var(--muted); }
+
+  /* Wide screens get the ledger layout: copy holds a readable measure on the
+     left and the stack moves out to its own column, which is what stops the
+     row from being a short line of text stranded in a very wide box. */
+  /* Full-bleed rules. Negative margins push the box out to both viewport edges
+     and matching padding puts the content back exactly where it was, so the
+     hairlines run the whole width while the grid tracks never move. Padding
+     sits outside the grid's content box, which is what makes this safe.
+     --bleed is an absolute length rather than a percentage on purpose: once the
+     row spans the viewport it becomes the containing block, so a percentage
+     inside it would resolve against the wrong width and strand the number. */
+  @media (min-width:980px) {
+    .card, .tryit {
+      margin-left:calc(-1 * var(--bleed)); margin-right:calc(-1 * var(--bleed));
+      padding-left:calc(var(--bleed) + 52px); padding-right:var(--bleed);
+    }
+    .card::before { left:var(--bleed); }
+    h2::after { margin-right:calc(-1 * var(--bleed)); }
+  }
+
+  @media (min-width:980px) {
+    .card { display:grid; grid-template-columns:minmax(0,1fr) 190px; column-gap:40px; }
+    .card h3    { grid-column:1; grid-row:1; }
+    .card > p   { grid-column:1; grid-row:2; }
+    .card .more { grid-column:1; grid-row:3; }
+    .card .chips {
+      grid-column:2; grid-row:1 / span 3; align-content:start;
+      flex-direction:column; align-items:flex-end; gap:5px;
+      margin-top:11px; text-align:right;
+    }
+    .chip + .chip::before { content:none; }
+  }
   .status {
     font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--badge);
     border:1px solid currentColor; border-radius:0; padding:2px 8px; font-weight:600;
@@ -354,39 +388,6 @@
   .demo-note { font-size:11.5px; color:var(--dim); margin:14px 0 0; line-height:1.65; }
   .demo-note code { color:var(--muted); }
   .demo-note a { color:var(--muted); }
-
-  /* ---------- status bar ----------
-     Decorative and duplicated by the rail and the footer, so it is hidden from
-     assistive tech: a clock ticking once a second is noise in a screen reader. */
-  .statusbar {
-    position:fixed; left:0; right:0; bottom:0; z-index:45;
-    display:flex; align-items:center; gap:20px; height:32px; padding:0 18px;
-    /* --muted rather than --dim: this bar sits on --panel-hi, the lightest
-       surface on the page, where --dim only reaches 4.37:1 at this size */
-    font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--muted);
-    background:var(--panel-hi); border-top:1px solid var(--line);
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-  }
-  .statusbar b { font-weight:600; color:var(--fg); }
-  .sb-dot {
-    width:6px; height:6px; border-radius:50%; background:var(--sn-lite);
-    display:inline-block; margin-right:8px; vertical-align:middle;
-    animation:sbpulse 2.4s ease-in-out infinite;
-  }
-  @keyframes sbpulse { 0%,100%{opacity:1} 50%{opacity:.28} }
-  .sb-l, .sb-r { flex:none; white-space:nowrap; }
-  .sb-r { margin-left:auto; }
-  .sb-r span { color:var(--num); font-variant-numeric:tabular-nums; }
-  .sb-m {
-    flex:1; min-width:0; overflow:hidden;
-    -webkit-mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
-    mask-image:linear-gradient(90deg,transparent,#000 7%,#000 93%,transparent);
-  }
-  .sb-track { display:inline-block; white-space:nowrap; will-change:transform; animation:sbroll 42s linear infinite; }
-  .sb-track i { font-style:normal; color:var(--line); margin:0 14px; }
-  @keyframes sbroll { from{transform:translateX(0)} to{transform:translateX(-50%)} }
-  body.still .sb-track, body.still .sb-dot { animation-play-state:paused; }
-  @media (max-width:620px) { .sb-m { display:none; } .statusbar { gap:12px; } }
 
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
@@ -695,12 +696,6 @@
   </footer>
 </div>
 
-<div class="statusbar" id="statusbar" aria-hidden="true">
-  <span class="sb-l"><i class="sb-dot"></i><b id="sbSec">intro</b></span>
-  <span class="sb-m"><span class="sb-track" id="sbTrack"></span></span>
-  <span class="sb-r"><span id="sbClock">--:--:--</span> &middot; Dubai</span>
-</div>
-
 <script type="module">
 import { prepareWithSegments, layoutNextLine }
   from 'https://cdn.jsdelivr.net/npm/@chenglou/pretext@0.0.8/dist/layout.js';
@@ -714,14 +709,18 @@ const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const NAME = 'Shezin Khais';
 const BIO  = 'Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities. Each one ships with a test suite, CI, and a README that says where it falls short.';
 
-let PW = 900, PH = 2000, CW = 852, CX = 24, dpr = 1;
+// CW is the full column. BW is the width the bio wraps to: the column is now
+// wide enough that setting the bio across all of it would run to 120 characters
+// a line, so the name uses the width and the prose does not.
+let PW = 900, PH = 2000, CW = 852, CX = 24, BW = 640, dpr = 1;
 let fName, fBio, LH_BIO, prepBio, nameSize;
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 
 function fonts() {
-  nameSize = CW < 520 ? 30 : 46;
+  // the name is the display moment on the page, so it takes the column with it
+  nameSize = CW < 520 ? 32 : Math.round(Math.min(96, CW * 0.102));
   fName = `600 ${nameSize}px ${MONO}`;
   fBio  = `${CW < 520 ? 13 : 15}px ${MONO}`;
   LH_BIO = CW < 520 ? 22 : 26;
@@ -731,7 +730,7 @@ function fonts() {
 function measureHero() {
   let y = 0, cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
   while (guard++ < 60) {
-    const l = layoutNextLine(prepBio, cur, CW);
+    const l = layoutNextLine(prepBio, cur, BW);
     if (!l) break;
     cur = l.end; y += LH_BIO;
   }
@@ -799,6 +798,7 @@ function resize() {
   const col = Math.min(900, PW);
   CX = (PW - col) / 2 + 24;
   CW = Math.max(280, col - 48);
+  BW = Math.min(CW, 660);
   fonts();
 
   // A hidden or detached viewport reports zero. Measuring then poisons every
@@ -1375,13 +1375,13 @@ function draw(t) {
   let y = heroTop() + nameSize + 28;
   let cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
   while (guard++ < 60) {
-    let x = CX, avail = CW;
+    let x = CX, avail = BW;
     const sp = spanAt(y, y + LH_BIO);
     if (sp) {
       const [l, r] = sp;
-      if ((l - CX) >= (CX + CW - r)) { x = CX; avail = l - CX; }
-      else { x = r; avail = CX + CW - r; }
-      if (avail < 150) { x = CX; avail = CW; }
+      if ((l - CX) >= (CX + BW - r)) { x = CX; avail = l - CX; }
+      else { x = r; avail = CX + BW - r; }
+      if (avail < 150) { x = CX; avail = BW; }
     }
     const line = layoutNextLine(prepBio, cur, Math.max(avail, 60));
     if (!line) break;
@@ -1403,8 +1403,6 @@ function frame(ts) {
 
 function setMotion(on) {
   paused = !on;
-  // the button pauses everything that moves on its own, ticker included
-  document.body.classList.toggle('still', paused);
   if (paused) { cancelAnimationFrame(rafId); rafId = 0; }
   else if (!rafId && !reduced) { last = 0; rafId = requestAnimationFrame(frame); }
   motionBtn.textContent = paused ? 'Resume motion' : 'Pause motion';
@@ -1509,7 +1507,6 @@ const railBtns = SECTIONS.map(([id, label]) => {
   rail.appendChild(b);
   return b;
 });
-const sbSec = document.getElementById('sbSec');
 function syncRail() {
   const mark = scrollY + innerHeight * 0.32;
   let active = 0;
@@ -1518,26 +1515,7 @@ function syncRail() {
     if (el && el.getBoundingClientRect().top + scrollY <= mark) active = i;
   });
   railBtns.forEach((b, i) => b.setAttribute('aria-current', String(i === active)));
-  sbSec.textContent = SECTIONS[active][1].toLowerCase();
 }
-
-// ---------- status bar ----------
-// The ticker is the stack, deduplicated from the chips already on the page, so
-// it can never drift out of step with what the projects actually say they use.
-const STACK = [...new Set([...document.querySelectorAll('.chip')].map(c => c.textContent.trim()))];
-const sbTrack = document.getElementById('sbTrack');
-const run = STACK.map(s => s + '<i>/</i>').join('');
-sbTrack.innerHTML = run + run;   // doubled, so translateX(-50%) loops seamlessly
-
-const sbClock = document.getElementById('sbClock');
-function tick() {
-  // the visitor's own clock, not a hardcoded timezone
-  sbClock.textContent = new Date().toLocaleTimeString([], { hour12: false });
-}
-tick();
-setInterval(tick, 1000);
-document.querySelector('.sb-r').lastChild.textContent =
-  ' · ' + (Intl.DateTimeFormat().resolvedOptions().timeZone || 'local').split('/').pop().replace(/_/g, ' ');
 
 // ---------- keyboard index ----------
 // j/k walk the rows and Enter opens one, so the index is usable without a mouse
