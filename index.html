@@ -631,6 +631,13 @@
         </span>
       </div>
 
+      <div class="demo-ctl demo-audio" id="elMicRow" hidden>
+        <button id="elEnrol" class="aud">Enrol my voice</button>
+        <button id="elTest" class="aud" disabled title="Enrol first">Try to unlock</button>
+        <button id="elForget" hidden>Forget my voice</button>
+        <span class="spd" id="elMicNote">nothing is uploaded or kept; the mic is released after each take</span>
+      </div>
+
       <div class="demo-out" id="elOut" aria-live="polite"></div>
 
       <p class="demo-note">
@@ -648,7 +655,11 @@
         higher does not lock you out. Raise the threshold past <code>0.98</code>
         and you start rejecting the owner over a phone line; lower it and the
         flatmate gets in. That line is a tradeoff someone has to pick, not a
-        setting with a correct value.
+        setting with a correct value. Enrol your own voice if you would rather
+        test it against yourself than against a synthesised speaker: the samples
+        stay in this tab, nothing is uploaded or written to disk, the microphone
+        is released the moment each take ends, and <em>Forget my voice</em>
+        drops the template.
       </p>
     </div>
 
@@ -2695,7 +2706,12 @@ const elOut = document.getElementById('elOut');
 EL_VOICES.forEach((v, i) => elVoice.add(new Option(v.name, i)));
 
 const REF_SIG = synth(EL_ENROLLED.f0, EL_ENROLLED.fm);
-const REF_MEL = melEnergies(REF_SIG), REF_MFCC = mfcc(REF_SIG);
+const SYN_MEL = melEnergies(REF_SIG), SYN_MFCC = mfcc(REF_SIG);
+// the reference the check runs against: the synthesised speaker until the
+// visitor enrols their own, and their own from then on
+let REF_MEL = SYN_MEL, REF_MFCC = SYN_MFCC, refIsMine = false;
+// what is being presented: the selected synthetic voice, or a live recording
+let liveTake = null;
 
 function cosine(a, b) {
   let d = 0, na = 0, nb = 0;
@@ -2711,9 +2727,16 @@ function elCurrent() {
 }
 
 function elDraw() {
-  const cur = elCurrent();
-  const sig = synth(cur.f0, cur.fm);
-  const mel = melEnergies(sig), mf = mfcc(sig);
+  let sig, mel, mf, srcLabel;
+  if (liveTake) {
+    ({ sig, mel, mfcc: mf } = liveTake);
+    srcLabel = 'YOUR RECORDING';
+  } else {
+    const cur = elCurrent();
+    sig = synth(cur.f0, cur.fm);
+    mel = melEnergies(sig); mf = mfcc(sig);
+    srcLabel = 'SYNTHESISED  ' + Math.round(cur.f0) + ' Hz';
+  }
   const sim = cosine(REF_MFCC, mf);
   const thr = +elThr.value / 1000;
   const pass = sim >= thr;
@@ -2733,7 +2756,7 @@ function elDraw() {
   const label = (t, y) => { c.fillStyle = dim; c.fillText(t, 0, y); };
 
   // 1. waveform
-  label('WAVEFORM  ' + Math.round(cur.f0) + ' Hz', 8);
+  label('WAVEFORM  ' + srcLabel, 8);
   c.strokeStyle = pass ? lite : badge; c.lineWidth = 1;
   c.beginPath();
   for (let i = 0; i < EL_N; i++) {
@@ -2770,7 +2793,7 @@ function elDraw() {
     c.fillRect(x + 1, mid - mf[k] * sc, 5, Math.max(1, Math.abs(mf[k] * sc)) * Math.sign(mf[k] || 1));
   }
   c.fillStyle = dim; c.textAlign = 'center';
-  c.fillText('enrolled', 34, 252); c.fillText('presented', 100, 252);
+  c.fillText(refIsMine ? 'you' : 'enrolled', 34, 252); c.fillText('presented', 100, 252);
   c.fillStyle = line; c.fillRect(2, 248, 8, 8);
   c.fillStyle = pass ? lite : badge; c.fillRect(64, 248, 8, 8);
 
@@ -2786,16 +2809,139 @@ function elDraw() {
     : `Rejected at <b>${sim.toFixed(3)}</b>, short of <b>${thr.toFixed(3)}</b>. Drop the threshold and this voice gets in; that is the whole tradeoff.`;
 }
 
+/* ---- the visitor's own voice ----
+   Nothing is uploaded and nothing is stored: the samples live in a local array
+   for as long as the tab is open, the MediaStream tracks are stopped the moment
+   a take ends, and "Forget my voice" drops the template. Enrolment averages the
+   MFCCs of the loudest frames in the take, which is roughly what the project
+   does: one frame of a plosive is not a voiceprint. */
+const elMicRow = document.getElementById('elMicRow');
+const elEnrol = document.getElementById('elEnrol');
+const elTest = document.getElementById('elTest');
+const elForget = document.getElementById('elForget');
+const elMicNote = document.getElementById('elMicNote');
+const MIC_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+if (MIC_OK) elMicRow.hidden = false;
+
+const TAKE_MS = 2000, POLL_MS = 45;
+
+// the filterbank is built for 16 kHz, so whatever the device gives us is
+// resampled before it reaches the front end
+function resampleTo16k(frame, rate) {
+  if (rate === EL_SR) return frame.slice(0, EL_N);
+  const out = new Float64Array(EL_N), ratio = rate / EL_SR;
+  for (let i = 0; i < EL_N; i++) {
+    const s = i * ratio, k = Math.floor(s), f = s - k;
+    out[i] = k + 1 < frame.length ? frame[k] * (1 - f) + frame[k + 1] * f : (frame[k] || 0);
+  }
+  return out;
+}
+
+let micBusy = false;
+async function capture(label) {
+  if (micBusy) return null;
+  micBusy = true;
+  let stream = null, ctx = null;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      // the raw signal is the point; AGC would flatten exactly what we measure
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const an = ctx.createAnalyser();
+    an.fftSize = 2048;
+    src.connect(an);
+    const buf = new Float32Array(an.fftSize);
+    const takes = [];
+    const t0 = performance.now();
+    await new Promise(done => {
+      const iv = setInterval(() => {
+        an.getFloatTimeDomainData(buf);
+        let rms = 0;
+        for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+        takes.push({ rms: Math.sqrt(rms / buf.length), f: Float32Array.from(buf) });
+        const left = TAKE_MS - (performance.now() - t0);
+        elMicNote.textContent = `${label}, keep talking… ${(Math.max(0, left) / 1000).toFixed(1)}s`;
+        if (left <= 0) { clearInterval(iv); done(); }
+      }, POLL_MS);
+    });
+
+    takes.sort((a, b) => b.rms - a.rms);
+    const voiced = takes.slice(0, Math.max(3, Math.round(takes.length * 0.35)));
+    if (!voiced.length || voiced[0].rms < 0.006) {
+      elMicNote.textContent = 'Barely heard anything. Check the mic and try again.';
+      return null;
+    }
+    const rate = ctx.sampleRate;
+    const vecs = voiced.map(t => mfcc(resampleTo16k(t.f, rate)));
+    const avg = vecs[0].map((_, k) => vecs.reduce((s, v) => s + v[k], 0) / vecs.length);
+    const loudest = resampleTo16k(voiced[0].f, rate);
+    let pk = 0;
+    for (let i = 0; i < loudest.length; i++) pk = Math.max(pk, Math.abs(loudest[i]));
+    if (pk) for (let i = 0; i < loudest.length; i++) loudest[i] /= pk;
+    elMicNote.textContent = `${voiced.length} voiced frames averaged`;
+    return { sig: loudest, mel: melEnergies(loudest), mfcc: avg };
+  } catch (err) {
+    elMicNote.textContent = err && err.name === 'NotAllowedError'
+      ? 'Microphone permission denied, so the synthesised voices stay in charge.'
+      : 'No microphone available here.';
+    return null;
+  } finally {
+    if (stream) stream.getTracks().forEach(t => t.stop());   // release the mic
+    if (ctx) ctx.close();
+    micBusy = false;
+    elEnrol.disabled = false;
+    elTest.disabled = !refIsMine;
+  }
+}
+
+function elMicSync() {
+  elEnrol.textContent = refIsMine ? 'Re-enrol my voice' : 'Enrol my voice';
+  elTest.disabled = !refIsMine || micBusy;
+  elTest.title = refIsMine ? '' : 'Enrol first';
+  elForget.hidden = !refIsMine;
+}
+
+elEnrol.addEventListener('click', async () => {
+  elEnrol.disabled = elTest.disabled = true;
+  const take = await capture('Listening');
+  if (take) {
+    REF_MEL = take.mel; REF_MFCC = take.mfcc; refIsMine = true;
+    liveTake = take;
+    elRead.innerHTML = 'Enrolled. That vector is now the thing every voice is measured against, including yours.';
+  }
+  elMicSync(); elDraw();
+});
+
+elTest.addEventListener('click', async () => {
+  elEnrol.disabled = elTest.disabled = true;
+  const take = await capture('Say it again');
+  if (take) liveTake = take;
+  elMicSync(); elDraw();
+});
+
+elForget.addEventListener('click', () => {
+  REF_MEL = SYN_MEL; REF_MFCC = SYN_MFCC; refIsMine = false; liveTake = null;
+  elMicNote.textContent = 'nothing is uploaded or kept; the mic is released after each take';
+  elMicSync(); elDraw();
+});
+
 function elOpen(on) {
   elDemo.hidden = !on;
   elTry.setAttribute('aria-expanded', String(on));
   elTry.querySelector('.sub').textContent = on ? 'collapse' : 'MFCC pipeline, end to end';
-  if (on) elDraw();
+  if (on) { elMicSync(); elDraw(); }
   resize(); draw(performance.now() / 1000);
 }
 elTry.addEventListener('click', () => { elOpen(elDemo.hidden); writeState(); });
 for (const el of [elVoice, elThr, elF1, elPitch]) {
-  el.addEventListener('input', () => { elThrV.textContent = (+elThr.value / 1000).toFixed(3); elDraw(); });
+  el.addEventListener('input', () => {
+    // reaching for a synthetic voice means you are no longer testing a recording
+    if (el !== elThr) liveTake = null;
+    elThrV.textContent = (+elThr.value / 1000).toFixed(3);
+    elDraw();
+  });
   el.addEventListener('change', writeState);
 }
 
