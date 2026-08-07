@@ -107,10 +107,29 @@
 
   /* ---------- sections ---------- */
   section { margin-top:74px; }
+  /* The section label sticks to the top of the viewport while its own rows
+     scroll past underneath, so you always know which list you are inside.
+     It releases when the next section arrives and pushes it out of the way. */
   h2 {
     font-size:11.5px; letter-spacing:.16em; text-transform:lowercase;
     color:var(--dim); font-weight:600; margin:0 0 6px;
     display:flex; align-items:center; gap:14px;
+    position:sticky; top:0; z-index:6;
+    padding:16px 0 12px; background:var(--bg);
+  }
+  /* scroll-driven where it is supported: the rule under the label draws itself
+     across as you move through the section */
+  @supports (animation-timeline: view()) {
+    @media (prefers-reduced-motion: no-preference) {
+      h2::after { animation:ruleDraw linear both; animation-timeline:view(); animation-range:cover 0% cover 62%; }
+      @keyframes ruleDraw { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+      .card {
+        animation:rowIn linear both;
+        animation-timeline:view();
+        animation-range:entry 0% entry 74%;
+      }
+      @keyframes rowIn { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:none; } }
+    }
   }
   /* bracketed labels: the section name is a token, not a headline */
   h2 span::before { content:"["; color:var(--sn-mid); margin-right:5px; }
@@ -225,6 +244,12 @@
       padding-left:calc(var(--bleed) + 52px); padding-right:var(--bleed);
     }
     .card::before { left:var(--bleed); }
+    /* the sticky label needs the full-width background too, or rows scroll
+       visibly past it through the gutters */
+    h2 {
+      margin-left:calc(-1 * var(--bleed)); margin-right:calc(-1 * var(--bleed));
+      padding-left:var(--bleed); padding-right:var(--bleed);
+    }
     h2::after { margin-right:calc(-1 * var(--bleed)); }
   }
 
@@ -385,9 +410,59 @@
   .demo-out span { font-size:10.5px; color:var(--dim); }
   @media (max-width:560px){ .demo-out{grid-template-columns:repeat(2,1fr);} .demo-ctl .spd{margin-left:0;} }
 
+  /* the passphrase prompt while the mic is open */
+  .say {
+    margin-top:12px; padding:13px 16px;
+    border:1px solid var(--sn-mid); background:var(--bg);
+    display:flex; flex-wrap:wrap; align-items:baseline; gap:12px;
+  }
+  .say[hidden] { display:none; }
+  .say-k { font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--dim); }
+  .say-p { font-size:clamp(15px,2.4vw,21px); color:var(--fg); font-weight:600; letter-spacing:-.01em; }
+  .say-m { margin-left:auto; font-size:11px; color:var(--num); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .say-dot {
+    display:inline-block; width:7px; height:7px; border-radius:50%;
+    background:var(--badge); margin-right:7px; vertical-align:middle;
+    animation:rec 1s steps(1,end) infinite;
+  }
+  @keyframes rec { 0%,49%{opacity:1} 50%,100%{opacity:.15} }
+
+  .enrolled {
+    margin:12px 0 0; padding:10px 14px; font-size:12px; color:var(--num);
+    border-left:2px solid var(--num); background:var(--panel);
+  }
+  .enrolled[hidden] { display:none; }
+  .enrolled b { color:var(--fg); }
+  .enrolled span { color:var(--muted); }
+
   .demo-note { font-size:11.5px; color:var(--dim); margin:14px 0 0; line-height:1.65; }
   .demo-note code { color:var(--muted); }
   .demo-note a { color:var(--muted); }
+
+  /* ---------- hover peek ----------
+     Sweeping the index puts a small drawing of what each project does under the
+     cursor. It is not a screenshot: each one is drawn from the shape of the
+     thing itself, so the row tells you something before you click it. */
+  /* deliberately cursor-sized: it rides just off the pointer as a hint, so it
+     must never sit on top of the line you are reading */
+  #peek {
+    position:fixed; z-index:35; pointer-events:none;
+    width:118px; padding:5px 5px 4px;
+    background:var(--panel-hi); border:1px solid var(--sn-mid);
+    backdrop-filter:blur(7px); -webkit-backdrop-filter:blur(7px);
+    opacity:0; transform:translateY(4px); transform-origin:top left;
+    transition:opacity .14s ease, transform .14s cubic-bezier(.16,1,.3,1);
+  }
+  #peek[hidden] { display:none; }
+  #peek.on { opacity:1; transform:none; }
+  #peekCv { display:block; width:108px; height:58px; }
+  #peekCap {
+    display:block; margin-top:4px; font-size:8px; letter-spacing:.09em;
+    text-transform:uppercase; color:var(--dim);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  /* no cursor to follow, and no room to put it */
+  @media (hover:none), (max-width:900px) { #peek { display:none !important; } }
 
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
@@ -435,6 +510,10 @@
 </div>
 
 <nav class="rail" id="rail" aria-label="Sections"></nav>
+
+<div id="peek" hidden aria-hidden="true">
+  <canvas id="peekCv"></canvas><span id="peekCap"></span>
+</div>
 
 <div id="pal" hidden role="dialog" aria-modal="true" aria-label="Command palette">
   <div class="palbox">
@@ -638,6 +717,15 @@
         <span class="spd" id="elMicNote">nothing is uploaded or kept; the mic is released after each take</span>
       </div>
 
+      <div class="say" id="elSay" hidden aria-live="assertive">
+        <span class="say-k" id="elSayK">Say the passphrase</span>
+        <b class="say-p" id="elSayP"></b>
+        <span class="say-m" id="elSayM"><i class="say-dot"></i><span id="elSayT">2.0s</span></span>
+      </div>
+
+      <p class="enrolled" id="elDone" hidden>Voice enrolled.
+        <span id="elDoneN"></span> Press <b>Try to unlock</b> and say it again.</p>
+
       <div class="demo-out" id="elOut" aria-live="polite"></div>
 
       <p class="demo-note">
@@ -663,14 +751,14 @@
       </p>
     </div>
 
-    <div class="card">
-      <h3>C.L.I.P <span class="status">ongoing</span> <span class="status">private repo</span></h3>
+    <a class="card" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
+      <h3>C.L.I.P <span class="arrow">&rarr;</span> <span class="status">ongoing</span></h3>
       <p>Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
       <div class="more"><div>
         <p>Surfaces real-time engagement while a class is still running, without ever storing video, audio, or transcripts. Runs entirely on self-hosted infrastructure.</p>
       </div></div>
       <div class="chips"><span class="chip">FastAPI</span><span class="chip">React</span><span class="chip">PostgreSQL</span><span class="chip">local LLM</span></div>
-    </div>
+    </a>
   </section>
 
   <section id="sec-other">
@@ -723,7 +811,7 @@ const BIO  = 'Computer science student building small, focused tools in Python: 
 // CW is the full column. BW is the width the bio wraps to: the column is now
 // wide enough that setting the bio across all of it would run to 120 characters
 // a line, so the name uses the width and the prose does not.
-let PW = 900, PH = 2000, CW = 852, CX = 24, BW = 640, dpr = 1;
+let PW = 900, PH = 2000, CW = 852, CX = 24, BW = 640, BIO_GAP = 28, dpr = 1;
 let fName, fBio, LH_BIO, prepBio, nameSize;
 
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -732,6 +820,10 @@ const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 function fonts() {
   // the name is the display moment on the page, so it takes the column with it
   nameSize = CW < 520 ? 32 : Math.round(Math.min(96, CW * 0.102));
+  // The coil is sized from the name box, so it hangs further below the bigger
+  // the name gets. A fixed 28px gap put the snake's belly straight through the
+  // first line of the bio, so the gap grows with it.
+  BIO_GAP = Math.round(28 + nameSize * 0.62);
   fName = `600 ${nameSize}px ${MONO}`;
   fBio  = `${CW < 520 ? 13 : 15}px ${MONO}`;
   LH_BIO = CW < 520 ? 22 : 26;
@@ -745,7 +837,7 @@ function measureHero() {
     if (!l) break;
     cur = l.end; y += LH_BIO;
   }
-  return nameSize + 28 + y + 24;
+  return nameSize + BIO_GAP + y + 24;
 }
 
 // ================= card text reflow =================
@@ -1383,7 +1475,7 @@ function draw(t) {
   ctx.globalAlpha = 1;
 
   ctx.font = fBio; ctx.fillStyle = PAL.muted;
-  let y = heroTop() + nameSize + 28;
+  let y = heroTop() + nameSize + BIO_GAP;
   let cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
   while (guard++ < 60) {
     let x = CX, avail = BW;
@@ -1429,6 +1521,171 @@ addEventListener('scroll', () => {
   syncRail();
 }, { passive: true });
 
+/* ---- hover peek ----
+   One drawing per project, each one the shape of what the project computes
+   rather than a screenshot of it: a graph with a cycle in it, an alignment
+   matrix with its traceback, a filterbank. Seeded, so a row looks the same
+   every time you come back to it. */
+const peek = document.getElementById('peek');
+const peekCv = document.getElementById('peekCv');
+const peekCap = document.getElementById('peekCap');
+const peekCtx = peekCv.getContext('2d');
+const PW_ = 192, PH_ = 104;
+
+const rng = s => () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+
+const SIGS = {
+  CodeCartographer: [ 'directed import graph, one cycle', (c, r) => {
+    const n = 7, pts = Array.from({ length: n }, (_, i) => {
+      const a = -Math.PI / 2 + i / n * Math.PI * 2;
+      return { x: PW_ / 2 + 62 * Math.cos(a), y: PH_ / 2 + 38 * Math.sin(a) };
+    });
+    const cyc = [1, 2, 3];
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      if (i === j || r() > 0.28) continue;
+      c.strokeStyle = c.dim; c.beginPath(); c.moveTo(pts[i].x, pts[i].y); c.lineTo(pts[j].x, pts[j].y); c.stroke();
+    }
+    c.strokeStyle = c.hot; c.lineWidth = 1.6;
+    c.beginPath();
+    cyc.forEach((v, k) => k ? c.lineTo(pts[v].x, pts[v].y) : c.moveTo(pts[v].x, pts[v].y));
+    c.closePath(); c.stroke(); c.lineWidth = 1;
+    pts.forEach((p, i) => {
+      c.beginPath(); c.arc(p.x, p.y, 4, 0, 7);
+      c.fillStyle = cyc.includes(i) ? c.hot : c.bg; c.fill();
+      c.strokeStyle = cyc.includes(i) ? c.hot : c.fg; c.stroke();
+    });
+  }],
+  HarmonicDNA: [ 'scoring matrix and traceback', (c, r) => {
+    const C = 11, R = 6, s = 15, ox = (PW_ - C * s) / 2, oy = (PH_ - R * s) / 2;
+    for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
+      const on = Math.abs(j - i * 1.7 - 1) < 1.6;
+      c.fillStyle = c.hot;
+      c.globalAlpha = on ? 0.14 + 0.5 * r() : 0.05 + 0.14 * r();
+      c.fillRect(ox + j * s, oy + i * s, s - 2, s - 2);
+    }
+    c.globalAlpha = 1;
+    c.strokeStyle = c.warn; c.lineWidth = 1.8; c.beginPath();
+    for (let i = 0; i < R; i++) {
+      const j = Math.round(i * 1.7 + 1);
+      const x = ox + j * s + s / 2 - 1, y = oy + i * s + s / 2 - 1;
+      i ? c.lineTo(x, y) : c.moveTo(x, y);
+    }
+    c.stroke(); c.lineWidth = 1;
+  }],
+  EchoLock: [ 'mel filterbank into a voiceprint', (c, r) => {
+    const N = 24, bw = PW_ / N;
+    for (let i = 0; i < N; i++) {
+      const env = Math.exp(-Math.pow((i - 5) / 4, 2)) * 0.8 + Math.exp(-Math.pow((i - 14) / 5, 2)) * 0.55;
+      const h = (env * 0.85 + r() * 0.12) * 52;
+      c.fillStyle = c.hot; c.globalAlpha = 0.75;
+      c.fillRect(i * bw + 1, 58 - h, bw - 2, h);
+    }
+    c.globalAlpha = 1;
+    c.strokeStyle = c.fg; c.beginPath();
+    for (let k = 0; k < 12; k++) {
+      const x = k * (PW_ / 12) + PW_ / 24;
+      const v = Math.cos(k * 1.1) * (1 - k / 16) * 20;
+      c.moveTo(x, 82); c.lineTo(x, 82 - v);
+    }
+    c.stroke();
+    c.strokeStyle = c.dim; c.beginPath(); c.moveTo(0, 82); c.lineTo(PW_, 82); c.stroke();
+  }],
+  'C.L.I.P': [ 'checkpoints across a live lecture', (c, r) => {
+    c.strokeStyle = c.dim; c.beginPath(); c.moveTo(6, 52); c.lineTo(PW_ - 6, 52); c.stroke();
+    for (let k = 0; k < 6; k++) {
+      const x = 18 + k * 32;
+      c.strokeStyle = c.fg; c.beginPath(); c.moveTo(x, 52); c.lineTo(x, 52 - 10 - r() * 6); c.stroke();
+      const h = 8 + r() * 26;
+      c.fillStyle = c.hot; c.globalAlpha = 0.7; c.fillRect(x - 6, 58, 12, h); c.globalAlpha = 1;
+    }
+  }],
+  claimaudit: [ 'claims confirmed, challenged, extended', (c, r) => {
+    for (let k = 0; k < 5; k++) {
+      const y = 16 + k * 18;
+      c.strokeStyle = c.dim; c.beginPath(); c.moveTo(14, y); c.lineTo(120 + r() * 50, y); c.stroke();
+      const kind = k % 3;
+      c.fillStyle = kind === 0 ? c.hot : kind === 1 ? c.warn : c.fg;
+      c.beginPath(); c.arc(8, y, 3.4, 0, 7); c.fill();
+    }
+  }],
+  Hypothesisgraveyard: [ 'published, then never cited again', (c, r) => {
+    for (let k = 0; k < 26; k++) {
+      const x = 12 + r() * (PW_ - 24), y = 12 + r() * (PH_ - 24);
+      c.fillStyle = c.dim; c.globalAlpha = 0.5 + r() * 0.4;
+      c.beginPath(); c.arc(x, y, 2 + r() * 1.6, 0, 7); c.fill();
+    }
+    c.globalAlpha = 1;
+    c.strokeStyle = c.warn; c.lineWidth = 1.4;
+    c.beginPath(); c.arc(PW_ / 2, PH_ / 2, 8, 0, 7); c.stroke();
+    c.setLineDash([3, 3]);
+    c.beginPath(); c.arc(PW_ / 2, PH_ / 2, 20, 0, 7); c.stroke();
+    c.setLineDash([]); c.lineWidth = 1;
+  }],
+  argumentminer: [ 'premises, claims, and the fallacy', (c, r) => {
+    const lv = [[PW_ / 2, 18], [PW_ / 3, 52], [PW_ * 2 / 3, 52], [26, 88], [80, 88], [PW_ - 30, 88]];
+    const ed = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5]];
+    c.strokeStyle = c.dim;
+    ed.forEach(([a, b]) => { c.beginPath(); c.moveTo(lv[a][0], lv[a][1]); c.lineTo(lv[b][0], lv[b][1]); c.stroke(); });
+    lv.forEach(([x, y], i) => {
+      c.fillStyle = c.bg; c.strokeStyle = i === 5 ? c.warn : i === 0 ? c.hot : c.fg;
+      c.beginPath(); c.rect(x - 9, y - 6, 18, 12); c.fill(); c.stroke();
+    });
+  }],
+  'federated-aml': [ 'weights in, data stays home', (c, r) => {
+    const cx = PW_ / 2, cy = PH_ / 2;
+    for (let k = 0; k < 5; k++) {
+      const a = -Math.PI / 2 + k / 5 * Math.PI * 2;
+      const x = cx + 66 * Math.cos(a), y = cy + 38 * Math.sin(a);
+      c.strokeStyle = c.hot; c.globalAlpha = 0.75;
+      c.beginPath(); c.moveTo(x, y); c.lineTo(cx, cy); c.stroke(); c.globalAlpha = 1;
+      c.fillStyle = c.bg; c.strokeStyle = c.fg;
+      c.beginPath(); c.rect(x - 8, y - 6, 16, 12); c.fill(); c.stroke();
+    }
+    c.fillStyle = c.hot;
+    c.beginPath(); c.arc(cx, cy, 7, 0, 7); c.fill();
+  }]
+};
+
+// the sketches are authored at 192x104 and drawn through a scale, so shrinking
+// the badge never means rewriting eight sets of coordinates
+const PEEK_S = 108 / PW_;
+
+function drawPeek(name) {
+  const sig = SIGS[name];
+  if (!sig) return false;
+  const d = Math.min(devicePixelRatio || 1, 2);
+  peekCv.width = Math.round(PW_ * PEEK_S * d);
+  peekCv.height = Math.round(PH_ * PEEK_S * d);
+  const c = peekCtx;
+  c.setTransform(d * PEEK_S, 0, 0, d * PEEK_S, 0, 0);
+  c.clearRect(0, 0, PW_, PH_);
+  c.lineWidth = 1 / PEEK_S;
+  c.fg = css('--muted'); c.dim = css('--line');
+  c.hot = css('--sn-lite'); c.warn = css('--badge'); c.bg = css('--bg');
+  sig[1](c, rng(name.length * 7919 + name.charCodeAt(0) * 104729));
+  peekCap.textContent = sig[0];
+  return true;
+}
+
+let peekOn = null;
+function showPeek(card, x, y) {
+  const name = card.querySelector('h3').firstChild.textContent.replace(/[→]/g, '').trim();
+  if (peekOn !== name) { if (!drawPeek(name)) { hidePeek(); return; } peekOn = name; }
+  peek.hidden = false;
+  const w = 130, h = peek.offsetHeight || 86;
+  // below-right of the pointer, the way a drag badge sits, so it trails the
+  // cursor instead of covering the line under it
+  peek.style.left = Math.min(x + 16, innerWidth - w - 8) + 'px';
+  peek.style.top = Math.min(y + 16, innerHeight - h - 8) + 'px';
+  requestAnimationFrame(() => peek.classList.add('on'));
+}
+function hidePeek() {
+  peek.classList.remove('on');
+  peekOn = null;
+  clearTimeout(peek._t);
+  peek._t = setTimeout(() => { peek.hidden = true; }, 200);
+}
+
 // cursor-tracked glow, and the snake goes where you point. The old 3D tilt went
 // with the panels: a full-width index row has no edges to lift off the page.
 if (!reduced && matchMedia('(hover:hover)').matches) {
@@ -1441,12 +1698,14 @@ if (!reduced && matchMedia('(hover:hover)').matches) {
       // a beat of slack, so sweeping across cards doesn't send it back each time
       clearTimeout(focusTimer);
       focusTimer = setTimeout(() => { if (!paused) snakeFocus(null); }, 420);
+      hidePeek();
     });
     card.addEventListener('pointermove', e => {
       const r = card.getBoundingClientRect();
       const px = (e.clientX - r.left) / r.width, py = (e.clientY - r.top) / r.height;
       card.style.setProperty('--mx', px * 100 + '%');
       card.style.setProperty('--my', py * 100 + '%');
+      showPeek(card, e.clientX, e.clientY);
     });
   });
 }
@@ -1540,6 +1799,9 @@ function markRow(next) {
   el.classList.add('kbd');
   el.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
   if (!paused) snakeFocus(el);
+  // no cursor to hang the peek off, so pin it beside the row
+  const r = el.getBoundingClientRect();
+  showPeek(el, Math.min(innerWidth - 250, r.right - 300), innerHeight / 2 - 60);
 }
 addEventListener('keydown', e => {
   if (!pal.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1552,6 +1814,7 @@ addEventListener('keydown', e => {
   } else if (e.key === 'Escape' && kbd >= 0) {
     rows[kbd].classList.remove('kbd'); kbd = -1;
     if (!paused) snakeFocus(null);
+    hidePeek();
   }
 });
 
@@ -2823,7 +3086,33 @@ const elMicNote = document.getElementById('elMicNote');
 const MIC_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 if (MIC_OK) elMicRow.hidden = false;
 
-const TAKE_MS = 2000, POLL_MS = 45;
+const TAKE_MS = 2600, POLL_MS = 45;
+
+// The real project pairs the voiceprint with a passphrase that rotates daily,
+// so the demo does the same: the phrase is picked from the date, which means
+// everyone gets the same one today and a different one tomorrow.
+const PHRASES = [
+  'the harbour lights are still on',
+  'nine grey ships left before dawn',
+  'copper wire and a quiet room',
+  'the map does not match the ground',
+  'salt on the windows every winter',
+  'count the bridges going north',
+  'a slow train through open country'
+];
+const dayIndex = () => {
+  const d = new Date();
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+};
+const PHRASE = PHRASES[dayIndex() % PHRASES.length];
+
+const elSay = document.getElementById('elSay');
+const elSayK = document.getElementById('elSayK');
+const elSayP = document.getElementById('elSayP');
+const elSayT = document.getElementById('elSayT');
+const elDone = document.getElementById('elDone');
+const elDoneN = document.getElementById('elDoneN');
+elSayP.textContent = '"' + PHRASE + '"';
 
 // the filterbank is built for 16 kHz, so whatever the device gives us is
 // resampled before it reaches the front end
@@ -2842,6 +3131,9 @@ async function capture(label) {
   if (micBusy) return null;
   micBusy = true;
   let stream = null, ctx = null;
+  elSayK.textContent = label;
+  elSayT.textContent = (TAKE_MS / 1000).toFixed(1) + 's';
+  elDone.hidden = true;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       // the raw signal is the point; AGC would flatten exactly what we measure
@@ -2854,6 +3146,7 @@ async function capture(label) {
     src.connect(an);
     const buf = new Float32Array(an.fftSize);
     const takes = [];
+    elSay.hidden = false;                 // the phrase goes up once the mic is live
     const t0 = performance.now();
     await new Promise(done => {
       const iv = setInterval(() => {
@@ -2862,7 +3155,7 @@ async function capture(label) {
         for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
         takes.push({ rms: Math.sqrt(rms / buf.length), f: Float32Array.from(buf) });
         const left = TAKE_MS - (performance.now() - t0);
-        elMicNote.textContent = `${label}, keep talking… ${(Math.max(0, left) / 1000).toFixed(1)}s`;
+        elSayT.textContent = (Math.max(0, left) / 1000).toFixed(1) + 's';
         if (left <= 0) { clearInterval(iv); done(); }
       }, POLL_MS);
     });
@@ -2881,7 +3174,7 @@ async function capture(label) {
     for (let i = 0; i < loudest.length; i++) pk = Math.max(pk, Math.abs(loudest[i]));
     if (pk) for (let i = 0; i < loudest.length; i++) loudest[i] /= pk;
     elMicNote.textContent = `${voiced.length} voiced frames averaged`;
-    return { sig: loudest, mel: melEnergies(loudest), mfcc: avg };
+    return { sig: loudest, mel: melEnergies(loudest), mfcc: avg, frames: voiced.length };
   } catch (err) {
     elMicNote.textContent = err && err.name === 'NotAllowedError'
       ? 'Microphone permission denied, so the synthesised voices stay in charge.'
@@ -2890,6 +3183,7 @@ async function capture(label) {
   } finally {
     if (stream) stream.getTracks().forEach(t => t.stop());   // release the mic
     if (ctx) ctx.close();
+    elSay.hidden = true;
     micBusy = false;
     elEnrol.disabled = false;
     elTest.disabled = !refIsMine;
@@ -2905,24 +3199,27 @@ function elMicSync() {
 
 elEnrol.addEventListener('click', async () => {
   elEnrol.disabled = elTest.disabled = true;
-  const take = await capture('Listening');
+  const take = await capture('Enrolling, say the passphrase');
   if (take) {
     REF_MEL = take.mel; REF_MFCC = take.mfcc; refIsMine = true;
     liveTake = take;
-    elRead.innerHTML = 'Enrolled. That vector is now the thing every voice is measured against, including yours.';
+    elDoneN.textContent = `Averaged over ${take.frames} voiced frames.`;
+    elDone.hidden = false;
+    elRead.innerHTML = 'Enrolled. That vector is now what every voice is measured against, including yours.';
   }
   elMicSync(); elDraw();
 });
 
 elTest.addEventListener('click', async () => {
   elEnrol.disabled = elTest.disabled = true;
-  const take = await capture('Say it again');
+  const take = await capture('Say the passphrase again');
   if (take) liveTake = take;
   elMicSync(); elDraw();
 });
 
 elForget.addEventListener('click', () => {
   REF_MEL = SYN_MEL; REF_MFCC = SYN_MFCC; refIsMine = false; liveTake = null;
+  elDone.hidden = true;
   elMicNote.textContent = 'nothing is uploaded or kept; the mic is released after each take';
   elMicSync(); elDraw();
 });
