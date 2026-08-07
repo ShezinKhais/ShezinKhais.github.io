@@ -563,6 +563,11 @@
     border-bottom:1px solid transparent; transition:color .2s, border-color .2s;
   }
   .about-links a:hover { color:var(--fg); border-bottom-color:var(--sn-mid); }
+  .about-links .cv { color:var(--fg); border-bottom-color:var(--sn-mid); }
+  .about-links .ext {
+    font-size:9px; letter-spacing:.1em; color:var(--dim);
+    border:1px solid var(--line); padding:2px 5px; margin-left:7px;
+  }
   .about-links a:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 
   /* the badge hangs from a cord and swings; drag it and let go */
@@ -968,14 +973,17 @@
           claim you have not tested is just a claim.</p>
 
         <dl class="facts">
-          <div><dt>Focus</dt><dd>Python tooling, static analysis, signal processing, <b>things that run offline</b></dd></div>
-          <div><dt>Education</dt><dd>BSc Computer Science, <b>University of Wollongong in Dubai</b></dd></div>
-          <div><dt>Currently</dt><dd>Capstone (CSIT321): a Microsoft Teams app that generates comprehension checkpoints from lecture slides</dd></div>
+          <div><dt>Education</dt><dd>BSc Computer Science, <b>University of Wollongong in Dubai</b>, expected 2026</dd></div>
+          <div><dt>Currently</dt><dd>Capstone (CSIT321): a Microsoft Teams app that generates comprehension checkpoints from lecture material, with on-device gaze tracking and live engagement analytics</dd></div>
+          <div><dt>Languages</dt><dd><b>Python</b>, Java, C++, SQL, JavaScript</dd></div>
+          <div><dt>Tools</dt><dd>PyTorch, scikit-learn, numpy, FastAPI, React, PostgreSQL, Firebase, pytest, Git</dd></div>
+          <div><dt>Interests</dt><dd>Algorithms, machine learning, signal processing, <b>things that run offline</b></dd></div>
           <div><dt>Based in</dt><dd>Dubai, United Arab Emirates</dd></div>
-          <div><dt>Working in</dt><dd>Python, numpy, FastAPI, React, PostgreSQL</dd></div>
+          <div><dt>Looking for</dt><dd>A graduate software engineering role</dd></div>
         </dl>
 
         <nav class="about-links" aria-label="Elsewhere">
+          <a href="cv.pdf" class="cv">CV <span class="ext" aria-hidden="true">PDF</span></a>
           <a href="https://github.com/ShezinKhais">GitHub</a>
           <a href="https://www.linkedin.com/in/shezinkhaiser/">LinkedIn</a>
           <a href="mailto:shezinkhais@gmail.com" id="mailLink2">Email</a>
@@ -2390,6 +2398,7 @@ const ITEMS = [...document.querySelectorAll('.card')].map(c => {
     run: () => { if (ccDemo.hidden) ccTry.click(); ccDemo.scrollIntoView({ block: 'center' }); } },
   { name: 'Try to get past the voice check', desc: 'Run the MFCC speaker-verification pipeline', kind: 'demo',
     run: () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({ block: 'center' }); } },
+  { name: 'CV', desc: 'One page, PDF', kind: 'link', run: () => location.assign('cv.pdf') },
   { name: 'Copy email', desc: MAIL, kind: 'action', run: copyMail },
   { name: 'Toggle theme', desc: 'Switch between light and dark', kind: 'action', run: () => themeBtn.click() },
   { name: 'Toggle motion', desc: 'Pause or resume the snake', kind: 'action', run: () => motionBtn.click() }
