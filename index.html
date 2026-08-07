@@ -1664,7 +1664,7 @@ const TRACKS = [
 
   // The famous first-violin line: a stepwise descent, one note per bar of the
   // ground bass. Every note is a chord tone of the bar it sits on.
-  { g:'Public domain', name:'Pachelbel, Canon in D', tex:'pulse', step:0.92,
+  { g:'Public domain', name:'Pachelbel, Canon in D', tex:'pulse', step:0.92, reg:57,
     seq: ['Dmaj','Amaj','Bmin','F#min','Gmaj','Dmaj','Gmaj','Amaj','Dmaj','Amaj','Bmin','F#min'],
     mel: [[78,null],[76,null],[74,null],[73,null],[71,null],[69,null],
           [71,null],[73,null],[78,null],[76,null],[74,null],[73,null]] },
@@ -1679,7 +1679,10 @@ const TRACKS = [
           [67,62],[67,71],[74,69],[67,null]] },
   // Left chord-only on purpose: the Gymnopedie is that slow alternation, and
   // its melody is a long sparse line I am not confident enough to encode.
-  { g:'Public domain', name:'Satie, Gymnopedie No. 1', tex:'waltz', step:1.05,
+  // It reduces to the same two chords Eine kleine Nachtmusik does, so register
+  // is the only thing keeping them apart: bass far down, chord voiced high and
+  // open above it, which is how the piece is actually written.
+  { g:'Public domain', name:'Satie, Gymnopedie No. 1', tex:'waltz', step:1.05, reg:71,
     seq: rep(['Gmaj','Dmaj'], 6) }
 ];
 
@@ -1718,8 +1721,13 @@ function triadPCs(label) {
    the chord before is what a player does without thinking about it, and it is
    the difference between the demo sounding like a keyboard and sounding like a
    siren. */
-function voiceTriad(pcs, prev) {
-  const target = prev || [60, 64, 67];               // C4 E4 G4 to open on
+// `reg` is the centre the first chord is voiced around. Without it every track
+// opened on C4 E4 G4 and, because each later chord takes its nearest inversion,
+// never left that octave: a Canon in D and a Gymnopedie in G came out sharing
+// six of their nine pitches. Register is most of what tells two pieces apart.
+function voiceTriad(pcs, prev, reg) {
+  const c = reg || 64;
+  const target = prev || [c - 4, c, c + 3];
   let best = null, bestCost = Infinity;
   for (let r = 0; r < 3; r++) {                      // try each inversion
     const notes = []; let cost = 0;
@@ -1927,6 +1935,9 @@ function playSequence(chords, cells, track) {
   const step = t.step || STEP;
   const tex  = t.tex || 'block';
   const mel  = t.mel;
+  // when a tune is riding over the harmony the chords drop an octave, so the
+  // melody is above the accompaniment instead of tangled up inside it
+  const reg  = t.reg || (mel ? 55 : 64);
   const t0 = ctx.currentTime + 0.08;
   // back the harmony off when a tune is riding over it, so the melody carries
   const amp = mel ? 0.075 : 0.11;
@@ -1935,7 +1946,7 @@ function playSequence(chords, cells, track) {
   chords.forEach((c, i) => {
     const pcs = triadPCs(c);
     if (!pcs) return;
-    const notes = voiceTriad(pcs, prev);
+    const notes = voiceTriad(pcs, prev, reg);
     const bass = voiceBass(pcs[0], prevBass);
     scheduleTexture(tex, ctx, lp, notes, bass, t0 + i * step, step, amp);
     prev = notes; prevBass = bass;
