@@ -25,7 +25,7 @@
 <meta name="twitter:description" content="Computer science student building small, focused tools in Python. Every one ships with tests and CI.">
 <meta name="twitter:image" content="https://shezinkhais.github.io/social.png">
 <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#fbfcfd" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
 
 <script type="application/ld+json">
 {
@@ -68,25 +68,28 @@
      and the user hasn't pinned dark, or when they've explicitly pinned light. */
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
-      --bg:#fbfcfd; --panel:rgba(255,255,255,.80); --panel-hi:rgba(255,255,255,.95);
-      --fg:#1f2328; --muted:#57606a; --dim:#6d7580;
-      --line:#d8dee4; --accent:#0969da;
-      --py:#4584b6; --py2:#d99400;
-      --num:#2b8544; --badge:#a96400;
-      --veil:rgba(251,252,253,.70);
-      --sn-deep:#0f3419; --sn-dark:#1a5c2c; --sn-mid:#31894a;
-      --sn-lite:#63bd7c; --sn-belly:#c3dc8f; --sn-eye:#e0a800;
+      /* The page is tinted and the panels are white, rather than both being
+         near-white. A layout carried almost entirely by hairlines needs the
+         paper to sit on something, or the rules disappear and it reads blank. */
+      --bg:#eef1f5; --panel:rgba(255,255,255,.86); --panel-hi:rgba(255,255,255,.97);
+      --fg:#12171d; --muted:#4a5460; --dim:#5f6875;
+      --line:#c3ccd7; --accent:#0757ba;
+      --py:#3d78a8; --py2:#b87e00;
+      --num:#1f7a3c; --badge:#8f5400;
+      --veil:rgba(238,241,245,.74);
+      --sn-deep:#0c2a14; --sn-dark:#175227; --sn-mid:#2a7a41;
+      --sn-lite:#4aa863; --sn-belly:#a9c97e; --sn-eye:#c78f00;
     }
   }
   :root[data-theme="light"] {
-    --bg:#fbfcfd; --panel:rgba(255,255,255,.80); --panel-hi:rgba(255,255,255,.95);
-    --fg:#1f2328; --muted:#57606a; --dim:#6d7580;
-    --line:#d8dee4; --accent:#0969da;
-    --py:#4584b6; --py2:#d99400;
-    --num:#2b8544; --badge:#a96400;
-    --veil:rgba(251,252,253,.70);
-    --sn-deep:#0f3419; --sn-dark:#1a5c2c; --sn-mid:#31894a;
-    --sn-lite:#63bd7c; --sn-belly:#c3dc8f; --sn-eye:#e0a800;
+    --bg:#eef1f5; --panel:rgba(255,255,255,.86); --panel-hi:rgba(255,255,255,.97);
+    --fg:#12171d; --muted:#4a5460; --dim:#5f6875;
+    --line:#c3ccd7; --accent:#0757ba;
+    --py:#3d78a8; --py2:#b87e00;
+    --num:#1f7a3c; --badge:#8f5400;
+    --veil:rgba(238,241,245,.74);
+    --sn-deep:#0c2a14; --sn-dark:#175227; --sn-mid:#2a7a41;
+    --sn-lite:#4aa863; --sn-belly:#a9c97e; --sn-eye:#c78f00;
   }
 
   .vh {
@@ -317,6 +320,13 @@
   /* overflow:hidden makes this its own formatting context, so the reflow float
      below is contained here and can never shove .more/.chips around. JS pins an
      explicit height with two spare lines, so wrapping never resizes the card. */
+  /* The snake travels behind the copy, and with the rows carrying no fill of
+     their own it was passing straight under the glyphs and taking the text with
+     it. A halo in the page colour keeps the letters legible over whatever is
+     behind them without putting a visible box around the paragraph. */
+  .card h3, .card > p, .card .more p, .card .chip {
+    text-shadow:0 0 3px var(--bg), 0 0 6px var(--bg), 0 0 11px var(--bg);
+  }
   .card > p { margin:13px 0 0; font-size:13.5px; color:var(--muted); overflow:hidden; max-width:68ch; }
 
   /* invisible float whose shape-outside is redrawn from the snake's silhouette,
@@ -638,6 +648,45 @@
   }
   @media (hover:none) { .idhint { display:none; } }
 
+  /* ---------- the game ----------
+     It has spent the whole page pretending to be a snake, so if you catch it
+     resting on the name and click it, it becomes one. */
+  #game[hidden] { display:none; }
+  #game {
+    position:fixed; inset:0; z-index:70; display:flex;
+    align-items:center; justify-content:center; padding:20px;
+    background:rgba(0,0,0,.55);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    animation:gIn .16s ease;
+  }
+  @keyframes gIn { from{opacity:0} to{opacity:1} }
+  .gbox {
+    background:var(--panel-hi); border:1px solid var(--sn-mid); padding:18px;
+    max-width:min(94vw,440px); width:100%;
+    box-shadow:0 26px 70px rgba(0,0,0,.45);
+  }
+  .ghead { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; }
+  .ghead b {
+    font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:var(--num); font-weight:600;
+  }
+  .ghead .sc { margin-left:auto; font-size:11px; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .ghead .sc i { font-style:normal; color:var(--fg); font-weight:600; }
+  #gameCv { display:block; width:100%; height:auto; background:var(--bg); border:1px solid var(--line); touch-action:none; }
+  .gfoot { display:flex; align-items:center; gap:10px; margin-top:13px; flex-wrap:wrap; }
+  .gfoot span { font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); }
+  .gfoot button {
+    font:inherit; font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--muted); background:var(--bg); border:1px solid var(--line);
+    border-radius:0; padding:8px 13px; cursor:pointer; transition:color .2s, border-color .2s;
+  }
+  .gfoot button:hover { color:var(--fg); border-color:var(--sn-mid); }
+  .gfoot button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .gfoot .close { margin-left:auto; }
+  @media (pointer: coarse) { .gfoot button { min-height:44px; } }
+
+  body.onsnake { cursor:pointer; }
+
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
   footer a { color:var(--muted); text-decoration:none; }
   footer a:hover { color:var(--accent); text-decoration:underline; }
@@ -683,7 +732,7 @@
     html, body { background:#fff !important; color:#000; }
     body { padding-bottom:0; }
     #bg, #prog, .tools, .rail, #pal, #peek, .idwrap, .demo, .tryit,
-    .how, .noscript-hero, .sig { display:none !important; }
+    .how, .noscript-hero, .sig, #game { display:none !important; }
     .wrap { max-width:none; margin:0; padding:0; }
     .card, .tryit { margin:0; padding:10px 0 10px 34px; break-inside:avoid; }
     .card::before { left:0; }
@@ -731,6 +780,22 @@
 </div>
 
 <nav class="rail" id="rail" aria-label="Sections"></nav>
+
+<div id="game" hidden role="dialog" aria-modal="true" aria-label="Snake">
+  <div class="gbox">
+    <div class="ghead">
+      <b>[ snake ]</b>
+      <span class="sc">score <i id="gScore">0</i> &middot; best <i id="gBest">0</i></span>
+    </div>
+    <canvas id="gameCv" width="360" height="360"
+            aria-label="Snake game board. Use the arrow keys to steer."></canvas>
+    <p class="gfoot">
+      <span id="gMsg">arrows or WASD to steer</span>
+      <button id="gAgain" type="button">Restart</button>
+      <button id="gClose" type="button" class="close">Close</button>
+    </p>
+  </div>
+</div>
 
 <div id="peek" hidden aria-hidden="true">
   <canvas id="peekCv"></canvas><span id="peekCap"></span>
@@ -1419,7 +1484,15 @@ function easeCorners(pts, maxDeg, passes, keepTail) {
   return pts;
 }
 
-function joinCoil(lead, coil) {
+/* The corner pass is the expensive part of building a route: it was costing
+   38ms, which is more than a frame, on every layout change and again on every
+   hover. Four rounds reach the same 99th percentile as eight and cost a third
+   as much; the re-aim on hover skips it altogether, because its lead is three
+   gentle points and the only corner it could have is the one the tangent blend
+   already removes. */
+const EASE = { rounds: 4, passes: 40, deg: 11, step: 6 };
+
+function joinCoil(lead, coil, ease) {
   const c0 = coil[0], c1 = coil[1] || coil[0];
   const ux = c1.x - c0.x, uy = c1.y - c0.y;
   const L = Math.hypot(ux, uy) || 1;
@@ -1428,7 +1501,7 @@ function joinCoil(lead, coil) {
     { x: c0.x - ux / L * 110, y: c0.y - uy / L * 110, v: 950 },
     { x: c0.x, y: c0.y, v: coil[0].v }
   ]);
-  let transit = resample(smoothPath(pts, 12), 6);
+  let transit = resample(smoothPath(pts, 12), EASE.step);
 
   /* Relaxing pulls the approach off the tangent, and because the pass pins its
      endpoints the corner at the seam is the one thing that survives every round
@@ -1445,8 +1518,12 @@ function joinCoil(lead, coil) {
     transit[i].y = transit[i].y * (1 - w) + ty * w;
   }
   // the tangent run is left alone: it is the one stretch that has to stay exact
-  for (let round = 0; round < 8; round++)
-    transit = resample(easeCorners(transit, 11, 50, M + 2), 6);
+  // the re-aim on hover gets one light round: its lead is three gentle points,
+  // so it needs a tidy rather than the full treatment the page-long tour does
+  const rounds = ease === false ? 1 : EASE.rounds;
+  const passes = ease === false ? 18 : EASE.passes;
+  for (let round = 0; round < rounds; round++)
+    transit = resample(easeCorners(transit, EASE.deg, passes, M + 2), EASE.step);
   return transit.concat(coil.slice(1));
 }
 
@@ -1529,7 +1606,7 @@ function routeTo(box) {
     { x: (guide.x + box.x + box.w * 0.5) / 2, y: (guide.y + box.y + box.h + 130) / 2, v: 1250 },
     { x: box.x + box.w * 0.5, y: box.y + box.h + 130, v: 1100 }
   ];
-  path = joinCoil(lead, coilPoints(box));
+  path = joinCoil(lead, coilPoints(box), false);
   pathIdx = 0; pathPos = 0;
   tourPath = false;
 }
@@ -2903,10 +2980,20 @@ if (!reduced && matchMedia('(hover:hover)').matches) {
 const themeBtn = document.getElementById('themeBtn');
 const motionBtn = document.getElementById('motionBtn');
 
+/* Three states, not two. Auto is the default and follows the device, and
+   without a third state there was no way back to it once you had picked: the
+   button could only ever leave you pinned to something. */
+const THEMES = ['auto', 'light', 'dark'];
 function setTheme(mode) {
-  if (mode) document.documentElement.setAttribute('data-theme', mode);
-  else document.documentElement.removeAttribute('data-theme');
-  try { mode ? localStorage.setItem('theme', mode) : localStorage.removeItem('theme'); } catch {}
+  if (!THEMES.includes(mode)) mode = 'auto';
+  if (mode === 'auto') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', mode);
+  try {
+    if (mode === 'auto') localStorage.removeItem('theme');
+    else localStorage.setItem('theme', mode);
+  } catch {}
+  themeBtn.textContent = 'Theme: ' + mode;
+  themeBtn.setAttribute('aria-label', `Colour theme: ${mode}. Cycles auto, light, dark.`);
   redrawSigs();
   if (rafId === 0) draw(performance.now() / 1000);   // repaint the canvas when frozen
 }
@@ -2916,10 +3003,16 @@ motionBtn.addEventListener('click', () => setMotion(paused));
 const APPLE = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 document.querySelector('#palOpen kbd').textContent = APPLE ? '⌘K' : 'Ctrl K';
 
-const systemDark = () => matchMedia('(prefers-color-scheme: dark)').matches;
 themeBtn.addEventListener('click', () => {
-  const cur = document.documentElement.getAttribute('data-theme') || (systemDark() ? 'dark' : 'light');
-  setTheme(cur === 'dark' ? 'light' : 'dark');
+  const cur = document.documentElement.getAttribute('data-theme') || 'auto';
+  setTheme(THEMES[(THEMES.indexOf(cur) + 1) % THEMES.length]);
+});
+// on auto, the canvas has to repaint when the device flips at sunset
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (!document.documentElement.hasAttribute('data-theme')) {
+    redrawSigs();
+    if (rafId === 0) draw(performance.now() / 1000);
+  }
 });
 
 // ---------- copy email ----------
@@ -4533,6 +4626,199 @@ function readState() {
     .scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
 }
 
+/* ---- the game ----
+   Grid snake, on a fixed tick rather than per-frame movement, so it plays at
+   the same speed whatever the display is doing. The turn is queued rather than
+   applied on keypress: pressing up-then-left inside one tick used to be able to
+   double back through your own neck and lose on an input you never made. */
+const gameEl = document.getElementById('game');
+const gameCv = document.getElementById('gameCv');
+const gCtx = gameCv.getContext('2d');
+const gScore = document.getElementById('gScore');
+const gBest = document.getElementById('gBest');
+const gMsg = document.getElementById('gMsg');
+
+const G_N = 18, G_CELL = 20;
+let g = null, gTimer = 0, gLast = null;
+
+try { gBest.textContent = localStorage.getItem('snakeBest') || '0'; } catch {}
+
+function gReset() {
+  const mid = Math.floor(G_N / 2);
+  g = {
+    body: [{ x: mid - 1, y: mid }, { x: mid - 2, y: mid }, { x: mid - 3, y: mid }],
+    dir: { x: 1, y: 0 }, queued: [], food: null, score: 0, over: false, tick: 132
+  };
+  gFood();
+  gScore.textContent = '0';
+  gMsg.textContent = 'arrows or WASD to steer';
+  gDraw();
+}
+
+function gFood() {
+  const free = [];
+  for (let y = 0; y < G_N; y++) for (let x = 0; x < G_N; x++)
+    if (!g.body.some(s => s.x === x && s.y === y)) free.push({ x, y });
+  g.food = free.length ? free[Math.floor(Math.random() * free.length)] : null;
+}
+
+function gStep() {
+  if (!g || g.over) return;
+  // one turn per tick: the rest waits, so a fast double-tap cannot reverse you
+  if (g.queued.length) {
+    const d = g.queued.shift();
+    if (d.x !== -g.dir.x || d.y !== -g.dir.y) g.dir = d;
+  }
+  const head = { x: g.body[0].x + g.dir.x, y: g.body[0].y + g.dir.y };
+
+  const bit = head.x < 0 || head.y < 0 || head.x >= G_N || head.y >= G_N ||
+              g.body.some((s, i) => i < g.body.length - 1 && s.x === head.x && s.y === head.y);
+  if (bit) {
+    g.over = true;
+    gMsg.textContent = 'bitten. restart to go again';
+    let best = 0;
+    try { best = +(localStorage.getItem('snakeBest') || 0); } catch {}
+    if (g.score > best) {
+      try { localStorage.setItem('snakeBest', String(g.score)); } catch {}
+      gBest.textContent = g.score;
+      gMsg.textContent = 'bitten, but that is a new best';
+    }
+    gDraw();
+    return;
+  }
+
+  g.body.unshift(head);
+  if (g.food && head.x === g.food.x && head.y === g.food.y) {
+    g.score++;
+    gScore.textContent = g.score;
+    g.tick = Math.max(64, g.tick - 4);          // it gets away from you
+    gFood();
+  } else {
+    g.body.pop();
+  }
+  gDraw();
+}
+
+function gDraw() {
+  const d = Math.min(devicePixelRatio || 1, 2), S = G_N * G_CELL;
+  if (gameCv.width !== S * d) { gameCv.width = S * d; gameCv.height = S * d; }
+  const c = gCtx;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.fillStyle = css('--bg'); c.fillRect(0, 0, S, S);
+
+  c.strokeStyle = css('--line'); c.lineWidth = 1;
+  for (let i = 1; i < G_N; i++) {
+    c.beginPath(); c.moveTo(i * G_CELL + .5, 0); c.lineTo(i * G_CELL + .5, S); c.stroke();
+    c.beginPath(); c.moveTo(0, i * G_CELL + .5); c.lineTo(S, i * G_CELL + .5); c.stroke();
+  }
+
+  if (g.food) {
+    c.fillStyle = css('--badge');
+    c.beginPath();
+    c.arc(g.food.x * G_CELL + G_CELL / 2, g.food.y * G_CELL + G_CELL / 2, G_CELL * 0.28, 0, 7);
+    c.fill();
+  }
+
+  g.body.forEach((s, i) => {
+    const t = i / Math.max(1, g.body.length - 1);
+    c.fillStyle = i === 0 ? css('--sn-lite') : (i % 2 ? css('--sn-mid') : css('--sn-dark'));
+    c.globalAlpha = g.over ? 0.45 : 1 - t * 0.35;
+    c.fillRect(s.x * G_CELL + 2, s.y * G_CELL + 2, G_CELL - 4, G_CELL - 4);
+    c.globalAlpha = 1;
+  });
+
+  // eyes, so the head reads as a head
+  const h = g.body[0];
+  c.fillStyle = css('--sn-eye');
+  const ex = h.x * G_CELL + G_CELL / 2, ey = h.y * G_CELL + G_CELL / 2;
+  const ox = g.dir.y ? 4 : 0, oy = g.dir.x ? 4 : 0;
+  c.beginPath(); c.arc(ex + ox + g.dir.x * 3, ey + oy + g.dir.y * 3, 1.8, 0, 7); c.fill();
+  c.beginPath(); c.arc(ex - ox + g.dir.x * 3, ey - oy + g.dir.y * 3, 1.8, 0, 7); c.fill();
+}
+
+const G_KEYS = {
+  ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+  w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0]
+};
+
+function gameOpen() {
+  gameEl.hidden = false;
+  gReset();
+  clearInterval(gTimer);
+  gTimer = setInterval(() => { gStep(); retick(); }, 132);
+  document.getElementById('gClose').focus();
+}
+// the interval is replaced whenever the speed changes, so eating actually
+// shortens the tick instead of only pretending to
+let gTickNow = 132;
+function retick() {
+  if (!g || g.tick === gTickNow) return;
+  gTickNow = g.tick;
+  clearInterval(gTimer);
+  gTimer = setInterval(() => { gStep(); retick(); }, gTickNow);
+}
+function gameClose() {
+  gameEl.hidden = true;
+  clearInterval(gTimer); gTimer = 0; g = null; gTickNow = 132;
+  gLast?.focus?.();
+}
+document.getElementById('gClose').addEventListener('click', gameClose);
+document.getElementById('gAgain').addEventListener('click', () => { gReset(); gTickNow = 132; retick(); });
+gameEl.addEventListener('click', e => { if (e.target === gameEl) gameClose(); });
+
+addEventListener('keydown', e => {
+  if (gameEl.hidden) return;
+  if (e.key === 'Escape') { e.preventDefault(); gameClose(); return; }
+  if (e.key === 'r' || e.key === 'R') { e.preventDefault(); gReset(); return; }
+  const k = G_KEYS[e.key] || G_KEYS[e.key.toLowerCase?.()];
+  if (!k) return;
+  e.preventDefault();
+  if (g && g.queued.length < 2) g.queued.push({ x: k[0], y: k[1] });
+}, true);
+
+// swipe, for a board with no keyboard
+let gTouch = null;
+gameCv.addEventListener('pointerdown', e => { gTouch = { x: e.clientX, y: e.clientY }; });
+gameCv.addEventListener('pointerup', e => {
+  if (!gTouch || !g) return;
+  const dx = e.clientX - gTouch.x, dy = e.clientY - gTouch.y;
+  gTouch = null;
+  if (Math.hypot(dx, dy) < 22) return;
+  const d = Math.abs(dx) > Math.abs(dy)
+    ? { x: Math.sign(dx), y: 0 } : { x: 0, y: Math.sign(dy) };
+  if (g.queued.length < 2) g.queued.push(d);
+});
+
+/* Catching it: the body is painted on a canvas with pointer-events off, so the
+   click lands on the page and is hit-tested against the joints instead. Only
+   once it has parked on the name, and never when the pointer is on something
+   that does its own thing with a click. */
+const snakeParked = () =>
+  !paused && !reduced && tourPath && path.length && pathIdx >= path.length - 1 && !focusedCard;
+
+function onSnake(px, py) {
+  if (!snakeParked()) return false;
+  for (let i = 0; i < joints.length; i += 2)
+    if (Math.hypot(joints[i].x - px, joints[i].y - py) < 15) return true;
+  return false;
+}
+
+addEventListener('click', e => {
+  if (!gameEl.hidden || !pal.hidden) return;
+  if (e.target.closest('a, button, input, select, label, .demo, .how, canvas.sig')) return;
+  if (!onSnake(e.pageX, e.pageY)) return;
+  gLast = document.activeElement;
+  gameOpen();
+});
+
+// a cursor is the only hint that the resting snake does anything
+addEventListener('pointermove', e => {
+  if (!gameEl.hidden) return;
+  const over = onSnake(e.pageX, e.pageY);
+  if (over !== document.body.classList.contains('onsnake'))
+    document.body.classList.toggle('onsnake', over);
+}, { passive: true });
+
 // ================= boot =================
 document.body.classList.remove('nojs');
 seedJoints();
@@ -4542,7 +4828,7 @@ syncRail();
 
 let savedTheme = null, savedMotion = null;
 try { savedTheme = localStorage.getItem('theme'); savedMotion = localStorage.getItem('motion'); } catch {}
-if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme);
+setTheme(savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'auto');
 if (reduced) {
   motionBtn.disabled = true;
   motionBtn.textContent = 'Motion off';
