@@ -186,6 +186,35 @@
   }
   h2.in::after { transform:scaleX(1); }
 
+  /* ---------- filter ----------
+     The chips inside a row cannot be buttons: a card is an <a>, and interactive
+     content cannot nest inside a link. So the control sits above the index,
+     which is also easier to find than eight separate copies of it. */
+  .filterbar {
+    display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+    margin-top:40px; padding-bottom:2px;
+  }
+  .filterbar > span {
+    font-size:10.5px; letter-spacing:.15em; text-transform:uppercase;
+    color:var(--dim); margin-right:4px;
+  }
+  .filterbar button {
+    font:inherit; font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
+    color:var(--dim); background:none; border:1px solid var(--line); border-radius:0;
+    padding:6px 11px; cursor:pointer;
+    transition:color .2s, border-color .2s, background .2s;
+  }
+  .filterbar button:hover { color:var(--fg); border-color:var(--sn-mid); }
+  .filterbar button[aria-pressed="true"] {
+    color:var(--bg); background:var(--sn-lite); border-color:var(--sn-lite);
+  }
+  .filterbar button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .filterbar button i { font-style:normal; opacity:.6; margin-left:6px; }
+  .filterbar .clear { color:var(--badge); border-color:var(--badge); }
+  .filterbar .clear[hidden] { display:none; }
+  .card.hide, section.hide { display:none !important; }
+  @media (pointer: coarse) { .filterbar button { min-height:44px; } }
+
   /* ---------- how it works ----------
      One walkthrough per main project, opened from its row rather than parked in
      the page as a section of its own. Steps advance on a click, so nothing here
@@ -288,7 +317,7 @@
   /* overflow:hidden makes this its own formatting context, so the reflow float
      below is contained here and can never shove .more/.chips around. JS pins an
      explicit height with two spare lines, so wrapping never resizes the card. */
-  .card > p { margin:13px 0 0; font-size:13.5px; color:var(--muted); overflow:hidden; max-width:62ch; }
+  .card > p { margin:13px 0 0; font-size:13.5px; color:var(--muted); overflow:hidden; max-width:68ch; }
 
   /* invisible float whose shape-outside is redrawn from the snake's silhouette,
      so the card copy flows around the body as it passes through. */
@@ -337,6 +366,23 @@
       padding-left:var(--bleed); padding-right:var(--bleed);
     }
     h2::after { margin-right:calc(-1 * var(--bleed)); }
+  }
+
+  /* The copy holds a 62ch measure, so on a wide screen the text column ran out
+     about 390px before the stack column began. That gap now carries a drawing
+     of what the project computes: a graph with a cycle in it, an alignment
+     matrix, a filterbank. Same sketches the hover preview uses, which is why
+     the preview only appears below the width where these fit. */
+  .sig { display:none; }
+  @media (min-width:1200px) {
+    .card { grid-template-columns:minmax(0,1fr) 150px 190px !important; }
+    .card .sig {
+      display:block; grid-column:2; grid-row:1 / span 3;
+      width:132px; height:72px; align-self:center; justify-self:end;
+      opacity:.5; transition:opacity .3s;
+    }
+    .card:hover .sig, .card.kbd .sig, .card:focus-visible .sig { opacity:1; }
+    .card .chips { grid-column:3 !important; }
   }
 
   @media (min-width:980px) {
@@ -550,7 +596,7 @@
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   /* no cursor to follow, and no room to put it */
-  @media (hover:none), (max-width:900px) { #peek { display:none !important; } }
+  @media (hover:none), (max-width:900px), (min-width:1200px) { #peek { display:none !important; } }
 
   /* ---------- about ---------- */
   .about { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:56px; align-items:start; }
@@ -637,7 +683,7 @@
     html, body { background:#fff !important; color:#000; }
     body { padding-bottom:0; }
     #bg, #prog, .tools, .rail, #pal, #peek, .idwrap, .demo, .tryit,
-    .how, .noscript-hero { display:none !important; }
+    .how, .noscript-hero, .sig { display:none !important; }
     .wrap { max-width:none; margin:0; padding:0; }
     .card, .tryit { margin:0; padding:10px 0 10px 34px; break-inside:avoid; }
     .card::before { left:0; }
@@ -723,10 +769,12 @@
     </div>
   </header>
 
+  <nav class="filterbar" id="filterbar" aria-label="Filter projects by kind of work"></nav>
+
   <section id="sec-featured">
     <h2><span>featured</span></h2>
 
-    <a class="card" href="https://github.com/ShezinKhais/codecartographer">
+    <a class="card" data-kind="algorithms tooling" href="https://github.com/ShezinKhais/codecartographer">
       <h3>CodeCartographer <span class="arrow">&rarr;</span></h3>
       <p>Static analysis for Python codebases: dependency graphs, circular-import detection via Tarjan's strongly connected components, a static call graph, and dead-code detection.</p>
       <div class="more"><div>
@@ -785,7 +833,7 @@
       </p>
     </div>
 
-    <a class="card" href="https://github.com/ShezinKhais/harmonicDNA">
+    <a class="card" data-kind="algorithms audio" href="https://github.com/ShezinKhais/harmonicDNA">
       <h3>HarmonicDNA <span class="arrow">&rarr;</span></h3>
       <p>Applies Smith-Waterman local alignment, the bioinformatics algorithm for comparing DNA sequences, to chord progressions extracted from audio.</p>
       <div class="more"><div>
@@ -861,7 +909,7 @@
   <section id="sec-progress">
     <h2><span>in progress</span></h2>
 
-    <a class="card" href="https://github.com/ShezinKhais/echolock">
+    <a class="card" data-kind="audio ml privacy" href="https://github.com/ShezinKhais/echolock">
       <h3>EchoLock <span class="arrow">&rarr;</span> <span class="status">ongoing</span></h3>
       <p>A voice-and-passphrase unlock overlay. The MFCC speaker-verification pipeline is implemented from scratch on numpy.</p>
       <div class="more"><div>
@@ -950,7 +998,7 @@
       </p>
     </div>
 
-    <a class="card" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
+    <a class="card" data-kind="ml product" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
       <h3>C.L.I.P <span class="arrow">&rarr;</span> <span class="status">ongoing</span></h3>
       <p>Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
       <div class="more"><div>
@@ -963,25 +1011,25 @@
   <section id="sec-other">
     <h2><span>other projects</span></h2>
 
-    <a class="card" href="https://github.com/ShezinKhais/claimaudit">
+    <a class="card" data-kind="research nlp" href="https://github.com/ShezinKhais/claimaudit">
       <h3>claimaudit <span class="arrow">&rarr;</span></h3>
       <p>Tracks whether a paper's empirical claims are later confirmed, challenged, or extended by the work that cites them.</p>
       <div class="chips"><span class="chip">Python</span><span class="chip">NLP</span></div>
     </a>
 
-    <a class="card" href="https://github.com/ShezinKhais/Hypothesisgraveyard">
+    <a class="card" data-kind="research algorithms" href="https://github.com/ShezinKhais/Hypothesisgraveyard">
       <h3>Hypothesisgraveyard <span class="arrow">&rarr;</span></h3>
       <p>Finds scientific hypotheses that were published and then never meaningfully engaged with by later citations.</p>
       <div class="chips"><span class="chip">Python</span><span class="chip">citation graphs</span></div>
     </a>
 
-    <a class="card" href="https://github.com/ShezinKhais/argumentminer">
+    <a class="card" data-kind="research nlp algorithms" href="https://github.com/ShezinKhais/argumentminer">
       <h3>argumentminer <span class="arrow">&rarr;</span></h3>
       <p>Extracts claims, premises, and logical fallacies from argumentative text and renders the structure as a directed graph.</p>
       <div class="chips"><span class="chip">Python</span><span class="chip">NLP</span></div>
     </a>
 
-    <a class="card" href="https://github.com/ShezinKhais/federated-aml">
+    <a class="card" data-kind="ml privacy" href="https://github.com/ShezinKhais/federated-aml">
       <h3>federated-aml <span class="arrow">&rarr;</span></h3>
       <p>Federated Averaging (FedAvg) for fraud detection across simulated banks: models train locally, only weights are shared.</p>
       <div class="chips"><span class="chip">Python</span><span class="chip">federated learning</span></div>
@@ -1007,7 +1055,7 @@
           <div><dt>Currently</dt><dd>Capstone (CSIT321): a Microsoft Teams app that generates comprehension checkpoints from lecture material, with on-device gaze tracking and live engagement analytics</dd></div>
           <div><dt>Languages</dt><dd><b>Python</b>, Java, C++, SQL, JavaScript</dd></div>
           <div><dt>Tools</dt><dd>PyTorch, scikit-learn, numpy, FastAPI, React, PostgreSQL, Firebase, pytest, Git</dd></div>
-          <div><dt>Interests</dt><dd>Algorithms, machine learning, signal processing, <b>things that run offline</b></dd></div>
+          <div><dt>Interests</dt><dd>Algorithms, machine learning, signal processing, <b>secure systems</b></dd></div>
           <div><dt>Based in</dt><dd>Dubai, United Arab Emirates</dd></div>
           <div><dt>Looking for</dt><dd>A graduate software engineering role</dd></div>
         </dl>
@@ -1413,7 +1461,7 @@ function buildPath() {
   // one waypoint per card, not two, so a full card height separates each turn.
   // A row with no box -- collapsed, or hidden by a stylesheet -- is skipped
   // rather than collapsing its waypoint onto the origin.
-  document.querySelectorAll('.card').forEach((c, i) => {
+  document.querySelectorAll('.card:not(.hide)').forEach((c, i) => {
     const r = c.getBoundingClientRect();
     if (!r.height) return;
     pts.push({ x: i % 2 ? R : L, y: r.top + scrollY + r.height * 0.5, v: 1150 });
@@ -1969,6 +2017,8 @@ const SEG = 10, GRAV = 0.62, DAMP = 0.983, ITER = 9;
 const CARD_W = 122, CARD_H = 176, HOLE_DY = 15;
 
 let cord = [], cardA = null, cardB = null, segLen = 0, idRun = 0, idHeld = null;
+// rotation about the cord: a badge on a lanyard twists, and shows its back
+let spin = 0, spinV = 0, lastHeldX = null;
 
 function idInit() {
   const anchor = { x: ID_W / 2, y: 12 };
@@ -1980,6 +2030,7 @@ function idInit() {
   const ay = anchor.y + drop;
   cardA = { x: anchor.x, y: ay, px: anchor.x, py: ay };
   cardB = { x: anchor.x, y: ay + CARD_H, px: anchor.x, py: ay + CARD_H };
+  spin = 0; spinV = 0; lastHeldX = null;
 }
 
 function verlet(p) {
@@ -1999,6 +2050,22 @@ function link(a, b, len, w) {
 }
 
 function idStep() {
+  /* Twist about the cord. Dragging sideways winds it up, exactly as swinging a
+     real pass by its lanyard does, and the cord unwinding is a weak restoring
+     torque back to face-front so the card does not settle edge-on or backwards.
+     The face shown is whichever way it happens to be pointing. */
+  if (idHeld) {
+    if (lastHeldX !== null) spinV += (idHeld.x - lastHeldX) * 0.0075;
+    lastHeldX = idHeld.x;
+  } else {
+    lastHeldX = null;
+    spinV += (cardA.x - cardA.px) * 0.0016;      // swinging winds it too
+  }
+  spinV -= Math.sin(spin) * 0.0055;              // the cord untwisting
+  spinV *= 0.975;
+  spinV = clamp(spinV, -0.42, 0.42);
+  spin += spinV;
+
   for (let i = 1; i < cord.length; i++) verlet(cord[i]);
   if (!idHeld) { verlet(cardA); verlet(cardB); }
   else verlet(cardB);
@@ -2042,10 +2109,16 @@ function idDraw() {
   c.beginPath(); c.arc(cord[0].x, cord[0].y, 4, 0, 7); c.fill();
 
   const ang = Math.atan2(cardB.x - cardA.x, cardB.y - cardA.y);
+  const face = Math.cos(spin);
   c.save();
   c.translate(cardA.x, cardA.y);
   c.rotate(-ang);
+  // the card is flat, so foreshortening is the whole of the 3D: scale it on the
+  // axis it turns about and it reads as a rotation
+  c.scale(Math.max(Math.abs(face), 0.015) * (face < 0 ? -1 : 1), 1);
   c.translate(-CARD_W / 2, -HOLE_DY);
+
+  if (face < 0) { idBack(c, line, dim, fg, mid, lite, panel); c.restore(); return; }
 
   c.fillStyle = panel; c.strokeStyle = mid; c.lineWidth = 1;
   c.fillRect(0, 0, CARD_W, CARD_H); c.strokeRect(.5, .5, CARD_W - 1, CARD_H - 1);
@@ -2096,13 +2169,58 @@ function idDraw() {
   c.restore();
 }
 
+/* The back of the pass. Turned around, a real one carries the dull half: the
+   punch hole from the other side, a magstripe, terms nobody reads, and the
+   address it should be returned to. */
+function idBack(c, line, dim, fg, mid, lite, panel) {
+  c.fillStyle = panel; c.strokeStyle = mid; c.lineWidth = 1;
+  c.fillRect(0, 0, CARD_W, CARD_H);
+  c.strokeRect(.5, .5, CARD_W - 1, CARD_H - 1);
+
+  c.fillStyle = mid;
+  c.beginPath(); c.ellipse(CARD_W / 2, HOLE_DY, 9, 4.5, 0, 0, 7); c.fill();
+  c.fillStyle = css('--bg');
+  c.beginPath(); c.ellipse(CARD_W / 2, HOLE_DY, 6.5, 2.8, 0, 0, 7); c.fill();
+
+  // magstripe
+  c.fillStyle = css('--bg'); c.fillRect(0, 34, CARD_W, 22);
+  c.strokeStyle = line;
+  c.beginPath(); c.moveTo(0, 34); c.lineTo(CARD_W, 34);
+  c.moveTo(0, 56); c.lineTo(CARD_W, 56); c.stroke();
+
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  c.fillStyle = dim; c.font = '6.5px ' + MONO;
+  c.fillText('IF FOUND, RETURN TO', 11, 76);
+  c.fillStyle = fg; c.font = '600 8px ' + MONO;
+  c.fillText('shezinkhais', 11, 90);
+  c.fillText('.github.io', 11, 101);
+
+  c.strokeStyle = line;
+  c.beginPath(); c.moveTo(11, 112); c.lineTo(CARD_W - 11, 112); c.stroke();
+
+  c.fillStyle = dim; c.font = '6px ' + MONO;
+  ['THIS PASS REMAINS THE', 'PROPERTY OF THE BEARER.', 'NON-TRANSFERABLE.',
+   'VALID WHILE CURIOUS.'].forEach((t, i) => c.fillText(t, 11, 126 + i * 10));
+
+  // a data-matrix-ish block, seeded so it is the same square every time
+  let seed = 90210;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+  const N = 9, cell = 4.4, ox = CARD_W - 11 - N * cell, oy = CARD_H - 22 - N * cell;
+  c.fillStyle = fg;
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++)
+    if (rnd() > 0.45) c.fillRect(ox + j * cell, oy + i * cell, cell - 1, cell - 1);
+}
+
 // the card as a rotated rectangle, so a hit test has to undo the rotation
 function idHit(x, y) {
   const ang = Math.atan2(cardB.x - cardA.x, cardB.y - cardA.y);
   const dx = x - cardA.x, dy = y - cardA.y;
   const lx = dx * Math.cos(ang) - dy * Math.sin(ang);
   const ly = dx * Math.sin(ang) + dy * Math.cos(ang);
-  return lx > -CARD_W / 2 - 6 && lx < CARD_W / 2 + 6 && ly > -HOLE_DY - 6 && ly < CARD_H - HOLE_DY + 6;
+  // it is drawn foreshortened, so the target narrows as it turns -- but never
+  // below something a finger can actually land on
+  const half = Math.max(CARD_W * Math.abs(Math.cos(spin)), 34) / 2;
+  return lx > -half - 6 && lx < half + 6 && ly > -HOLE_DY - 6 && ly < CARD_H - HOLE_DY + 6;
 }
 
 const idPt = e => {
@@ -2142,7 +2260,8 @@ function idFrame() {
   idStep();
   idDraw();
   const move = Math.abs(cardA.x - cardA.px) + Math.abs(cardA.y - cardA.py)
-             + Math.abs(cardB.x - cardB.px) + Math.abs(cardB.y - cardB.py);
+             + Math.abs(cardB.x - cardB.px) + Math.abs(cardB.y - cardB.py)
+             + Math.abs(spinV) * 40 + Math.abs(Math.sin(spin)) * 2;
   idQuiet = (move < 0.05 && !idHeld) ? idQuiet + 1 : 0;
   if (idQuiet < 40) idRun = requestAnimationFrame(idFrame);
 }
@@ -2152,6 +2271,69 @@ new IntersectionObserver(es => {
   idSeen = es[0].isIntersecting;
   if (idSeen) idWake(); else { cancelAnimationFrame(idRun); idRun = 0; }
 }, { rootMargin: '120px' }).observe(idCv);
+
+/* ---- filter ----
+   Filtering by the chips was the obvious idea and it did not work: they name
+   libraries, and "Python" selected seven of the eight projects while everything
+   else selected one. So the rows carry a data-kind instead, describing what the
+   work is rather than what it imports, and only kinds shared by at least two
+   projects are offered -- a filter that can only ever return one row is a link,
+   not a filter. */
+const KIND_LABEL = {
+  algorithms: 'algorithms', audio: 'signal processing', ml: 'machine learning',
+  research: 'research tooling', nlp: 'NLP', privacy: 'privacy',
+  tooling: 'developer tooling', product: 'product'
+};
+const filterbar = document.getElementById('filterbar');
+const cardEls = [...document.querySelectorAll('.card')];
+const kindsOf = c => (c.dataset.kind || '').split(/\s+/).filter(Boolean);
+let activeKind = null;
+
+(function buildFilter() {
+  const count = {};
+  cardEls.forEach(c => kindsOf(c).forEach(k => count[k] = (count[k] || 0) + 1));
+  const shared = Object.keys(count)
+    .filter(k => count[k] > 1)
+    .sort((a, b) => count[b] - count[a] || a.localeCompare(b));
+  if (shared.length < 2) { filterbar.remove(); return; }
+
+  filterbar.appendChild(Object.assign(document.createElement('span'), { textContent: 'filter' }));
+
+  for (const k of shared) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.kind = k;
+    b.setAttribute('aria-pressed', 'false');
+    b.append(KIND_LABEL[k] || k, Object.assign(document.createElement('i'), { textContent: count[k] }));
+    b.addEventListener('click', () => setKind(activeKind === k ? null : k));
+    filterbar.appendChild(b);
+  }
+
+  const clear = document.createElement('button');
+  clear.type = 'button'; clear.className = 'clear'; clear.hidden = true;
+  clear.textContent = 'show all';
+  clear.addEventListener('click', () => setKind(null));
+  filterbar.appendChild(clear);
+})();
+
+function setKind(kind, quiet) {
+  activeKind = kind;
+  cardEls.forEach(c => c.classList.toggle('hide', !!kind && !kindsOf(c).includes(kind)));
+  // a section whose every row is filtered out should take its heading with it
+  document.querySelectorAll('section').forEach(sec => {
+    const rows = sec.querySelectorAll('.card');
+    if (!rows.length) return;
+    sec.classList.toggle('hide', [...rows].every(r => r.classList.contains('hide')));
+  });
+  filterbar.querySelectorAll('button').forEach(b => {
+    if (b.classList.contains('clear')) { b.hidden = !kind; return; }
+    b.setAttribute('aria-pressed', String(b.dataset.kind === kind));
+  });
+  // rows moved: the snake's route and the reflow floats are both stale
+  resize();
+  draw(performance.now() / 1000);
+  if (!quiet) writeState();
+}
 
 /* ---- how it works ----
    A walkthrough is four steps of copy and one drawing each. All three projects
@@ -2641,6 +2823,39 @@ function drawPeek(name) {
   return true;
 }
 
+/* Inline sketches. Authored at 192x104 like the preview, drawn through a scale
+   so shrinking them never means rewriting eight sets of coordinates. */
+const SIG_W = 132, SIG_H = 72, SIG_S = SIG_W / PW_;
+const sigCards = [];
+
+function drawSig(cv, name) {
+  const sig = SIGS[name];
+  if (!sig) return false;
+  const d = Math.min(devicePixelRatio || 1, 2);
+  const bw = Math.round(SIG_W * d), bh = Math.round(SIG_H * d);
+  if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+  const c = cv.getContext('2d');
+  c.setTransform(d * SIG_S, 0, 0, d * SIG_S, 0, 0);
+  c.clearRect(0, 0, PW_, PH_);
+  c.lineWidth = 1 / SIG_S;
+  c.fg = css('--muted'); c.dim = css('--line');
+  c.hot = css('--sn-lite'); c.warn = css('--badge'); c.bg = css('--bg');
+  sig[1](c, rng(name.length * 7919 + name.charCodeAt(0) * 104729));
+  return true;
+}
+
+for (const card of document.querySelectorAll('.card')) {
+  const name = card.querySelector('h3').firstChild.textContent.replace(/[→]/g, '').trim();
+  if (!SIGS[name]) continue;
+  const cv = document.createElement('canvas');
+  cv.className = 'sig';
+  cv.setAttribute('role', 'img');
+  cv.setAttribute('aria-label', name + ': ' + SIGS[name][0]);
+  card.appendChild(cv);
+  sigCards.push({ cv, name });
+}
+const redrawSigs = () => sigCards.forEach(o => drawSig(o.cv, o.name));
+
 let peekOn = null;
 function showPeek(card, x, y) {
   const name = card.querySelector('h3').firstChild.textContent.replace(/[→]/g, '').trim();
@@ -2692,6 +2907,7 @@ function setTheme(mode) {
   if (mode) document.documentElement.setAttribute('data-theme', mode);
   else document.documentElement.removeAttribute('data-theme');
   try { mode ? localStorage.setItem('theme', mode) : localStorage.removeItem('theme'); } catch {}
+  redrawSigs();
   if (rafId === 0) draw(performance.now() / 1000);   // repaint the canvas when frozen
 }
 motionBtn.addEventListener('click', () => setMotion(paused));
@@ -4063,7 +4279,55 @@ const elMicNote = document.getElementById('elMicNote');
 const MIC_OK = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 if (MIC_OK) elMicRow.hidden = false;
 
-const TAKE_MS = 2600, POLL_MS = 45;
+// 2.6s was not long enough to say a seven-word passphrase, let alone say it
+// naturally. Verification can be shorter than enrolment: the template is
+// already built, this only has to match it.
+const ENROL_MS = 4600, TEST_MS = 3400, POLL_MS = 45;
+
+/* Silence used to unlock. Nothing in the pipeline cared how loud the input was:
+   the frames were ranked against each other and the top third taken whatever
+   they contained, and cosine similarity over mean-and-variance normalised
+   coefficients is scale free, so the shape of a quiet room could sit close
+   enough to the enrolled vector to pass.
+
+   So a take now has to clear two gates before it is scored at all. It must be
+   meaningfully louder than its own noise floor, and it must not look like
+   noise: spectral flatness is the ratio of the geometric to the arithmetic mean
+   of the power spectrum, which runs to 1 for anything hiss-like and drops well
+   below it for a voice, because speech puts its energy in a few harmonics and
+   formants rather than spreading it evenly. */
+const MIN_RMS = 0.014, PEAK_FRAC = 0.35, MAX_FLATNESS = 0.42;
+
+/* Kept apart from the microphone plumbing so the decision can be exercised
+   directly: given the frames of a take it returns either the voiced ones or the
+   reason it will not accept them. */
+function gateTake(takes, rate) {
+  const byLoud = [...takes].sort((a, b) => b.rms - a.rms);
+  const peak = byLoud.length ? byLoud[0].rms : 0;
+  // Relative to the loudest frame, not to the noise floor. Gating on the floor
+  // looked right and threw out any take of even loudness -- including someone
+  // holding a steady vowel -- because there the floor is the peak.
+  const gate = Math.max(MIN_RMS, peak * PEAK_FRAC);
+  const voiced = byLoud.filter(t => t.rms >= gate).slice(0, 24);
+
+  if (peak < MIN_RMS || voiced.length < 4)
+    return { reason: 'Did not hear a voice. Speak the phrase out loud and try again.' };
+
+  const flat = voiced.slice(0, 6)
+    .map(t => flatness(resampleTo16k(t.f, rate)))
+    .sort((a, b) => a - b)[0];
+  if (flat > MAX_FLATNESS)
+    return { reason: 'That was room noise, not speech. Try again a little closer to the mic.' };
+
+  return { voiced, flat };
+}
+
+function flatness(frame) {
+  const lg = melEnergies(frame);
+  let logSum = 0, sum = 0;
+  for (const v of lg) { logSum += v; sum += Math.exp(v); }
+  return Math.exp(logSum / lg.length) / (sum / lg.length || 1);
+}
 
 // The real project pairs the voiceprint with a passphrase that rotates daily,
 // so the demo does the same: the phrase is picked from the date, which means
@@ -4104,12 +4368,12 @@ function resampleTo16k(frame, rate) {
 }
 
 let micBusy = false;
-async function capture(label) {
+async function capture(label, ms) {
   if (micBusy) return null;
   micBusy = true;
   let stream = null, ctx = null;
   elSayK.textContent = label;
-  elSayT.textContent = (TAKE_MS / 1000).toFixed(1) + 's';
+  elSayT.textContent = (ms / 1000).toFixed(1) + 's';
   elDone.hidden = true;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
@@ -4131,26 +4395,23 @@ async function capture(label) {
         let rms = 0;
         for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
         takes.push({ rms: Math.sqrt(rms / buf.length), f: Float32Array.from(buf) });
-        const left = TAKE_MS - (performance.now() - t0);
+        const left = ms - (performance.now() - t0);
         elSayT.textContent = (Math.max(0, left) / 1000).toFixed(1) + 's';
         if (left <= 0) { clearInterval(iv); done(); }
       }, POLL_MS);
     });
 
-    takes.sort((a, b) => b.rms - a.rms);
-    const voiced = takes.slice(0, Math.max(3, Math.round(takes.length * 0.35)));
-    if (!voiced.length || voiced[0].rms < 0.006) {
-      elMicNote.textContent = 'Barely heard anything. Check the mic and try again.';
-      return null;
-    }
     const rate = ctx.sampleRate;
+    const gate = gateTake(takes, rate);
+    if (gate.reason) { elMicNote.textContent = gate.reason; return null; }
+    const { voiced, flat } = gate;
     const vecs = voiced.map(t => mfcc(resampleTo16k(t.f, rate)));
     const avg = vecs[0].map((_, k) => vecs.reduce((s, v) => s + v[k], 0) / vecs.length);
     const loudest = resampleTo16k(voiced[0].f, rate);
     let pk = 0;
     for (let i = 0; i < loudest.length; i++) pk = Math.max(pk, Math.abs(loudest[i]));
     if (pk) for (let i = 0; i < loudest.length; i++) loudest[i] /= pk;
-    elMicNote.textContent = `${voiced.length} voiced frames averaged`;
+    elMicNote.textContent = `${voiced.length} voiced frames averaged, flatness ${flat.toFixed(2)}`;
     return { sig: loudest, mel: melEnergies(loudest), mfcc: avg, frames: voiced.length };
   } catch (err) {
     elMicNote.textContent = err && err.name === 'NotAllowedError'
@@ -4176,7 +4437,7 @@ function elMicSync() {
 
 elEnrol.addEventListener('click', async () => {
   elEnrol.disabled = elTest.disabled = true;
-  const take = await capture('Enrolling, say the passphrase');
+  const take = await capture('Enrolling, say the passphrase', ENROL_MS);
   if (take) {
     REF_MEL = take.mel; REF_MFCC = take.mfcc; refIsMine = true;
     liveTake = take;
@@ -4189,7 +4450,7 @@ elEnrol.addEventListener('click', async () => {
 
 elTest.addEventListener('click', async () => {
   elEnrol.disabled = elTest.disabled = true;
-  const take = await capture('Say the passphrase again');
+  const take = await capture('Say the passphrase again', TEST_MS);
   if (take) liveTake = take;
   elMicSync(); elDraw();
 });
@@ -4233,6 +4494,7 @@ function writeState() {
     p.set('d', 'el'); p.set('v', elVoice.value); p.set('t', elThr.value);
     p.set('f', elF1.value); p.set('p', elPitch.value);
   }
+  if (activeKind) p.set('k', activeKind);
   const q = p.toString();
   history.replaceState(null, '', q ? '#' + q : location.pathname + location.search);
 }
@@ -4248,6 +4510,8 @@ function readState() {
     el.value = v;
   };
   stateLock = true;
+  const k = p.get('k');
+  if (k && filterbar.querySelector(`button[data-kind="${CSS.escape(k)}"]`)) setKind(k, true);
   switch (p.get('d')) {
     case 'hd':
       num('a', selA); num('b', selB);
@@ -4262,7 +4526,7 @@ function readState() {
       elThrV.textContent = (+elThr.value / 1000).toFixed(3);
       elOpen(true);
       break;
-    default: stateLock = false; return;
+    default: stateLock = false; return;   // a filter on its own is a valid link
   }
   stateLock = false;
   document.getElementById(p.get('d') === 'hd' ? 'hdDemo' : p.get('d') === 'cc' ? 'ccDemo' : 'elDemo')
@@ -4299,7 +4563,7 @@ addEventListener('resize', () => {
       const h = document.getElementById(k + 'How');
       if (h && !h.hidden && h._redraw) h._redraw();
     }
-    idDraw();
+    idDraw(); redrawSigs();
   }, 130);
 });
 
@@ -4330,7 +4594,7 @@ setTimeout(() => {
   resize(); draw(performance.now() / 1000);
 }, 1700);
 
-idInit(); idDraw();
+idInit(); idDraw(); redrawSigs();
 
 // each walkthrough's "Run the demo" opens the matching panel below it
 wireWalk('cc', () => { if (ccDemo.hidden) ccTry.click(); ccDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
