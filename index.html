@@ -5,6 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shezin Khais</title>
 <meta name="description" content="Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.">
+<link rel="canonical" href="https://shezinkhais.github.io/">
+
+<!-- the snake, as a curve: an SVG data URI keeps the page a single file -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M3 25c7 0 6-9 13-9s6-9 13-9' fill='none' stroke='%237ad48f' stroke-width='5' stroke-linecap='round'/></svg>">
+
+<!-- shared into Slack, LinkedIn or a DM this is all anyone sees first -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Shezin Khais">
+<meta property="og:url" content="https://shezinkhais.github.io/">
+<meta property="og:title" content="Shezin Khais">
+<meta property="og:description" content="Computer science student building small, focused tools in Python. Static analysis, sequence alignment, speaker verification. Every one ships with tests and CI.">
+<meta property="og:image" content="https://shezinkhais.github.io/social.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Shezin Khais, portfolio: CodeCartographer, HarmonicDNA, EchoLock.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Shezin Khais">
+<meta name="twitter:description" content="Computer science student building small, focused tools in Python. Every one ships with tests and CI.">
+<meta name="twitter:image" content="https://shezinkhais.github.io/social.png">
+<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fbfcfd" media="(prefers-color-scheme: light)">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Person",
+  "name": "Mohamed Shezin Khaiser",
+  "alternateName": "Shezin Khais",
+  "url": "https://shezinkhais.github.io/",
+  "email": "mailto:shezinkhais@gmail.com",
+  "jobTitle": "Computer science student",
+  "address": { "@type": "PostalAddress", "addressLocality": "Dubai", "addressCountry": "AE" },
+  "alumniOf": { "@type": "CollegeOrUniversity", "name": "University of Wollongong in Dubai" },
+  "knowsAbout": ["Python", "Static analysis", "Signal processing", "Machine learning", "Federated learning"],
+  "sameAs": [
+    "https://github.com/ShezinKhais",
+    "https://www.linkedin.com/in/shezinkhaiser/"
+  ]
+}
+</script>
 <style>
   :root {
     --bg:#0d1117; --panel:rgba(18,24,32,.70); --panel-hi:rgba(30,39,52,.86);
@@ -576,6 +616,52 @@
     :root { --dim:var(--muted); }
     .card h3, .stat b, .demo-out b { color:var(--fg); }
     .chip, .status { border-color:currentColor; }
+  }
+
+  /* Printed, this should read as a document. Everything that only makes sense
+     on a screen comes out: the canvas, the controls, the rail, the demos, the
+     badge. The detail normally behind a hover is expanded instead, because
+     nobody can hover a sheet of paper, and link targets are spelled out. */
+  @media print {
+    @page { margin: 14mm; }
+    /* !important on the tokens: the light theme is selected by
+       :root[data-theme="light"], which outranks a plain :root, so a pinned dark
+       theme would otherwise print white text onto white paper */
+    :root {
+      --bg:#fff !important; --fg:#000 !important; --muted:#333 !important;
+      --dim:#555 !important; --line:#bbb !important;
+      --panel:transparent !important; --panel-hi:transparent !important;
+      --accent:#000 !important; --num:#000 !important; --badge:#000 !important;
+      --sn-mid:#666 !important; --sn-lite:#888 !important;
+    }
+    html, body { background:#fff !important; color:#000; }
+    body { padding-bottom:0; }
+    #bg, #prog, .tools, .rail, #pal, #peek, .idwrap, .demo, .tryit,
+    .how, .noscript-hero { display:none !important; }
+    .wrap { max-width:none; margin:0; padding:0; }
+    .card, .tryit { margin:0; padding:10px 0 10px 34px; break-inside:avoid; }
+    .card::before { left:0; }
+    .card h3 { font-size:15pt; color:#000 !important; transform:none !important; clip-path:none !important; }
+    .card h3 .arrow { display:none; }
+    .card > p { font-size:10pt; color:#222 !important; max-width:none; height:auto !important; }
+    /* the reveal is a 0fr/1fr grid on screen; on paper it is just a block */
+    .more { display:block !important; opacity:1 !important; }
+    .more > div { overflow:visible !important; }
+    .more p { font-size:9.5pt; border-left:2px solid #999; }
+    .chip { color:#444 !important; }
+    h2 { position:static; background:none; padding:14pt 0 4pt; font-size:9pt; }
+    h2::after { display:none; }
+    section { margin-top:10pt; break-inside:avoid-page; }
+    .stat b { color:#000 !important; }
+    body.anim .card { opacity:1 !important; transform:none !important; }
+    /* the hero is painted on canvas, so print needs the real heading back */
+    .vh { position:static; width:auto; height:auto; margin:0; clip:auto;
+          font-size:20pt; line-height:1.25; }
+    #heroSpace { display:none; }
+    .about { grid-template-columns:1fr; }
+    .about-links a::after { content:" (" attr(href) ")"; font-size:8pt; color:#555; }
+    .about-links a[href^="mailto"]::after { content:""; }
+    footer { margin:16pt 0 0; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -1324,9 +1410,12 @@ function buildPath() {
   const L = mid - half, R = mid + half;
   const pts = [{ x: mid, y: -240, v: 1150 }];
 
-  // one waypoint per card, not two, so a full card height separates each turn
+  // one waypoint per card, not two, so a full card height separates each turn.
+  // A row with no box -- collapsed, or hidden by a stylesheet -- is skipped
+  // rather than collapsing its waypoint onto the origin.
   document.querySelectorAll('.card').forEach((c, i) => {
     const r = c.getBoundingClientRect();
+    if (!r.height) return;
     pts.push({ x: i % 2 ? R : L, y: r.top + scrollY + r.height * 0.5, v: 1150 });
   });
 

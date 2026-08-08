@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Not found &middot; Shezin Khais</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M3 25c7 0 6-9 13-9s6-9 13-9' fill='none' stroke='%237ad48f' stroke-width='5' stroke-linecap='round'/></svg>">
+<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#fbfcfd" media="(prefers-color-scheme: light)">
+<style>
+  :root {
+    --bg:#0d1117; --fg:#e6edf3; --muted:#8b949e; --dim:#808894;
+    --line:#22282f; --sn-mid:#3fa055; --sn-lite:#7ad48f; --num:#7ad48f;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:#fbfcfd; --fg:#1f2328; --muted:#57606a; --dim:#6d7580;
+      --line:#d8dee4; --sn-mid:#31894a; --sn-lite:#63bd7c; --num:#2b8544;
+    }
+  }
+  * { box-sizing:border-box; }
+  html,body { margin:0; padding:0; height:100%; background:var(--bg); }
+  body {
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    color:var(--fg); line-height:1.6; -webkit-font-smoothing:antialiased;
+    display:flex; align-items:center; justify-content:center; padding:24px;
+  }
+  main { width:100%; max-width:640px; }
+  .tag { font-size:11.5px; letter-spacing:.16em; text-transform:lowercase; color:var(--dim); margin:0 0 6px; }
+  .tag b { color:var(--num); font-weight:400; }
+  h1 { font-size:clamp(34px,8vw,76px); letter-spacing:-.04em; line-height:1; margin:0 0 18px; font-weight:600; }
+  p { font-size:14px; color:var(--muted); margin:0 0 30px; max-width:48ch; }
+  hr { border:0; border-top:1px solid var(--line); margin:0 0 26px; }
+  .links { display:flex; flex-wrap:wrap; gap:0 26px; }
+  .links a {
+    font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--num); text-decoration:none; padding:13px 0;
+    border-bottom:1px solid transparent; transition:color .2s, border-color .2s;
+  }
+  .links a:hover { color:var(--fg); border-bottom-color:var(--sn-mid); }
+  .links a:focus-visible { outline:2px solid var(--sn-mid); outline-offset:3px; }
+  svg { display:block; width:100%; max-width:420px; height:auto; margin:0 0 34px; overflow:visible; }
+  .s-body { fill:none; stroke:var(--sn-mid); stroke-width:11; stroke-linecap:round; }
+  .s-belly { fill:none; stroke:var(--sn-lite); stroke-width:3; stroke-linecap:round; }
+  @media (prefers-reduced-motion: no-preference) {
+    .s-body, .s-belly { stroke-dasharray:520; stroke-dashoffset:520; animation:draw 1.5s cubic-bezier(.16,1,.3,1) forwards; }
+    .s-belly { animation-delay:.12s; }
+    @keyframes draw { to { stroke-dashoffset:0; } }
+  }
+</style>
+</head>
+<body>
+<main>
+  <!-- it went looking and came back with nothing -->
+  <svg viewBox="0 0 420 90" role="img" aria-label="A snake, having found nothing here">
+    <path class="s-body"  d="M6 74C60 74 52 16 116 16s56 58 120 58 56-58 120-58"/>
+    <path class="s-belly" d="M6 74C60 74 52 16 116 16s56 58 120 58 56-58 120-58"/>
+    <circle cx="358" cy="16" r="9" fill="var(--sn-mid)"/>
+    <circle cx="361" cy="13" r="2.2" fill="#ffd43b"/>
+    <circle cx="361" cy="19" r="2.2" fill="#ffd43b"/>
+  </svg>
+
+  <p class="tag"><b>[</b> 404 <b>]</b></p>
+  <h1>Nothing here</h1>
+  <p>That address does not match anything on this site. It may have been a
+    typo, or something that used to live here and no longer does.</p>
+  <hr>
+  <nav class="links">
+    <a href="/">Back to the index</a>
+    <a href="https://github.com/ShezinKhais">GitHub</a>
+    <a href="mailto:shezinkhais@gmail.com">Email</a>
+  </nav>
+</main>
+</body>
+</html>
