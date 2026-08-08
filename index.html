@@ -146,75 +146,45 @@
   }
   h2.in::after { transform:scaleX(1); }
 
-  /* ---------- pinned method section ----------
-     A tall outer wrapper with a stage stuck to the top of it: the stage holds
-     still while the scroll runs through the wrapper, and the step it shows is
-     read off how far through you are. The scroll distance is the timeline. */
-  .pin { margin-top:74px; }
-  .pin-outer { position:relative; height:400vh; }
-  .pin-stage {
-    position:sticky; top:0; height:100vh; min-height:520px;
-    display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr);
-    gap:48px; align-items:center;
+  /* ---------- how it works ----------
+     One walkthrough per main project, opened from its row rather than parked in
+     the page as a section of its own. Steps advance on a click, so nothing here
+     takes the scroll hostage or occupies space before you have asked for it. */
+  .how {
+    border:0; border-left:2px solid var(--sn-mid); background:var(--panel);
+    padding:20px 0 20px 20px; margin:4px 0 18px;
   }
-  .pin-num {
-    font-size:clamp(56px,9vw,124px); line-height:.86; font-weight:600;
-    letter-spacing:-.05em; color:var(--line);
-    font-variant-numeric:tabular-nums; margin:0 0 6px;
-    transition:color .4s ease;
+  .how[hidden] { display:none; }
+  .how-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); gap:34px; align-items:start; }
+  @media (max-width:760px) { .how-grid { grid-template-columns:1fr; gap:20px; } }
+  .how-num {
+    font-size:44px; line-height:.9; font-weight:600; letter-spacing:-.05em;
+    color:var(--num); font-variant-numeric:tabular-nums; margin:0 0 8px;
   }
-  .pin-copy > div.on .pin-num { color:var(--sn-mid); }
-  .pin-t { font-size:clamp(19px,2.6vw,29px); letter-spacing:-.025em; margin:0 0 14px; color:var(--fg); }
-  .pin-d { font-size:13.5px; color:var(--muted); margin:0; max-width:52ch; }
-  .pin-d code { color:var(--num); }
-  .pin-copy > div {
-    position:absolute; opacity:0; transform:translateY(16px);
-    transition:opacity .42s ease, transform .42s cubic-bezier(.16,1,.3,1);
-    pointer-events:none;
+  .how-t { font-size:17px; letter-spacing:-.02em; margin:0 0 10px; color:var(--fg); }
+  .how-d { font-size:13px; color:var(--muted); margin:0; line-height:1.62; min-height:6.4em; }
+  .how-d code { color:var(--num); }
+  .how-art { border:1px solid var(--line); background:var(--bg); aspect-ratio:4/3; }
+  .how-art canvas { display:block; width:100%; height:100%; }
+  @media (max-width:760px) { .how-d { min-height:0; } }
+
+  .how-nav { display:flex; align-items:center; gap:10px; margin-top:18px; flex-wrap:wrap; }
+  .how-nav button {
+    font:inherit; font-size:11.5px; color:var(--muted); cursor:pointer;
+    background:var(--bg); border:1px solid var(--line); border-radius:0;
+    padding:7px 14px; transition:color .2s, border-color .2s;
   }
-  .pin-copy { position:relative; min-height:270px; }
-  .pin-copy > div.on { opacity:1; transform:none; pointer-events:auto; }
-  .pin-art { border:1px solid var(--line); background:var(--panel); aspect-ratio:4/3; }
-  #pinCv { display:block; width:100%; height:100%; }
-  .pin-left { min-width:0; }
-  .pin-cta {
-    display:flex; align-items:center; gap:12px; margin-top:24px;
-    font:inherit; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase;
-    color:var(--num); cursor:pointer; text-align:left;
-    background:none; border:0; border-bottom:1px solid var(--sn-mid);
-    padding:13px 0; transition:color .2s, gap .25s;
+  .how-nav button:hover:not(:disabled) { color:var(--fg); border-color:var(--sn-mid); }
+  .how-nav button:disabled { opacity:.38; cursor:default; }
+  .how-nav button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .how-nav .run { margin-left:auto; color:var(--num); border-color:var(--sn-mid); }
+  .how-dots { display:flex; gap:6px; }
+  .how-dots button {
+    width:26px; height:12px; padding:0; border:0; background:var(--line);
+    cursor:pointer; transition:background .25s;
   }
-  .pin-cta:hover { color:var(--fg); gap:16px; }
-  .pin-cta:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
-  .pin-cta .ic { font-size:9px; color:var(--num); }
-  .pin-cta .sub { margin-left:auto; font-size:10px; color:var(--dim); letter-spacing:.1em; }
-  .pin-rail { display:flex; gap:7px; margin-top:26px; }
-  .pin-rail i {
-    flex:1; height:2px; background:var(--line); position:relative; overflow:hidden;
-  }
-  .pin-rail i::after {
-    content:""; position:absolute; inset:0; background:var(--sn-lite);
-    transform:scaleX(var(--f,0)); transform-origin:left; transition:transform .12s linear;
-  }
-  @media (max-width:820px) {
-    .pin-outer { height:auto; }
-    .pin-stage { position:static; height:auto; min-height:0; grid-template-columns:1fr; gap:22px; padding:8px 0 26px; }
-    .pin-copy { min-height:0; }
-    .pin-copy > div { position:static; opacity:1; transform:none; margin-bottom:30px; }
-    /* every step is on screen at once here, so none of them are "not reached yet" */
-    .pin-num { color:var(--num); }
-    .pin-art { display:none; }
-    .pin-rail { display:none; }
-  }
-  /* pinning hijacks the scroll, so anyone who asked for less motion gets the
-     four steps as a plain list instead */
-  @media (prefers-reduced-motion: reduce) {
-    .pin-outer { height:auto; }
-    .pin-stage { position:static; height:auto; min-height:0; }
-    .pin-copy { min-height:0; }
-    .pin-copy > div { position:static; opacity:1; transform:none; margin-bottom:26px; }
-    .pin-num { color:var(--num); }
-  }
+  .how-dots button[aria-current="true"] { background:var(--sn-lite); }
+  @media (pointer: coarse) { .how-dots button { height:24px; } }
 
   /* ---------- index rows ----------
      The projects are an index, not a deck of panels: one hairline-ruled row
@@ -534,7 +504,9 @@
   #peekCv { display:block; width:108px; height:58px; }
   #peekCap {
     display:block; margin-top:4px; font-size:8px; letter-spacing:.09em;
-    text-transform:uppercase; color:var(--dim);
+    /* --muted, not --dim: this sits on --panel-hi, where --dim reaches only
+       4.36:1 at this size */
+    text-transform:uppercase; color:var(--muted);
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   /* no cursor to follow, and no room to put it */
@@ -664,59 +636,6 @@
     </div>
   </header>
 
-  <section id="sec-method" class="pin">
-    <h2><span>method</span></h2>
-    <div class="pin-outer" id="pinOuter">
-      <div class="pin-stage">
-       <div class="pin-left">
-        <div class="pin-copy" id="pinCopy">
-          <div class="on">
-            <p class="pin-num">01</p>
-            <h3 class="pin-t">Audio becomes a chromagram</h3>
-            <p class="pin-d">Every frame of the recording is folded onto the twelve pitch
-              classes, so an octave apart counts as the same note. Beat tracking
-              then averages those frames within each beat, which throws away
-              timing detail nobody needs in order to name a chord.</p>
-          </div>
-          <div>
-            <p class="pin-num">02</p>
-            <h3 class="pin-t">Chroma matches a chord template</h3>
-            <p class="pin-d">Each beat's vector is compared by cosine similarity against
-              24 templates, twelve roots times major and minor. Sevenths,
-              inversions and passing chords collapse into whichever triad they
-              sit closest to. That loss is the method, not a shortcut.</p>
-          </div>
-          <div>
-            <p class="pin-num">03</p>
-            <h3 class="pin-t">Two sequences are aligned</h3>
-            <p class="pin-d">Smith-Waterman fills a matrix with
-              <code>H[i,j] = max(0, diagonal + s, up + gap, left + gap)</code>,
-              where <code>s</code> scores two chords by harmonic relationship
-              rather than by whether their labels are equal. Clamping at zero is
-              what makes it find a shared passage inside two different songs.</p>
-          </div>
-          <div>
-            <p class="pin-num">04</p>
-            <h3 class="pin-t">Traceback recovers the passage</h3>
-            <p class="pin-d">Walking back from the highest cell until the score hits zero
-              gives the aligned run itself. The score says how alike they are;
-              identity says how much of that was exact matching, which is how you
-              tell a real quotation from two songs merely moving in parallel.</p>
-          </div>
-        </div>
-        <div class="pin-rail" id="pinRail" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-        <button class="pin-cta" id="pinCta">
-          <span class="ic" aria-hidden="true">&#9654;</span>
-          Run this on two real progressions
-          <span class="sub" id="pinCtaSub">step 01 of 04</span>
-        </button>
-       </div>
-        <div class="pin-art"><canvas id="pinCv" role="img"
-             aria-label="Illustration of the current step in the chord alignment pipeline"></canvas></div>
-      </div>
-    </div>
-  </section>
-
   <section id="sec-featured">
     <h2><span>featured</span></h2>
 
@@ -728,6 +647,14 @@
       </div></div>
       <div class="chips"><span class="chip">Python</span><span class="chip">AST</span><span class="chip">graph algorithms</span><span class="chip">zero deps</span></div>
     </a>
+
+    <button class="tryit howto" id="ccHowT" aria-expanded="false" aria-controls="ccHow">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      How it works
+      <span class="sub">four steps, from source to cycles</span>
+    </button>
+
+    <div class="how" id="ccHow" hidden></div>
 
     <button class="tryit" id="ccTry" aria-expanded="false" aria-controls="ccDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
@@ -779,6 +706,14 @@
       </div></div>
       <div class="chips"><span class="chip">Python</span><span class="chip">signal processing</span><span class="chip">sequence alignment</span></div>
     </a>
+
+    <button class="tryit howto" id="hdHowT" aria-expanded="false" aria-controls="hdHow">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      How it works
+      <span class="sub">four steps, from audio to alignment</span>
+    </button>
+
+    <div class="how" id="hdHow" hidden></div>
 
     <button class="tryit" id="hdTry" aria-expanded="false" aria-controls="hdDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
@@ -847,6 +782,14 @@
       </div></div>
       <div class="chips"><span class="chip">Python</span><span class="chip">numpy</span><span class="chip">speaker verification</span></div>
     </a>
+
+    <button class="tryit howto" id="elHowT" aria-expanded="false" aria-controls="elHow">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      How it works
+      <span class="sub">four steps, from signal to verdict</span>
+    </button>
+
+    <div class="how" id="elHow" hidden></div>
 
     <button class="tryit" id="elTry" aria-expanded="false" aria-controls="elDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
@@ -1239,29 +1182,175 @@ function coilPoints(b) {
   return out;
 }
 
-function buildPath() {
-  const pts = [{ x: CX + CW * 0.5, y: -240, v: 1150 }];
-  const L = CX + CW * 0.22, R = CX + CW * 0.78;
+/* The route is a handful of waypoints, but the body traces its own trail
+   exactly rather than chording across it, so it reproduces whatever the head
+   did, including a polyline corner. Two waypoints per card at 634px of lateral
+   swing for 95px of descent meant an 83 degree turn every time, which the body
+   then folded through at up to 178 degrees a joint. Running the waypoints
+   through a Catmull-Rom spline turns each corner into an arc the body can
+   actually follow. The coil is left alone: its perimeter is sized to close on
+   the body length exactly, and resampling would spoil that. */
+// Centripetal Catmull-Rom, not the uniform kind. Uniform overshoots wherever
+// three waypoints make a sharp angle and can put a cusp or a small loop in the
+// curve; knot spacing by the square root of chord length is the standard fix
+// and is provably cusp-free, which matters here because the body traces the
+// curve rather than approximating it.
+function smoothPath(pts, step) {
+  if (pts.length < 3) return pts.slice();
+  const at = i => pts[clamp(i, 0, pts.length - 1)];
+  const knot = (t, a, b) => t + Math.max(Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)), 1e-4);
+  const out = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = at(i - 1), p1 = at(i), p2 = at(i + 1), p3 = at(i + 2);
+    const t0 = 0, t1 = knot(t0, p0, p1), t2 = knot(t1, p1, p2), t3 = knot(t2, p2, p3);
+    const n = Math.max(2, Math.ceil(Math.hypot(p2.x - p1.x, p2.y - p1.y) / step));
+    for (let k = 0; k < n; k++) {
+      const t = t1 + (t2 - t1) * k / n;
+      const mix = (ta, tb, a, b, key) =>
+        ((tb - t) * a[key] + (t - ta) * b[key]) / (tb - ta);
+      const A1x = mix(t0, t1, p0, p1, 'x'), A1y = mix(t0, t1, p0, p1, 'y');
+      const A2x = mix(t1, t2, p1, p2, 'x'), A2y = mix(t1, t2, p1, p2, 'y');
+      const A3x = mix(t2, t3, p2, p3, 'x'), A3y = mix(t2, t3, p2, p3, 'y');
+      const B1x = ((t2 - t) * A1x + (t - t0) * A2x) / (t2 - t0);
+      const B1y = ((t2 - t) * A1y + (t - t0) * A2y) / (t2 - t0);
+      const B2x = ((t3 - t) * A2x + (t - t1) * A3x) / (t3 - t1);
+      const B2y = ((t3 - t) * A2y + (t - t1) * A3y) / (t3 - t1);
+      out.push({
+        x: ((t2 - t) * B1x + (t - t1) * B2x) / (t2 - t1),
+        y: ((t2 - t) * B1y + (t - t1) * B2y) / (t2 - t1),
+        v: p1.v
+      });
+    }
+  }
+  out.push(pts[pts.length - 1]);
+  return out;
+}
 
+/* Smoothing the approach and then butting it against the coil still left a
+   corner at the join: the transit arrived from below-right while the stadium
+   starts at its top-left heading right. Adding a waypoint one run-length back
+   along the coil's own opening direction makes the last leg collinear with it,
+   so the spline curves into the loop instead of turning onto it. */
+/* Walk a polyline and drop a point every `step` along it. The points land on
+   the existing segments, so the geometry and total arc length are untouched --
+   the coil still closes on the body length exactly -- but the spline seams stop
+   leaving near zero length segments behind, which showed up as isolated 80
+   degree spikes between two 28 degree neighbours. */
+function resample(pts, step) {
+  if (pts.length < 2) return pts.slice();
+  const out = [pts[0]];
+  let need = step;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i];
+    const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+    if (segLen < 1e-9) continue;
+    let pos = 0;
+    while (segLen - pos >= need) {
+      pos += need;
+      const k = pos / segLen;
+      out.push({ x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, v: b.v });
+      need = step;
+    }
+    need -= (segLen - pos);
+  }
+  const last = pts[pts.length - 1], tail = out[out.length - 1];
+  if (Math.hypot(last.x - tail.x, last.y - tail.y) > step * 0.35) out.push(last);
+  return out;
+}
+
+/* Relaxation smooths everywhere, including stretches that were already fine,
+   which slowly flattens the route's character. This instead touches only the
+   points that actually turn too sharply, nudging each toward the midpoint of
+   its neighbours until nothing bends more than `maxDeg`. With points 6px apart
+   a 12 degree limit is a radius of about 29px, which is roughly what the coil
+   asks of the body and demonstrably reads as a curve rather than a fold. */
+function easeCorners(pts, maxDeg, passes, keepTail) {
+  const lim = Math.cos(maxDeg * Math.PI / 180);
+  const last = pts.length - 1 - (keepTail || 0);
+  for (let k = 0; k < passes; k++) {
+    let hit = 0;
+    for (let i = 1; i < last; i++) {
+      const a = pts[i - 1], b = pts[i], c2 = pts[i + 1];
+      const x1 = b.x - a.x, y1 = b.y - a.y, x2 = c2.x - b.x, y2 = c2.y - b.y;
+      const n1 = Math.hypot(x1, y1), n2 = Math.hypot(x2, y2);
+      if (n1 < 1e-6 || n2 < 1e-6) continue;
+      if ((x1 * x2 + y1 * y2) / (n1 * n2) >= lim) continue;
+      b.x += ((a.x + c2.x) / 2 - b.x) * 0.18;
+      b.y += ((a.y + c2.y) / 2 - b.y) * 0.18;
+      hit++;
+    }
+    if (!hit) break;
+  }
+  return pts;
+}
+
+function joinCoil(lead, coil) {
+  const c0 = coil[0], c1 = coil[1] || coil[0];
+  const ux = c1.x - c0.x, uy = c1.y - c0.y;
+  const L = Math.hypot(ux, uy) || 1;
+  const pts = lead.concat([
+    { x: c0.x - ux / L * 260, y: c0.y - uy / L * 260, v: 1000 },
+    { x: c0.x - ux / L * 110, y: c0.y - uy / L * 110, v: 950 },
+    { x: c0.x, y: c0.y, v: coil[0].v }
+  ]);
+  let transit = resample(smoothPath(pts, 12), 6);
+
+  /* Relaxing pulls the approach off the tangent, and because the pass pins its
+     endpoints the corner at the seam is the one thing that survives every round
+     of smoothing: measured at 99 degrees with the route either side of it under
+     8. So the last stretch is eased onto the line the coil actually opens
+     along, weighted so it is exact at the seam and fades out well before it. */
+  const M = 16;
+  for (let k = 0; k < M; k++) {
+    const i = transit.length - 1 - k;
+    if (i < 1) break;
+    const w = 1 - k / M;
+    const tx = c0.x - ux / L * (k * 6), ty = c0.y - uy / L * (k * 6);
+    transit[i].x = transit[i].x * (1 - w) + tx * w;
+    transit[i].y = transit[i].y * (1 - w) + ty * w;
+  }
+  // the tangent run is left alone: it is the one stretch that has to stay exact
+  for (let round = 0; round < 8; round++)
+    transit = resample(easeCorners(transit, 11, 50, M + 2), 6);
+  return transit.concat(coil.slice(1));
+}
+
+function buildPath() {
+  const mid = CX + CW * 0.5;
+  // capped in pixels, not as a fraction of the column: a wider page should give
+  // the snake more room, not a proportionally sharper zigzag
+  const half = Math.min(CW * 0.20, 190);
+  const L = mid - half, R = mid + half;
+  const pts = [{ x: mid, y: -240, v: 1150 }];
+
+  // one waypoint per card, not two, so a full card height separates each turn
   document.querySelectorAll('.card').forEach((c, i) => {
     const r = c.getBoundingClientRect();
-    const top = r.top + scrollY;
-    pts.push({ x: i % 2 ? R : L, y: top + r.height * 0.30, v: 1150 });
-    pts.push({ x: i % 2 ? L : R, y: top + r.height * 0.76, v: 1150 });
+    pts.push({ x: i % 2 ? R : L, y: r.top + scrollY + r.height * 0.5, v: 1150 });
   });
 
+  /* The return leg used to reverse at a single point on the bottom edge and
+     then climb in full-width diagonals. A body that traces its own trail cannot
+     turn on the spot: it folds. Joints sit 8px apart and stay readable to about
+     12 degrees of bend each, which puts a floor of roughly 40px on the radius
+     the route is allowed to use, so the turn is a wide U instead of a corner
+     and the climb keeps the same amplitude as the descent. */
   const bottom = PH - 70;
-  pts.push({ x: CX + CW * 0.5, y: bottom, v: 1200 });
-  pts.push({ x: CX + CW * 0.95, y: bottom - PH * 0.30, v: 1400 });
-  pts.push({ x: CX + CW * 0.05, y: bottom - PH * 0.60, v: 1400 });
-  pts.push({ x: CX + CW * 0.92, y: bottom - PH * 0.82, v: 1400 });
+  pts.push({ x: R, y: bottom - 300, v: 1250 });
+  pts.push({ x: mid + half * 0.55, y: bottom - 90, v: 1250 });
+  pts.push({ x: mid, y: bottom, v: 1300 });
+  pts.push({ x: mid - half * 0.55, y: bottom - 90, v: 1300 });
+  pts.push({ x: L, y: bottom - 300, v: 1400 });
+
+  for (let i = 0; i < 4; i++) {
+    const f = 0.70 - i * 0.19;
+    pts.push({ x: i % 2 ? L : R, y: 120 + (bottom - 120) * f, v: 1400 });
+  }
 
   const box = nameBox();
   pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 950 });
 
-  for (const p of coilPoints(box)) pts.push(p);
-
-  path = pts;
+  path = joinCoil(pts, coilPoints(box));
   tourPath = true;
   if (pathIdx >= path.length) { pathIdx = Math.max(0, path.length - 1); pathPos = 0; }
 }
@@ -1295,10 +1384,15 @@ function titleBox(card) {
 // Re-aim: a short approach leg from wherever the head is, then a coil on the box.
 function routeTo(box) {
   if (!box) return;
-  const pts = [{ x: guide.x, y: guide.y, v: 1400 }];
-  pts.push({ x: box.x + box.w * 0.5, y: box.y + box.h + 130, v: 1100 });
-  for (const p of coilPoints(box)) pts.push(p);
-  path = pts; pathIdx = 0; pathPos = 0;
+  // lead in from wherever the head is, through a point below the box, curving
+  // rather than cornering onto the coil
+  const lead = [
+    { x: guide.x, y: guide.y, v: 1400 },
+    { x: (guide.x + box.x + box.w * 0.5) / 2, y: (guide.y + box.y + box.h + 130) / 2, v: 1250 },
+    { x: box.x + box.w * 0.5, y: box.y + box.h + 130, v: 1100 }
+  ];
+  path = joinCoil(lead, coilPoints(box));
+  pathIdx = 0; pathPos = 0;
   tourPath = false;
 }
 
@@ -1337,9 +1431,23 @@ function walk(dt) {
 // sway is keyed to distance covered, not to the clock, so it stops when it stops.
 const SWAY = 26, SWAY_K = 2 * Math.PI / 250;
 const guide = { x: 0, y: 0 }, dir = { x: 0, y: 1 };
-let guideSet = false, travelled = 0, speedNow = 0;
+let guideSet = false, travelled = 0, speedNow = 0, kappaS = 0, lat = 0;
 
+/* The head is advanced in sub-steps rather than once a frame. The trail is
+   sampled wherever the head happens to be at the end of a step, so at transit
+   speed one sample per frame laid down 19px chords and every curve's turning
+   collected at those few joins: measured as folds of 60 to 175 degrees at a
+   single joint, travelling down the body as it advanced. On the coil the head
+   only covers 5.7px a frame, which is why the same route looked smooth once it
+   settled. Sub-stepping to a fixed ~5px keeps the trail's resolution constant
+   whatever the speed, so a curve is recorded as a curve. */
 function stepSnake(t, dt) {
+  const subs = clamp(Math.ceil(speedNow * dt / 5), 1, 10);
+  for (let k = 0; k < subs; k++) subStep(dt / subs);
+  placeJoints();
+}
+
+function subStep(dt) {
   const tgt = walk(dt);
   if (!guideSet) { guide.x = tgt.x; guide.y = tgt.y; guideSet = true; }
   // head has reached the end of the opening route: the introduction is over
@@ -1351,16 +1459,39 @@ function stepSnake(t, dt) {
   const dx = tgt.x - guide.x, dy = tgt.y - guide.y;
   const step = Math.hypot(dx, dy);
   guide.x = tgt.x; guide.y = tgt.y;
+  const pdx = dir.x, pdy = dir.y;
   if (step > 0.001) { dir.x = dx / step; dir.y = dy / step; }
 
   travelled += step;
   speedNow += (step / Math.max(dt, 1e-4) - speedNow) * Math.min(1, dt * 5);
 
+  /* The trail records the guide pushed sideways by `lat`, so on a curve of
+     radius r the inside of the offset sweeps a shorter arc than the guide does:
+     once lat approaches r the recorded point stops advancing and lays a hairpin
+     into the trail that the body then has to fold through.
+
+     Clamping lat against 1/curvature was the obvious guard and was worse than
+     the problem: per-substep curvature is noisy, so the clamp engaged and
+     released between substeps and snapped the offset sideways by 20px in 5px of
+     travel, which is itself a fold. Measured at 137 degrees in the trail while
+     the route under it bent by 0.45. So the curvature is smoothed and scales
+     the amplitude continuously instead, and the offset is additionally rate
+     limited: both are things that can only ever make the trail smoother. */
+  const turn = Math.abs(Math.atan2(dir.x * pdy - dir.y * pdx, dir.x * pdx + dir.y * pdy));
+  const kappa = step > 0.01 ? turn / step : 0;
+  kappaS += (kappa - kappaS) * 0.12;
+
   // amplitude rides the speed, so it slithers hard while travelling and lies
   // almost straight as it eases onto the coil
-  const lat = Math.sin(travelled * SWAY_K) * SWAY * Math.min(1, speedNow / 950);
+  const want = Math.sin(travelled * SWAY_K) * SWAY
+    * Math.min(1, speedNow / 950)
+    / (1 + kappaS * SWAY * 2.4);
+  // below 1.0 the offset can never outrun the guide, so it cannot reverse;
+  // at 0.42 it was binding on every substep and flattening the sine into a
+  // triangle wave, which raised the median bend rather than lowering it
+  const glide = 0.85 * Math.max(step, 0.01);
+  lat = clamp(want, lat - glide, lat + glide);
   pushTrail(guide.x - dir.y * lat, guide.y + dir.x * lat);
-  placeJoints();
 }
 
 const halfWidth = f =>
@@ -1932,152 +2063,347 @@ new IntersectionObserver(es => {
   if (idSeen) idWake(); else { cancelAnimationFrame(idRun); idRun = 0; }
 }, { rootMargin: '120px' }).observe(idCv);
 
-/* ---- pinned method section ----
-   Progress through the tall wrapper is the timeline: how far the sticky stage
-   has travelled inside it decides which of the four steps is showing and how
-   far the rail has filled. Nothing here animates on a clock, so pausing on a
-   step holds it exactly where you left it. */
-const pinOuter = document.getElementById('pinOuter');
-const pinCopy = document.getElementById('pinCopy');
-const pinRail = document.getElementById('pinRail');
-const pinCv = document.getElementById('pinCv');
-const pinCtx = pinCv.getContext('2d');
-const pinCta = document.getElementById('pinCta');
-const pinCtaSub = document.getElementById('pinCtaSub');
-const pinSteps = [...pinCopy.children];
-// the section explains the algorithm; the button hands you the running one
-pinCta.addEventListener('click', () => {
-  if (hdDemo.hidden) openDemo(true);
-  hdDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
-  writeState();
-});
-const pinBars = [...pinRail.children];
-const PIN_N = pinSteps.length;
-let pinAt = -1, pinW = 0, pinH = 0;
+/* ---- how it works ----
+   A walkthrough is four steps of copy and one drawing each. All three projects
+   share this one implementation; only the data differs. The panels build
+   themselves the first time they are opened, so a visitor who never asks for
+   one never pays for its markup or its canvas. */
+const HOW_W = 300, HOW_H = 225;
 
-// each step draws the stage of the pipeline it describes
-function pinDraw(step, t) {
-  const c = pinCtx, W = pinW, H = pinH;
-  if (!W || !H) return;
-  const d = Math.min(devicePixelRatio || 1, 2);
-  if (pinCv.width !== Math.round(W * d)) { pinCv.width = W * d; pinCv.height = H * d; }
-  c.setTransform(d, 0, 0, d, 0, 0);
-  c.clearRect(0, 0, W, H);
-  c.font = '10px ' + MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
-  const line = css('--line'), dim = css('--dim'), fg = css('--muted');
-  const hot = css('--sn-lite'), mid = css('--sn-mid'), warn = css('--badge');
-  const pad = Math.min(40, W * 0.08);
+// shorthands the step drawings use, so each one reads as shapes not setup
+function hx(c) {
+  c.line = css('--line'); c.dim = css('--dim'); c.fg = css('--muted');
+  c.hot = css('--sn-lite'); c.mid = css('--sn-mid'); c.warn = css('--badge');
+  c.bg = css('--bg'); c.strong = css('--fg');
+  return c;
+}
+const box = (c, x, y, w, h, stroke, fill) => {
+  if (fill) { c.fillStyle = fill; c.fillRect(x, y, w, h); }
+  c.strokeStyle = stroke; c.strokeRect(x + .5, y + .5, w - 1, h - 1);
+};
 
-  if (step === 0) {
-    // spectrum folding down onto twelve bins
-    const N = 12, bw = (W - pad * 2) / N;
-    for (let k = 0; k < 46; k++) {
-      const x = pad + (k / 46) * (W - pad * 2);
-      const h = Math.abs(Math.sin(k * 0.9) * Math.cos(k * 0.31)) * (H * 0.20);
-      c.strokeStyle = line; c.beginPath(); c.moveTo(x, H * 0.30); c.lineTo(x, H * 0.30 - h); c.stroke();
-    }
-    for (let i = 0; i < N; i++) {
-      const v = [.95, .12, .5, .18, .78, .3, .14, .88, .2, .42, .16, .34][i];
-      const h = v * (H * 0.34) * Math.min(1, 0.34 + t * 1.1);
-      c.fillStyle = i % 4 === 0 ? hot : mid;
-      c.globalAlpha = 0.35 + v * 0.6;
-      c.fillRect(pad + i * bw + 2, H * 0.78 - h, bw - 4, h);
-      c.globalAlpha = 1;
-      c.fillStyle = dim;
-      c.fillText('CDEFGAB'[i % 7], pad + i * bw + bw / 2, H * 0.86);
-    }
-    c.strokeStyle = dim; c.setLineDash([2, 4]);
-    c.beginPath(); c.moveTo(pad, H * 0.44); c.lineTo(W - pad, H * 0.44); c.stroke();
-    c.setLineDash([]);
-  } else if (step === 1) {
-    // the beat's chroma against the winning template
-    const N = 12, bw = (W - pad * 2) / N;
-    const obs = [.95, .12, .5, .18, .78, .3, .14, .88, .2, .42, .16, .34];
-    const tpl = [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0];
-    for (let i = 0; i < N; i++) {
-      const x = pad + i * bw;
-      c.fillStyle = line;
-      c.fillRect(x + 1, H * 0.62 - tpl[i] * H * 0.3, bw - 2, tpl[i] * H * 0.3);
-      c.fillStyle = hot; c.globalAlpha = 0.8;
-      c.fillRect(x + 4, H * 0.62 - obs[i] * H * 0.3, bw - 8, obs[i] * H * 0.3);
-      c.globalAlpha = 1;
-    }
-    c.strokeStyle = dim; c.beginPath(); c.moveTo(pad, H * 0.62); c.lineTo(W - pad, H * 0.62); c.stroke();
-    c.fillStyle = fg; c.font = '13px ' + MONO;
-    c.fillText('C major   cos = 0.94', W / 2, H * 0.80);
-  } else if (step === 2) {
-    // the matrix filling in, cell by cell
-    const R = 7, C = 9;
-    const s = Math.min((W - pad * 2) / C, (H - pad * 2) / R);
-    const ox = (W - C * s) / 2, oy = (H - R * s) / 2;
-    const done = Math.floor((0.22 + t * 0.85) * R * C);
-    for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
-      const k = i * C + j;
-      c.strokeStyle = line; c.strokeRect(ox + j * s, oy + i * s, s, s);
-      if (k > done) continue;
-      const v = Math.max(0, Math.sin(j * 0.8 - i * 0.5) * 0.8 + 0.4);
-      c.fillStyle = hot; c.globalAlpha = 0.10 + v * 0.55;
-      c.fillRect(ox + j * s + 1, oy + i * s + 1, s - 2, s - 2);
-      c.globalAlpha = 1;
-      if (k === done) { c.strokeStyle = warn; c.lineWidth = 2; c.strokeRect(ox + j * s, oy + i * s, s, s); c.lineWidth = 1; }
-    }
-  } else {
-    // the traceback walking out of the best cell
-    const R = 7, C = 9;
-    const s = Math.min((W - pad * 2) / C, (H - pad * 2) / R);
-    const ox = (W - C * s) / 2, oy = (H - R * s) / 2;
-    const path = [[6, 8], [5, 7], [4, 6], [3, 5], [2, 4], [2, 3], [1, 2]];
-    for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
-      const v = Math.max(0, Math.sin(j * 0.8 - i * 0.5) * 0.8 + 0.4);
-      c.fillStyle = hot; c.globalAlpha = 0.07 + v * 0.24;
-      c.fillRect(ox + j * s + 1, oy + i * s + 1, s - 2, s - 2);
-      c.globalAlpha = 1;
-      c.strokeStyle = line; c.strokeRect(ox + j * s, oy + i * s, s, s);
-    }
-    const shown = Math.max(2, Math.round((0.28 + t * 0.8) * path.length));
-    c.strokeStyle = warn; c.lineWidth = 2.4; c.beginPath();
-    path.slice(0, shown).forEach(([i, j], k) => {
-      const x = ox + j * s + s / 2, y = oy + i * s + s / 2;
-      k ? c.lineTo(x, y) : c.moveTo(x, y);
-    });
-    c.stroke(); c.lineWidth = 1;
-    path.slice(0, shown).forEach(([i, j]) => {
-      c.fillStyle = warn;
-      c.beginPath(); c.arc(ox + j * s + s / 2, oy + i * s + s / 2, 3, 0, 7); c.fill();
-    });
+const WALKS = {
+  cc: [
+    ['Every file becomes a syntax tree',
+     'Each module is parsed with Python\'s own <code>ast</code>, never imported and never run, so analysing a codebase cannot execute any of it. Import statements, function definitions and call sites are read straight off the tree.',
+     (c) => {
+       c.font = '8px ' + MONO; c.textAlign = 'left';
+       ['import os', 'from .db import q', 'def load(p):', '  return q(p)'].forEach((t, i) => {
+         c.fillStyle = i === 1 ? c.hot : c.dim;
+         c.fillText(t, 14, 26 + i * 13);
+       });
+       const n = [[210, 40], [170, 88], [250, 88], [150, 140], [196, 140], [250, 140]];
+       const e = [[0, 1], [0, 2], [1, 3], [1, 4], [2, 5]];
+       c.strokeStyle = c.line;
+       e.forEach(([a, b]) => { c.beginPath(); c.moveTo(n[a][0], n[a][1]); c.lineTo(n[b][0], n[b][1]); c.stroke(); });
+       n.forEach(([x, y], i) => {
+         c.fillStyle = c.bg; c.strokeStyle = i === 0 ? c.hot : c.fg;
+         c.beginPath(); c.arc(x, y, 9, 0, 7); c.fill(); c.stroke();
+       });
+       c.fillStyle = c.dim; c.textAlign = 'center';
+       c.fillText('Module', 210, 178); c.fillText('ast', 210, 190);
+     }],
+    ['Imports become a directed graph',
+     'One node per module, one edge per import. This is the whole map: what depends on what, drawn from what the code says rather than from what a README claims.',
+     (c) => {
+       const N = 7, pts = Array.from({ length: N }, (_, i) => {
+         const a = -Math.PI / 2 + i / N * Math.PI * 2;
+         return [HOW_W / 2 + 92 * Math.cos(a), HOW_H / 2 + 66 * Math.sin(a)];
+       });
+       const e = [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [1, 5], [5, 6], [0, 6], [2, 6]];
+       e.forEach(([a, b]) => {
+         const [x1, y1] = pts[a], [x2, y2] = pts[b];
+         const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy);
+         c.strokeStyle = c.line; c.beginPath();
+         c.moveTo(x1 + dx / L * 12, y1 + dy / L * 12);
+         c.lineTo(x2 - dx / L * 12, y2 - dy / L * 12); c.stroke();
+       });
+       pts.forEach(([x, y]) => {
+         c.fillStyle = c.bg; c.strokeStyle = c.fg;
+         c.beginPath(); c.arc(x, y, 11, 0, 7); c.fill(); c.stroke();
+       });
+     }],
+    ['Tarjan finds the cycles in one pass',
+     'A depth-first walk stamps each node with when it was found and the lowest index reachable below it. Where those two are equal, everything above it on the stack is a strongly connected component. More than one module in a component means a circular import.',
+     (c) => {
+       const N = 7, pts = Array.from({ length: N }, (_, i) => {
+         const a = -Math.PI / 2 + i / N * Math.PI * 2;
+         return [HOW_W / 2 + 92 * Math.cos(a), HOW_H / 2 + 66 * Math.sin(a)];
+       });
+       const cyc = [1, 2, 5];
+       const e = [[0, 1], [1, 2], [2, 5], [5, 1], [3, 4], [4, 5], [0, 6]];
+       e.forEach(([a, b]) => {
+         const inC = cyc.includes(a) && cyc.includes(b);
+         const [x1, y1] = pts[a], [x2, y2] = pts[b];
+         const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy);
+         c.strokeStyle = inC ? c.warn : c.line; c.lineWidth = inC ? 2 : 1;
+         c.beginPath(); c.moveTo(x1 + dx / L * 12, y1 + dy / L * 12);
+         c.lineTo(x2 - dx / L * 12, y2 - dy / L * 12); c.stroke(); c.lineWidth = 1;
+       });
+       c.font = '8px ' + MONO; c.textAlign = 'center'; c.textBaseline = 'middle';
+       pts.forEach(([x, y], i) => {
+         const inC = cyc.includes(i);
+         c.fillStyle = inC ? c.warn : c.bg; c.strokeStyle = inC ? c.warn : c.fg;
+         c.beginPath(); c.arc(x, y, 11, 0, 7); c.fill(); c.stroke();
+         c.fillStyle = inC ? c.bg : c.dim; c.fillText(i + '/' + (inC ? 1 : i), x, y);
+       });
+     }],
+    ['What nothing reaches is dead',
+     'The call graph gets the same treatment from the entry points outward. Anything never reached is reported as dead, with the caveat that dynamic dispatch and reflection are invisible to static analysis, so the tool tells you what it could not see.',
+     (c) => {
+       const live = [[42, 40], [42, 96], [110, 68], [110, 128], [178, 96]];
+       const dead = [[240, 44], [240, 104], [240, 164]];
+       const e = [[0, 2], [1, 2], [2, 4], [3, 4]];
+       c.strokeStyle = c.mid;
+       e.forEach(([a, b]) => { c.beginPath(); c.moveTo(live[a][0], live[a][1]); c.lineTo(live[b][0], live[b][1]); c.stroke(); });
+       live.forEach(([x, y]) => box(c, x - 20, y - 9, 40, 18, c.mid, c.bg));
+       c.setLineDash([2, 3]);
+       dead.forEach(([x, y]) => box(c, x - 20, y - 9, 40, 18, c.dim, c.bg));
+       c.setLineDash([]);
+       c.font = '8px ' + MONO; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+       c.fillStyle = c.mid; c.fillText('reachable', 100, 202);
+       c.fillStyle = c.dim; c.fillText('dead', 240, 202);
+     }]
+  ],
+
+  hd: [
+    ['Audio becomes a chromagram',
+     'Every frame is folded onto the twelve pitch classes, so notes an octave apart count as the same note. Beat tracking then averages those frames within each beat, throwing away timing detail nobody needs in order to name a chord.',
+     (c) => {
+       for (let k = 0; k < 44; k++) {
+         const x = 14 + (k / 44) * (HOW_W - 28);
+         const h = Math.abs(Math.sin(k * 0.9) * Math.cos(k * 0.31)) * 42;
+         c.strokeStyle = c.line; c.beginPath(); c.moveTo(x, 62); c.lineTo(x, 62 - h); c.stroke();
+       }
+       c.strokeStyle = c.dim; c.setLineDash([2, 4]);
+       c.beginPath(); c.moveTo(14, 82); c.lineTo(HOW_W - 14, 82); c.stroke(); c.setLineDash([]);
+       const v = [.95, .12, .5, .18, .78, .3, .14, .88, .2, .42, .16, .34];
+       const bw = (HOW_W - 28) / 12;
+       c.font = '7px ' + MONO; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+       v.forEach((n, i) => {
+         c.fillStyle = c.hot; c.globalAlpha = .3 + n * .6;
+         c.fillRect(14 + i * bw + 2, 176 - n * 76, bw - 4, n * 76);
+         c.globalAlpha = 1; c.fillStyle = c.dim;
+         c.fillText('C C#D D#E F F#G G#A A#B '.slice(i * 2, i * 2 + 2).trim(), 14 + i * bw + bw / 2, 190);
+       });
+     }],
+    ['Each beat matches a chord template',
+     'The beat\'s vector is compared by cosine similarity against 24 templates: twelve roots times major and minor. Sevenths, inversions and passing chords collapse into whichever triad they sit closest to. That loss is the method, not a shortcut taken for the demo.',
+     (c) => {
+       const obs = [.95, .12, .5, .18, .78, .3, .14, .88, .2, .42, .16, .34];
+       const tpl = [1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0];
+       const bw = (HOW_W - 28) / 12;
+       obs.forEach((n, i) => {
+         const x = 14 + i * bw;
+         c.fillStyle = c.line; c.fillRect(x + 1, 150 - tpl[i] * 84, bw - 2, tpl[i] * 84);
+         c.fillStyle = c.hot; c.globalAlpha = .8;
+         c.fillRect(x + 4, 150 - n * 84, bw - 8, n * 84); c.globalAlpha = 1;
+       });
+       c.strokeStyle = c.dim; c.beginPath(); c.moveTo(14, 150); c.lineTo(HOW_W - 14, 150); c.stroke();
+       c.fillStyle = c.strong; c.font = '11px ' + MONO; c.textAlign = 'center';
+       c.fillText('C major', HOW_W / 2, 178);
+       c.fillStyle = c.dim; c.font = '8px ' + MONO;
+       c.fillText('cos = 0.94', HOW_W / 2, 194);
+     }],
+    ['Smith-Waterman aligns two sequences',
+     'The matrix fills with <code>H[i,j] = max(0, diagonal + s, up + gap, left + gap)</code>, where <code>s</code> scores two chords by harmonic relationship rather than by whether their labels match. Clamping at zero is what lets it find a shared passage inside two otherwise different songs.',
+     (c) => {
+       const R = 6, C = 8, s = 24, ox = (HOW_W - C * s) / 2, oy = (HOW_H - R * s) / 2;
+       for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
+         const v = Math.max(0, Math.sin(j * .8 - i * .5) * .8 + .4);
+         c.fillStyle = c.hot; c.globalAlpha = .08 + v * .55;
+         c.fillRect(ox + j * s + 1, oy + i * s + 1, s - 2, s - 2); c.globalAlpha = 1;
+         c.strokeStyle = c.line; c.strokeRect(ox + j * s + .5, oy + i * s + .5, s, s);
+       }
+     }],
+    ['Traceback recovers the passage',
+     'Walking back from the highest cell until the score hits zero gives the aligned run itself. The score says how alike two pieces are; identity says how much of that was exact matching, which is how you tell a real quotation from two songs merely moving in parallel.',
+     (c) => {
+       const R = 6, C = 8, s = 24, ox = (HOW_W - C * s) / 2, oy = (HOW_H - R * s) / 2;
+       for (let i = 0; i < R; i++) for (let j = 0; j < C; j++) {
+         const v = Math.max(0, Math.sin(j * .8 - i * .5) * .8 + .4);
+         c.fillStyle = c.hot; c.globalAlpha = .05 + v * .2;
+         c.fillRect(ox + j * s + 1, oy + i * s + 1, s - 2, s - 2); c.globalAlpha = 1;
+         c.strokeStyle = c.line; c.strokeRect(ox + j * s + .5, oy + i * s + .5, s, s);
+       }
+       const path = [[5, 7], [4, 6], [3, 5], [2, 4], [2, 3], [1, 2]];
+       c.strokeStyle = c.warn; c.lineWidth = 2.4; c.beginPath();
+       path.forEach(([i, j], k) => {
+         const x = ox + j * s + s / 2, y = oy + i * s + s / 2;
+         k ? c.lineTo(x, y) : c.moveTo(x, y);
+       });
+       c.stroke(); c.lineWidth = 1;
+       path.forEach(([i, j]) => {
+         c.fillStyle = c.warn;
+         c.beginPath(); c.arc(ox + j * s + s / 2, oy + i * s + s / 2, 3.4, 0, 7); c.fill();
+       });
+     }]
+  ],
+
+  el: [
+    ['The signal is framed and windowed',
+     'Speech only holds still for a few tens of milliseconds, so it is cut into short frames. Each frame is multiplied by a Hamming window, which tapers both ends to zero so the FFT does not read the abrupt cut as a burst of high frequency that was never spoken.',
+     (c) => {
+       c.strokeStyle = c.line; c.beginPath();
+       for (let i = 0; i <= 280; i++) {
+         const x = 10 + i, t = i / 280;
+         const y = 70 - Math.sin(t * 44) * 30 * (0.6 + 0.4 * Math.sin(t * 7));
+         i ? c.lineTo(x, y) : c.moveTo(x, y);
+       }
+       c.stroke();
+       c.strokeStyle = c.warn; c.beginPath();
+       for (let i = 0; i <= 280; i++) {
+         const t = i / 280, w = 0.54 - 0.46 * Math.cos(2 * Math.PI * t);
+         const x = 10 + i, y = 175 - w * 60;
+         i ? c.lineTo(x, y) : c.moveTo(x, y);
+       }
+       c.stroke();
+       c.strokeStyle = c.hot; c.beginPath();
+       for (let i = 0; i <= 280; i++) {
+         const t = i / 280, w = 0.54 - 0.46 * Math.cos(2 * Math.PI * t);
+         const x = 10 + i;
+         const y = 145 - Math.sin(t * 44) * 28 * (0.6 + 0.4 * Math.sin(t * 7)) * w;
+         i ? c.lineTo(x, y) : c.moveTo(x, y);
+       }
+       c.stroke();
+       c.font = '7px ' + MONO; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+       c.fillStyle = c.dim; c.fillText('RAW', 10, 18); c.fillText('WINDOWED', 10, 108);
+     }],
+    ['An FFT gives the magnitude spectrum',
+     'The frame moves from amplitude over time to energy per frequency. What matters for identity is not the pitch spikes but the shape of the envelope over them: that envelope is the resonance of the vocal tract producing the sound.',
+     (c) => {
+       const N = 70;
+       c.strokeStyle = c.line;
+       c.beginPath(); c.moveTo(12, 190); c.lineTo(HOW_W - 12, 190); c.stroke();
+       for (let i = 0; i < N; i++) {
+         const f = i / N;
+         const env = Math.exp(-Math.pow((f - .1) / .09, 2)) * .9
+                   + Math.exp(-Math.pow((f - .3) / .13, 2)) * .6
+                   + Math.exp(-Math.pow((f - .62) / .2, 2)) * .3;
+         const h = env * 150 * (0.55 + 0.45 * Math.abs(Math.sin(i * 1.9)));
+         c.strokeStyle = c.hot; c.globalAlpha = .8;
+         c.beginPath(); c.moveTo(12 + f * (HOW_W - 24), 190);
+         c.lineTo(12 + f * (HOW_W - 24), 190 - h); c.stroke(); c.globalAlpha = 1;
+       }
+       c.strokeStyle = c.warn; c.lineWidth = 1.6; c.beginPath();
+       for (let i = 0; i <= N; i++) {
+         const f = i / N;
+         const env = Math.exp(-Math.pow((f - .1) / .09, 2)) * .9
+                   + Math.exp(-Math.pow((f - .3) / .13, 2)) * .6
+                   + Math.exp(-Math.pow((f - .62) / .2, 2)) * .3;
+         const x = 12 + f * (HOW_W - 24), y = 190 - env * 150;
+         i ? c.lineTo(x, y) : c.moveTo(x, y);
+       }
+       c.stroke(); c.lineWidth = 1;
+     }],
+    ['Mel filters sum it into bands',
+     'Twenty-six triangular filters, spaced so that the low end gets fine resolution and the top end gets coarse, matching how human hearing actually resolves pitch. Each filter returns one number, and the log of it, which turns loudness into an offset rather than a multiplier.',
+     (c) => {
+       const N = 12;
+       c.strokeStyle = c.line;
+       c.beginPath(); c.moveTo(12, 120); c.lineTo(HOW_W - 12, 120); c.stroke();
+       for (let i = 0; i < N; i++) {
+         const a = Math.pow(i / N, 1.6), b = Math.pow((i + 2) / N, 1.6);
+         const x1 = 12 + a * (HOW_W - 24), x2 = 12 + b * (HOW_W - 24);
+         c.strokeStyle = i % 2 ? c.mid : c.hot;
+         c.beginPath(); c.moveTo(x1, 120); c.lineTo((x1 + x2) / 2, 40); c.lineTo(x2, 120); c.stroke();
+       }
+       const e = [.3, .55, .9, .74, .5, .62, .4, .28, .34, .2, .16, .1];
+       const bw = (HOW_W - 24) / N;
+       e.forEach((v, i) => {
+         c.fillStyle = c.hot; c.globalAlpha = .7;
+         c.fillRect(12 + i * bw + 1, 200 - v * 62, bw - 2, v * 62); c.globalAlpha = 1;
+       });
+       c.font = '7px ' + MONO; c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+       c.fillStyle = c.dim; c.fillText('LOG BAND ENERGY', 12, 214);
+     }],
+    ['A DCT leaves twelve numbers',
+     'The bands are correlated with each other, so a discrete cosine transform decorrelates them into cepstral coefficients. Keep the first twelve and drop C0, which is loudness rather than identity. Verification is then cosine similarity against the enrolled vector, and a threshold somebody has to choose.',
+     (c) => {
+       const K = 12, cw = (HOW_W - 24) / K, mid = 108;
+       c.strokeStyle = c.line; c.beginPath(); c.moveTo(12, mid); c.lineTo(HOW_W - 12, mid); c.stroke();
+       for (let k = 0; k < K; k++) {
+         const x = 12 + k * cw + cw / 2;
+         const ref = Math.cos(k * 1.1) * (1 - k / 16) * 62;
+         const now = ref * (1 - (k % 3) * 0.08) + (k % 4 - 1.5) * 3;
+         c.fillStyle = c.line; c.fillRect(x - 7, mid - ref, 6, ref ? ref : 1);
+         c.fillStyle = c.hot; c.fillRect(x + 1, mid - now, 6, now ? now : 1);
+       }
+       c.font = '8px ' + MONO; c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+       c.fillStyle = c.strong; c.fillText('cos = 0.978', HOW_W / 2, 196);
+       c.fillStyle = c.dim; c.font = '7px ' + MONO;
+       c.fillText('ENROLLED  vs  PRESENTED', HOW_W / 2, 210);
+     }]
+  ]
+};
+
+function buildWalk(key, runBtn) {
+  const host = document.getElementById(key + 'How');
+  const steps = WALKS[key];
+  host.innerHTML =
+    '<div class="how-grid"><div class="how-copy">' +
+    '<p class="how-num"></p><h4 class="how-t"></h4><p class="how-d"></p></div>' +
+    '<div class="how-art"><canvas role="img"></canvas></div></div>' +
+    '<div class="how-nav"><button class="prev">Back</button>' +
+    '<div class="how-dots" role="tablist"></div>' +
+    '<button class="next">Next</button>' +
+    '<button class="run">Run the demo</button></div>';
+
+  const num = host.querySelector('.how-num'), tt = host.querySelector('.how-t');
+  const dd = host.querySelector('.how-d'), cv = host.querySelector('canvas');
+  const ctx = cv.getContext('2d');
+  const dots = host.querySelector('.how-dots');
+  const prev = host.querySelector('.prev'), next = host.querySelector('.next');
+  let at = 0;
+
+  steps.forEach((_, i) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('aria-label', 'Step ' + (i + 1));
+    b.addEventListener('click', () => show(i));
+    dots.appendChild(b);
+  });
+
+  function draw() {
+    const w = cv.parentElement.clientWidth || HOW_W;
+    const d = Math.min(devicePixelRatio || 1, 2), s = w / HOW_W;
+    const bw = Math.round(w * d), bh = Math.round(HOW_H * s * d);
+    if (cv.width !== bw || cv.height !== bh) { cv.width = bw; cv.height = bh; }
+    ctx.setTransform(d * s, 0, 0, d * s, 0, 0);
+    ctx.clearRect(0, 0, HOW_W, HOW_H);
+    ctx.lineWidth = 1;
+    steps[at][2](hx(ctx));
   }
+  function show(i) {
+    at = Math.max(0, Math.min(steps.length - 1, i));
+    num.textContent = '0' + (at + 1);
+    tt.textContent = steps[at][0];
+    dd.innerHTML = steps[at][1];
+    cv.setAttribute('aria-label', steps[at][0]);
+    [...dots.children].forEach((b, k) => b.setAttribute('aria-current', String(k === at)));
+    prev.disabled = at === 0; next.disabled = at === steps.length - 1;
+    draw();
+  }
+  prev.addEventListener('click', () => show(at - 1));
+  next.addEventListener('click', () => show(at + 1));
+  host.querySelector('.run').addEventListener('click', runBtn);
+  host._redraw = draw;
+  show(0);
 }
 
-function pinSize() {
-  const art = pinCv.parentElement.getBoundingClientRect();
-  pinW = Math.round(art.width); pinH = Math.round(art.height);
-  pinCv.width = pinW * Math.min(devicePixelRatio || 1, 2);
-  pinCv.height = pinH * Math.min(devicePixelRatio || 1, 2);
+function wireWalk(key, runBtn, sub) {
+  const t = document.getElementById(key + 'HowT');
+  const host = document.getElementById(key + 'How');
+  t.addEventListener('click', () => {
+    const on = host.hidden;
+    if (on && !host.firstChild) buildWalk(key, runBtn);
+    host.hidden = !on;
+    t.setAttribute('aria-expanded', String(on));
+    t.querySelector('.sub').textContent = on ? 'collapse' : sub;
+    if (on) host._redraw();
+    resize(); draw(performance.now() / 1000);
+  });
 }
-
-function pinSync() {
-  if (!pinOuter.offsetParent && pinOuter.offsetHeight === 0) return;
-  const r = pinOuter.getBoundingClientRect();
-  const travel = r.height - innerHeight;
-  // static fallback layouts (narrow, or reduced motion) have no travel to read
-  if (travel <= 40) {
-    pinSteps.forEach(s => s.classList.add('on'));
-    pinBars.forEach(b => b.style.setProperty('--f', 1));
-    if (pinAt !== 0) { pinAt = 0; pinDraw(3, 1); }
-    return;
-  }
-  const p = clamp(-r.top / travel, 0, 0.9999);
-  const step = Math.floor(p * PIN_N);
-  const within = p * PIN_N - step;
-  pinBars.forEach((b, i) => b.style.setProperty('--f', i < step ? 1 : i === step ? within.toFixed(3) : 0));
-  if (step !== pinAt) {
-    pinAt = step;
-    pinSteps.forEach((s, i) => s.classList.toggle('on', i === step));
-    pinCtaSub.textContent = `step 0${step + 1} of 0${PIN_N}`;
-  }
-  pinDraw(step, within);
-}
-addEventListener('scroll', pinSync, { passive: true });
 
 /* ---- hover peek ----
    One drawing per project, each one the shape of what the project computes
@@ -2323,7 +2649,7 @@ for (const a of [mailLink, document.getElementById('mailLink2')]) {
 
 // ---------- section rail ----------
 const SECTIONS = [
-  ['sec-intro', 'Intro'], ['sec-method', 'Method'], ['sec-featured', 'Featured'],
+  ['sec-intro', 'Intro'], ['sec-featured', 'Featured'],
   ['sec-progress', 'In progress'], ['sec-other', 'Other'], ['sec-about', 'About']
 ];
 const rail = document.getElementById('rail');
@@ -3879,7 +4205,10 @@ addEventListener('resize', () => {
     if (!hdDemo.hidden) hdDraw();
     if (!ccDemo.hidden) ccDraw();
     if (!elDemo.hidden) elDraw();
-    pinSize(); pinAt = -1; pinSync();
+    for (const k of ['cc', 'hd', 'el']) {
+      const h = document.getElementById(k + 'How');
+      if (h && !h.hidden && h._redraw) h._redraw();
+    }
     idDraw();
   }, 130);
 });
@@ -3911,8 +4240,15 @@ setTimeout(() => {
   resize(); draw(performance.now() / 1000);
 }, 1700);
 
-pinSize(); pinSync();
 idInit(); idDraw();
+
+// each walkthrough's "Run the demo" opens the matching panel below it
+wireWalk('cc', () => { if (ccDemo.hidden) ccTry.click(); ccDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
+  'four steps, from source to cycles');
+wireWalk('hd', () => { if (hdDemo.hidden) hdTry.click(); hdDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
+  'four steps, from audio to alignment');
+wireWalk('el', () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
+  'four steps, from signal to verdict');
 
 // a shared demo link opens the panel it names and restores the controls with it
 readState();
