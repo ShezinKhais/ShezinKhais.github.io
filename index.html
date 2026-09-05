@@ -27,6 +27,16 @@
 <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
 
+<!-- Space Grotesk is Space Mono's sibling: same skeleton, drawn for display
+     sizes, so it sets the name and the project titles against a monospace page
+     without the pairing having to be argued for. Everything else stays mono.
+     display=swap, so the page never waits on it; the canvas hero repaints once
+     it arrives (see document.fonts.ready below). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@600&display=swap">
+
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -47,6 +57,7 @@
 </script>
 <style>
   :root {
+    --display:'Space Grotesk', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
     --bg:#0d1117; --panel:rgba(18,24,32,.70); --panel-hi:rgba(30,39,52,.86);
     /* --dim has to clear 4.5:1 against the lightest surface it lands on, which
        is --panel-hi (the status bar and the palette), not the page itself. */
@@ -325,8 +336,10 @@
   @media (max-width:560px) { .card { padding-left:0; padding-top:34px; } .card::before { top:12px; } }
 
   .card h3 {
-    margin:0; font-size:clamp(21px,4.2vw,33px); line-height:1.06;
-    letter-spacing:-.03em; font-weight:600; color:var(--fg);
+    margin:0; font-family:var(--display);
+    font-size:clamp(22px,4.4vw,35px); line-height:1.05;
+    /* a grotesque at display size needs less negative tracking than mono did */
+    letter-spacing:-.02em; font-weight:600; color:var(--fg);
     display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;
     transition:transform .34s cubic-bezier(.16,1,.3,1), color .25s;
   }
@@ -1175,6 +1188,7 @@ import { prepareWithSegments, layoutNextLine }
   from 'https://cdn.jsdelivr.net/npm/@chenglou/pretext@0.0.8/dist/layout.js';
 
 const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+const DISPLAY = "'Space Grotesk', " + MONO;
 const canvas = document.getElementById('bg');
 const ctx = canvas.getContext('2d');
 const heroSpace = document.getElementById('heroSpace');
@@ -1199,7 +1213,7 @@ function fonts() {
   // the name gets. A fixed 28px gap put the snake's belly straight through the
   // first line of the bio, so the gap grows with it.
   BIO_GAP = Math.round(28 + nameSize * 0.62);
-  fName = `600 ${nameSize}px ${MONO}`;
+  fName = `600 ${nameSize}px ${DISPLAY}`;
   fBio  = `${CW < 520 ? 13 : 15}px ${MONO}`;
   LH_BIO = CW < 520 ? 22 : 26;
   prepBio = prepareWithSegments(BIO, fBio);
@@ -1245,6 +1259,53 @@ function endFlows() {
   if (!flowsLive) return;
   flowsLive = false;
   for (const o of flows) flowOff(o);
+  releaseParagraphs();
+}
+
+/* Every card paragraph is pinned to its natural height plus two spare lines, so
+   the copy can wrap around the snake without the card resizing underneath it
+   mid-slither. That is worth paying for while the reflow is running and worth
+   nothing at all afterwards, because the reflow is switched off for good once
+   the tour ends. Measured, it was leaving 344px of permanently blank space
+   across the eight rows, about 9% of the document, which is most of why the
+   index read as loose.
+
+   So it is handed back as the snake settles onto the name: eased rather than
+   dropped, because 43px vanishing from under eight paragraphs at once reads as
+   a glitch, while the same movement over half a second reads as the page
+   finishing its introduction. */
+let released = false;
+function releaseParagraphs() {
+  if (released) return;
+  released = true;
+
+  if (reduced) { for (const o of flows) { o.p.style.height = ''; o.h = 0; } return; }
+
+  /* Measure every target first, with nothing armed. Reading a natural height
+     means setting height to auto, and doing that with a transition already on
+     the element starts one from the pinned value towards auto, which is not an
+     animatable value: the whole release then landed as a single jump at the end
+     instead of easing. So: measure, restore, flush once, then arm and set. */
+  const target = flows.map(o => {
+    if (!o.h) return 0;
+    o.p.style.height = '';
+    const nat = o.p.offsetHeight;
+    o.p.style.height = o.h + 'px';
+    return nat < o.h ? nat : 0;
+  });
+  void document.body.offsetHeight;
+  flows.forEach((o, i) => {
+    o.h = 0;
+    if (!target[i]) return;
+    o.p.style.transition = 'height .55s cubic-bezier(.16,1,.3,1)';
+    o.p.style.height = target[i] + 'px';
+  });
+  // the rows have moved up, so the route drawn against the old geometry is stale
+  setTimeout(() => {
+    for (const o of flows) { o.p.style.transition = ''; o.p.style.height = ''; }
+    resize();
+    if (rafId === 0) draw(performance.now() / 1000);
+  }, 620);
 }
 
 // Wrapping around the snake costs extra lines. Pin each paragraph to its natural
@@ -1253,7 +1314,9 @@ function reserveParagraphs() {
   for (const o of flows) { flowOff(o); o.p.style.height = ''; }
   // updateFlows bails out entirely under reduced motion, so there is no wrap to
   // make room for. Reserving anyway left two blank lines under every paragraph.
-  if (reduced) { for (const o of flows) o.h = 0; return; }
+  // Once the tour is over the reflow never runs again, so there is nothing left
+  // to make room for and re-pinning on a later resize would put the gap back.
+  if (reduced || released) { for (const o of flows) o.h = 0; return; }
   const nat = flows.map(o => ({
     w: o.p.offsetWidth,
     h: o.p.offsetHeight,
@@ -5031,6 +5094,21 @@ setTimeout(() => {
 }, 1700);
 
 idInit(); idDraw(); redrawSigs();
+
+/* The hero is painted on a canvas, and a canvas does not repaint itself when a
+   font arrives: it keeps whatever glyphs it was given. The animation loop hides
+   that on its own, but under reduced motion there is no loop, and the name's
+   measured width feeds both the hero's reserved height and the width of the
+   coil the snake settles into. So re-measure and repaint once, when the face is
+   actually there. If it never loads, the fallback stack is already on screen
+   and nothing here runs. */
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => {
+    if (!document.fonts.check(`600 40px 'Space Grotesk'`)) return;
+    resize();
+    draw(performance.now() / 1000);
+  });
+}
 
 // each walkthrough's "Run the demo" opens the matching panel below it
 wireWalk('cc', () => { if (ccDemo.hidden) ccTry.click(); ccDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
