@@ -133,25 +133,48 @@
     background:var(--panel); position:relative; overflow:hidden;
     transition:color .2s, border-color .2s, transform .2s;
   }
+  /* The hover was a gradient sheen wiping across the pill: decorative motion
+     that says nothing about what the control does, and the only gradient left
+     on the page. The index rows already have a hover language -- an accent rule
+     drawing itself in from the left -- so these use that instead. */
   .links a::before {
-    content:""; position:absolute; inset:0;
-    background:linear-gradient(90deg,transparent,rgba(122,212,143,.18),transparent);
-    transform:translateX(-100%); transition:transform .55s ease;
+    content:""; position:absolute; left:0; right:0; bottom:0; height:1px;
+    background:var(--sn-mid); transform:scaleX(0); transform-origin:left;
+    transition:transform .45s cubic-bezier(.16,1,.3,1);
   }
-  .links a:hover { color:var(--fg); border-color:var(--sn-mid); transform:translateY(-2px); }
-  .links a:hover::before { transform:translateX(100%); }
+  .links a:hover, .links a:focus-visible { color:var(--fg); border-color:var(--sn-mid); }
+  .links a:hover::before, .links a:focus-visible::before { transform:scaleX(1); }
 
-  /* ---------- stats ---------- */
-  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:34px; }
-  .stat {
-    border:1px solid var(--line); border-radius:0; padding:14px 16px;
-    background:var(--panel); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
-    transition:border-color .25s, transform .25s;
+  /* ---------- stats ----------
+     These were three bordered, blurred panels: the last panel idiom left in the
+     content column, and a dashboard gesture on a page that had already decided
+     the projects are an index rather than a deck of cards. Same three numbers,
+     set as a colophon: one hairline above, hairlines between, nothing filled.
+     The markup is untouched because the stats workflow rewrites it by regex and
+     needs <b data-count>...</b><span>...</span> to stay exactly adjacent. */
+  .stats {
+    display:flex; flex-wrap:wrap; align-items:baseline;
+    margin-top:32px; padding-top:15px; border-top:1px solid var(--line);
   }
-  .stat:hover { border-color:var(--sn-mid); transform:translateY(-3px); }
-  .stat b { display:block; font-size:26px; color:var(--num); font-weight:600; line-height:1.2; }
-  .stat span { font-size:11.5px; color:var(--dim); }
-  @media (max-width:560px){ .stats{grid-template-columns:1fr;} }
+  .stat {
+    display:flex; align-items:baseline; gap:11px;
+    padding-right:24px; margin-right:24px; border-right:1px solid var(--line);
+    transition:color .25s;
+  }
+  .stat:last-child { border-right:0; margin-right:0; padding-right:0; }
+  .stat b {
+    font-size:21px; color:var(--num); font-weight:600; line-height:1;
+    font-variant-numeric:tabular-nums; letter-spacing:-.02em;
+  }
+  .stat span {
+    font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim);
+    transition:color .25s;
+  }
+  .stats:hover .stat span { color:var(--muted); }
+  @media (max-width:640px) {
+    .stats { display:grid; grid-template-columns:1fr; gap:9px; }
+    .stat { border-right:0; margin-right:0; padding-right:0; }
+  }
 
   /* ---------- sections ---------- */
   section { margin-top:74px; }
@@ -2145,6 +2168,7 @@ addEventListener('scroll', () => {
   const max = document.body.scrollHeight - innerHeight;
   prog.style.width = (max > 0 ? (scrollY / max) * 100 : 0) + '%';
   syncRail();
+  syncSigs();
 }, { passive: true });
 
 /* ---- the badge ----
@@ -2975,7 +2999,18 @@ function drawPeek(name) {
 const SIG_W = 132, SIG_H = 72, SIG_S = SIG_W / PW_;
 const sigCards = [];
 
-function drawSig(cv, name) {
+/* Each row carries a drawing of what its project computes, and until now it was
+   simply there: fully drawn before you arrived, at half opacity, doing nothing.
+   The page already has a language for this -- the rule under a section label
+   draws itself across as you move through the section -- so the sketches now do
+   the same, plotted left to right as their row comes up, with the pen's edge
+   visible while it works. Nothing is animated on a clock: the progress is read
+   off scroll position, so it draws as you arrive and undraws if you go back.
+
+   The wipe is a clip rather than per-shape dashing, which is what lets it work
+   across six sketches built from completely different primitives -- arcs,
+   filled cells, bars, a traceback polyline -- without touching any of them. */
+function drawSig(cv, name, p) {
   const sig = SIGS[name];
   if (!sig) return false;
   const d = Math.min(devicePixelRatio || 1, 2);
@@ -2987,7 +3022,18 @@ function drawSig(cv, name) {
   c.lineWidth = 1 / SIG_S;
   c.fg = css('--muted'); c.dim = css('--line');
   c.hot = css('--sn-lite'); c.warn = css('--badge'); c.bg = css('--bg');
+
+  const k = p === undefined ? 1 : clamp(p, 0, 1);
+  if (k <= 0) return true;
+  c.save();
+  if (k < 1) { c.beginPath(); c.rect(0, 0, PW_ * k, PH_); c.clip(); }
   sig[1](c, rng(name.length * 7919 + name.charCodeAt(0) * 104729));
+  c.restore();
+  if (k < 1) {
+    c.strokeStyle = c.hot; c.globalAlpha = .9; c.lineWidth = 1.3 / SIG_S;
+    c.beginPath(); c.moveTo(PW_ * k, 0); c.lineTo(PW_ * k, PH_); c.stroke();
+    c.globalAlpha = 1;
+  }
   return true;
 }
 
@@ -2999,9 +3045,30 @@ for (const card of document.querySelectorAll('.card')) {
   cv.setAttribute('role', 'img');
   cv.setAttribute('aria-label', name + ': ' + SIGS[name][0]);
   card.appendChild(cv);
-  sigCards.push({ cv, name });
+  sigCards.push({ cv, name, p: null });
 }
-const redrawSigs = () => sigCards.forEach(o => drawSig(o.cv, o.name));
+/* The sketches only exist at 1200px and up, and under reduced motion they are
+   simply complete. Quantised to 24 steps so scrolling redraws a canvas a couple
+   of dozen times over its whole travel rather than on every scroll event. */
+const sigWide = matchMedia('(min-width:1200px)');
+const sigStep = v => Math.round(v * 24) / 24;
+function sigProgress(cv) {
+  if (reduced || !sigWide.matches) return 1;
+  const r = cv.getBoundingClientRect();
+  if (!r.height) return 1;
+  // starts as the sketch clears the bottom edge and finishes 200px later, so a
+  // row that is already on screen when the page loads reads as drawn, not as
+  // broken, while anything below the fold still plots as you reach it
+  return clamp((innerHeight - r.top) / 200, 0, 1);
+}
+function syncSigs(force) {
+  for (const o of sigCards) {
+    const q = sigStep(sigProgress(o.cv));
+    if (force || q !== o.p) { o.p = q; drawSig(o.cv, o.name, q); }
+  }
+}
+const redrawSigs = () => syncSigs(true);
+sigWide.addEventListener('change', () => syncSigs(true));
 
 let peekOn = null;
 function showPeek(card, x, y) {
