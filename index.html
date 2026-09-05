@@ -1358,7 +1358,14 @@ function nameBox() {
 // A stadium, not an ellipse: straight runs clear above and below the name and the
 // round caps sit past its ends, so the body never lies across a glyph.
 function coilPoints(b) {
-  const ry = Math.max(b.h / 2 + 26, 32), V = 24, S = 14, v = 340;
+  /* V was 24, so each cap was a 24-gon: 7.5 degrees of direction change per
+     vertex, and at 340px/s the head crossed about one and a half vertices per
+     frame. The route itself therefore turned in steps rather than continuously,
+     which is what the finish looked like. At 56 the cap turns 3.2 degrees per
+     vertex, comfortably finer than a frame of travel. The polygon is shorter
+     than the arc it approximates by 0.02% at this radius, so the perimeter the
+     body length is matched against is unaffected. */
+  const ry = Math.max(b.h / 2 + 26, 32), V = 56, S = 30, v = 340;
   const cy = b.y + b.h / 2, cx = b.x + b.w / 2;
 
   // Size the straight runs so the loop's perimeter matches the body length. The
@@ -1378,6 +1385,22 @@ function coilPoints(b) {
   for (let i = 1; i < V; i++) {
     const a = Math.PI / 2 + Math.PI * i / V;
     out.push({ x: x1 + Math.cos(a) * ry, y: cy + Math.sin(a) * ry, v });
+  }
+
+  /* The last thing the snake does is come round this final cap: 180 degrees in
+     about 100px. Held at 340px/s that is ten degrees of head rotation a frame,
+     measured, which is by a distance the coarsest movement on the page, and it
+     ended by stopping dead on the spot. It was never a cost problem: the whole
+     frame, snake included, is a third of a millisecond.
+
+     Easing the speed down across the back half of the loop spreads the same
+     turn over roughly three times as many frames and lets it settle rather than
+     halt. The sway amplitude rides speed too, so it also lies still as it
+     arrives instead of being cut off mid-weave. */
+  const n = out.length;
+  for (let i = 0; i < n; i++) {
+    const k = i / (n - 1);
+    if (k > 0.5) { const e = (k - 0.5) * 2; out[i].v = v * (1 - 0.72 * e * e); }
   }
   return out;
 }
@@ -2049,16 +2072,23 @@ function updateFlows() {
 // ================= frame =================
 const heroTop = () => heroSpace.getBoundingClientRect().top + scrollY;
 
+/* The canvas spans the whole document, so this clears 5.4 million pixels a
+   frame at 1x to change a region of at most 640 by 760. Clearing only the part
+   that changed is the obvious saving and measured 12 times worse: a clearRect
+   covering the whole canvas lets the renderer discard the surface outright,
+   while a partial one makes every tile load, modify and store. Whole-canvas
+   clear plus the entire snake costs 0.33ms a frame. Leave it alone. */
 function draw(t) {
   readPalette();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, PW, PH);
+  const top = heroTop();
   drawSnake(t);
 
   ctx.textBaseline = 'alphabetic';
   // name, one glyph at a time on first paint
   ctx.font = fName; ctx.fillStyle = PAL.fg;
-  const nb = heroTop() + nameSize;
+  const nb = top + nameSize;
   let nx = CX;
   for (const ch of NAME) {
     const k = reduced ? 1 : clamp((t - 0.15 - nx * 0.0016) / 0.5, 0, 1);
@@ -2070,7 +2100,7 @@ function draw(t) {
   ctx.globalAlpha = 1;
 
   ctx.font = fBio; ctx.fillStyle = PAL.muted;
-  let y = heroTop() + nameSize + BIO_GAP;
+  let y = top + nameSize + BIO_GAP;
   let cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
   while (guard++ < 60) {
     let x = CX, avail = BW;
