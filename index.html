@@ -249,7 +249,7 @@
   .filterbar button i { font-style:normal; opacity:.6; margin-left:6px; }
   .filterbar .clear { color:var(--badge); border-color:var(--badge); }
   .filterbar .clear[hidden] { display:none; }
-  .card.hide, section.hide { display:none !important; }
+  .card.hide, section.hide, .tryit.hide, .how.hide, .demo.hide { display:none !important; }
   @media (pointer: coarse) { .filterbar button { min-height:44px; } }
 
   /* ---------- how it works ----------
@@ -1135,6 +1135,53 @@
       <p>Federated Averaging (FedAvg) for fraud detection across simulated banks: models train locally, only weights are shared.</p>
       <div class="chips"><span class="chip">Python</span><span class="chip">federated learning</span></div>
     </a>
+
+    <button class="tryit howto" id="faHowT" aria-expanded="false" aria-controls="faHow">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      How it works
+      <span class="sub">four steps, and no data moves</span>
+    </button>
+
+    <div class="how" id="faHow" hidden></div>
+
+    <button class="tryit" id="faTry" aria-expanded="false" aria-controls="faDemo">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Train across three banks
+      <span class="sub">FedAvg, round by round</span>
+    </button>
+
+    <div class="demo" id="faDemo" hidden>
+      <div class="demo-head">
+        <label for="faHet">How different the banks are <b id="faHetV" class="demo-thr">1&times;, as in the repo</b>
+          <input type="range" id="faHet" min="0" max="8" step="1" value="1"></label>
+        <label for="faSize">Bank sizes<select id="faSize">
+          <option value="eq">Equal, as in the repo</option>
+          <option value="un">Uneven: 10,000 / 3,000 / 1,000</option>
+        </select></label>
+      </div>
+
+      <div class="demo-scroll">
+        <canvas id="faCv" role="img"
+                aria-label="Transactions from three banks, with each bank's decision boundary and the federated one"></canvas>
+      </div>
+
+      <p class="demo-read" id="faRead" aria-hidden="true"></p>
+
+      <div class="demo-ctl">
+        <button id="faPlay">Play</button>
+        <button id="faStep">Step</button>
+        <button id="faRun">Run</button>
+        <button id="faReset">Reset</button>
+        <span class="spd"><label for="faSpd">Speed</label>
+          <input type="range" id="faSpd" min="1" max="20" value="6"></span>
+      </div>
+
+      <div class="demo-out" id="faOut" aria-live="polite"></div>
+
+      <p class="demo-note">The same Federated Averaging, weighted loss, optimiser and threshold search as
+        the repo, run on two of its nineteen features so the decision boundary can be drawn. A logistic
+        regression stands in for the repo's three-layer MLP, and the held-out set is pooled from the three banks.</p>
+    </div>
   </section>
 
   <section id="sec-about">
@@ -1157,8 +1204,8 @@
           <div><dt>Languages</dt><dd><b>Python</b>, Java, C++, SQL, JavaScript</dd></div>
           <div><dt>Tools</dt><dd>PyTorch, scikit-learn, numpy, FastAPI, React, PostgreSQL, Firebase, pytest, Git</dd></div>
           <div><dt>Interests</dt><dd>Algorithms, machine learning, signal processing, <b>secure systems</b></dd></div>
-          <div><dt>Based in</dt><dd>Dubai, United Arab Emirates</dd></div>
-          <div><dt>Looking for</dt><dd>A graduate software engineering role</dd></div>
+          <div><dt>Based in</dt><dd>Dubai, and open to roles <b>anywhere in the UAE</b></dd></div>
+          <div><dt>Available</dt><dd>Internships <b>now</b>; full-time software engineering roles from <b>January 2027</b></dd></div>
         </dl>
 
         <nav class="about-links" aria-label="Elsewhere">
@@ -2553,6 +2600,16 @@ let activeKind = null;
 function setKind(kind, quiet) {
   activeKind = kind;
   cardEls.forEach(c => c.classList.toggle('hide', !!kind && !kindsOf(c).includes(kind)));
+  // A row's walkthrough and demo sit after it as siblings, not inside it (a
+  // card is a link, and buttons cannot nest in one). Filtering hid the row and
+  // left its controls stranded under whichever row came before, so everything
+  // up to the next row now goes with it.
+  cardEls.forEach(c => {
+    const off = c.classList.contains('hide');
+    for (let n = c.nextElementSibling; n && !n.classList.contains('card'); n = n.nextElementSibling) {
+      n.classList.toggle('hide', off);
+    }
+  });
   // a section whose every row is filtered out should take its heading with it
   document.querySelectorAll('section').forEach(sec => {
     const rows = sec.querySelectorAll('.card');
@@ -2839,6 +2896,113 @@ const WALKS = {
        c.fillStyle = c.strong; c.fillText('cos = 0.978', HOW_W / 2, 196);
        c.fillStyle = c.dim; c.font = '7px ' + MONO;
        c.fillText('ENROLLED  vs  PRESENTED', HOW_W / 2, 210);
+     }]
+  ],
+  fa: [
+    ['Each bank keeps its own transactions',
+     'Three simulated banks generate 10,000 transactions each, about 2% of them fraud. Each bank’s normal looks a little different: larger typical amounts, busier accounts. Banks cannot pool customer data, which is the whole reason to federate.',
+     (c) => {
+       const r = rng(11);
+       c.font = '8px ' + MONO; c.textAlign = 'center';
+       c.fillStyle = c.dim; c.fillText('PRIVATE DATA, ONE BANK AT A TIME', HOW_W / 2, 16);
+       [0, 1, 2].forEach(k => {
+         const x0 = 12 + k * 96, y0 = 30, bw = 84, bh = 122;
+         box(c, x0, y0, bw, bh, c.line, c.bg);
+         const cx = x0 + bw * (0.34 + k * 0.13), cy = y0 + bh * (0.7 - k * 0.1);
+         for (let i = 0; i < 44; i++) {
+           const px = Math.min(x0 + bw - 6, Math.max(x0 + 6, cx + (r() - .5) * bw * 0.46));
+           const py = Math.min(y0 + bh - 6, Math.max(y0 + 6, cy + (r() - .5) * bh * 0.4));
+           c.fillStyle = c.dim; c.fillRect(px - 1, py - 1, 2, 2);
+         }
+         for (let i = 0; i < 3; i++) {
+           const px = x0 + bw * (0.3 + r() * 0.5), py = y0 + bh * (0.14 + r() * 0.2);
+           c.fillStyle = c.warn; c.beginPath(); c.arc(px, py, 2.2, 0, 7); c.fill();
+         }
+         c.fillStyle = c.strong; c.fillText('bank ' + k, x0 + bw / 2, y0 + bh + 14);
+         c.fillStyle = c.dim; c.fillText('10,000', x0 + bw / 2, y0 + bh + 26);
+       });
+       c.fillStyle = c.warn; c.beginPath(); c.arc(HOW_W / 2 - 40, 212, 2.2, 0, 7); c.fill();
+       c.fillStyle = c.dim; c.textAlign = 'left'; c.fillText('fraud, about 2%', HOW_W / 2 - 33, 215);
+     }],
+    ['Every bank trains the same model at home',
+     'Each round a bank takes the current global weights and trains on its own data for five epochs. Fraud is only 2% of it, so the loss counts a missed fraud ten times as heavily as a false alarm.',
+     (c) => {
+       c.font = '8px ' + MONO; c.textAlign = 'center';
+       c.fillStyle = c.dim; c.fillText('SAME MODEL, THREE PLACES', HOW_W / 2, 16);
+       [[0.62, -0.1], [0.78, 0.05], [0.9, 0.18]].forEach(([slope, off], k) => {
+         const x0 = 12 + k * 96, y0 = 30, bw = 84, bh = 122;
+         box(c, x0, y0, bw, bh, c.line, c.bg);
+         c.save(); c.beginPath(); c.rect(x0 + 1, y0 + 1, bw - 2, bh - 2); c.clip();
+         c.strokeStyle = c.fg; c.lineWidth = 1.4; c.beginPath();
+         c.moveTo(x0, y0 + bh * (0.78 + off)); c.lineTo(x0 + bw, y0 + bh * (0.78 + off) - bw * slope); c.stroke();
+         c.restore();
+         // one lap of the local loop
+         c.strokeStyle = c.hot; c.lineWidth = 1.2;
+         c.beginPath(); c.arc(x0 + bw / 2, y0 + bh + 18, 8, -Math.PI * 0.2, Math.PI * 1.5); c.stroke();
+         c.beginPath(); c.moveTo(x0 + bw / 2 + 1, y0 + bh + 10); c.lineTo(x0 + bw / 2 - 4, y0 + bh + 7);
+         c.lineTo(x0 + bw / 2 - 3, y0 + bh + 13); c.closePath(); c.fillStyle = c.hot; c.fill();
+         c.fillStyle = c.dim; c.fillText('5 epochs', x0 + bw / 2, y0 + bh + 38);
+       });
+       c.fillStyle = c.warn; c.fillText('a missed fraud costs 10x', HOW_W / 2, 214);
+     }],
+    ['Only the weights travel',
+     'What reaches the server is the model’s parameters, never a transaction. The server averages them by how much data each bank trained on: <code>w = Σ (n<sub>k</sub> / N) w<sub>k</sub></code>. A bank with more data pulls the global model harder.',
+     (c) => {
+       c.font = '8px ' + MONO; c.textAlign = 'center';
+       box(c, 96, 18, 108, 46, c.hot, c.bg);
+       c.fillStyle = c.strong; c.fillText('server', HOW_W / 2, 34);
+       c.fillStyle = c.hot; c.fillText('Σ (nk / N) · wk', HOW_W / 2, 50);
+       [0, 1, 2].forEach(k => {
+         const bx = 22 + k * 96, by = 158;
+         box(c, bx, by, 64, 34, c.line, c.bg);
+         c.fillStyle = c.strong; c.fillText('bank ' + k, bx + 32, by + 14);
+         c.fillStyle = c.dim; c.fillText('data stays', bx + 32, by + 26);
+         // the one thing that leaves
+         const sx = bx + 32, sy = by - 4, ex = 110 + k * 40, ey = 68;
+         c.strokeStyle = c.fg; c.lineWidth = 1;
+         c.beginPath(); c.moveTo(sx, sy); c.lineTo(ex, ey); c.stroke();
+         const a = Math.atan2(ey - sy, ex - sx);
+         c.beginPath(); c.moveTo(ex, ey);
+         c.lineTo(ex - 6 * Math.cos(a - .4), ey - 6 * Math.sin(a - .4));
+         c.lineTo(ex - 6 * Math.cos(a + .4), ey - 6 * Math.sin(a + .4));
+         c.fillStyle = c.fg; c.fill();
+         const mx = (sx + ex) / 2, my = (sy + ey) / 2;
+         c.fillStyle = c.bg; c.fillRect(mx - 18, my - 7, 36, 13);
+         c.strokeStyle = c.hot; c.strokeRect(mx - 17.5, my - 6.5, 35, 12);
+         c.fillStyle = c.hot; c.fillText('w, b', mx, my + 3);
+       });
+       c.fillStyle = c.dim; c.fillText('3 numbers each, no rows', HOW_W / 2, 214);
+     }],
+    ['The cutoff is picked on data the test never sees',
+     'Upweighting fraud leaves the model’s probabilities uncalibrated, so 0.5 means nothing as a cutoff. Each round the threshold with the best F1 is chosen on a separate validation split, and the held-out test set is only ever used to report the score.',
+     (c) => {
+       c.font = '8px ' + MONO; c.textAlign = 'center';
+       const base = 128, x0 = 18, x1 = HOW_W - 18;
+       c.strokeStyle = c.line; c.beginPath(); c.moveTo(x0, base + .5); c.lineTo(x1, base + .5); c.stroke();
+       const bump = (mu, sd, height, fill, alpha) => {
+         c.beginPath(); c.moveTo(x0, base);
+         for (let x = x0; x <= x1; x += 2) {
+           const u = (x - x0) / (x1 - x0);
+           c.lineTo(x, base - height * Math.exp(-((u - mu) ** 2) / (2 * sd * sd)));
+         }
+         c.lineTo(x1, base); c.closePath();
+         c.globalAlpha = alpha; c.fillStyle = fill; c.fill(); c.globalAlpha = 1;
+       };
+       bump(0.3, 0.12, 92, c.dim, .35);
+       bump(0.74, 0.1, 30, c.warn, .7);
+       const tx = x0 + (x1 - x0) * 0.66;
+       c.strokeStyle = c.hot; c.lineWidth = 1.8;
+       c.beginPath(); c.moveTo(tx, 22); c.lineTo(tx, base + 4); c.stroke(); c.lineWidth = 1;
+       c.fillStyle = c.hot; c.fillText('cutoff', tx, 16);
+       c.fillStyle = c.dim; c.textAlign = 'left'; c.fillText('legitimate', x0, base + 14);
+       c.textAlign = 'right'; c.fillStyle = c.warn; c.fillText('fraud', x1, base + 14);
+       c.textAlign = 'center';
+       box(c, 22, 166, 118, 36, c.hot, c.bg);
+       c.fillStyle = c.strong; c.fillText('validation', 81, 181);
+       c.fillStyle = c.hot; c.fillText('picks the cutoff', 81, 194);
+       box(c, 160, 166, 118, 36, c.line, c.bg);
+       c.fillStyle = c.strong; c.fillText('test', 219, 181);
+       c.fillStyle = c.dim; c.fillText('only reports', 219, 194);
      }]
   ]
 };
@@ -3323,9 +3487,11 @@ const ITEMS = [...document.querySelectorAll('.card')].map(c => {
     run: () => { if (ccDemo.hidden) ccTry.click(); ccDemo.scrollIntoView({ block: 'center' }); } },
   { name: 'Try to get past the voice check', desc: 'Run the MFCC speaker-verification pipeline', kind: 'demo',
     run: () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({ block: 'center' }); } },
+  { name: 'Train across three banks', desc: 'Run Federated Averaging round by round', kind: 'demo',
+    run: () => { if (faDemo.hidden) faTry.click(); faDemo.scrollIntoView({ block: 'center' }); } },
   { name: 'CV', desc: 'One page, PDF', kind: 'link', run: () => location.assign('cv.pdf') },
   { name: 'Copy email', desc: MAIL, kind: 'action', run: copyMail },
-  { name: 'Toggle theme', desc: 'Switch between light and dark', kind: 'action', run: () => themeBtn.click() },
+  { name: 'Toggle theme', desc: 'Cycle auto, light and dark', kind: 'action', run: () => themeBtn.click() },
   { name: 'Toggle motion', desc: 'Pause or resume the snake', kind: 'action', run: () => motionBtn.click() }
 ]);
 
@@ -4773,6 +4939,500 @@ for (const el of [elVoice, elThr, elF1, elPitch]) {
   el.addEventListener('change', writeState);
 }
 
+/* ============ federated-aml, playable ============
+   The repo's Federated Averaging, run in the page: the same sample-weighted
+   average, the same weighted loss, a fresh Adam each round, and the same F1
+   threshold search on a validation split. Two things are simplified, and the
+   page says so under the demo. It uses two of the repo's nineteen features, so
+   the decision boundary is a line that can be drawn, which means a logistic
+   regression stands in for the three-layer MLP. And the held-out set is pooled
+   from the three banks rather than generated as a fourth bank.
+
+   This was measured before any of it was written, over five data seeds. At the
+   repo's own settings every bank trained alone reaches the same model as the
+   federation, within 0.002 AUROC, because its banks differ only by a shift. As
+   the banks are pushed apart, the federated model stays level with the best
+   bank while the worst one falls up to 0.06 behind on its own, and F1 drops
+   even though AUROC holds. The demo reports whichever of those happened on the
+   run in front of you rather than a sentence written in advance. */
+const FA_ROUNDS = 10, FA_EPOCHS = 5, FA_PW = 10;
+const FA_SIZES = { eq: [10000, 10000, 10000], un: [10000, 3000, 1000] };
+
+const faTry = document.getElementById('faTry');
+const faDemo = document.getElementById('faDemo');
+const faCv = document.getElementById('faCv');
+const faCtx = faCv.getContext('2d');
+const faHet = document.getElementById('faHet');
+const faHetV = document.getElementById('faHetV');
+const faSize = document.getElementById('faSize');
+const faRead = document.getElementById('faRead');
+const faOut = document.getElementById('faOut');
+const faSpd = document.getElementById('faSpd');
+
+// seeded, so a configuration always trains the same way and a shared link
+// replays the same run
+function faRng(s) {
+  return () => {
+    s |= 0; s = s + 0x6D2B79F5 | 0;
+    let t = Math.imul(s ^ s >>> 15, 1 | s);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+function faNormal(r) {
+  let u = 0;
+  while (u === 0) u = r();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
+}
+function faPoisson(r, lam) {
+  if (lam > 30) return Math.max(0, Math.round(lam + Math.sqrt(lam) * faNormal(r)));
+  const L = Math.exp(-lam);
+  let k = 0, p = 1;
+  do { k++; p *= r(); } while (p > L);
+  return k - 1;
+}
+
+/* client/data_loader.py, restricted to log_amount and velocity_1h. A bank's
+   typical transaction is 500 + 200k and its accounts run 0.5k transactions an
+   hour busier; `het` scales both shifts, and 1 is exactly the repo. */
+function faBank(k, n, seed, het) {
+  const r = faRng(seed), m = 500 + het * 200 * k, vb = het * 0.5 * k;
+  const nF = Math.max(1, Math.floor(n * 0.02));
+  const X = new Array(n), y = new Array(n), raw = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const fraud = i < nF;
+    const amt = Math.exp(Math.log(fraud ? m * 0.7 : m) + (fraud ? 1.2 : 0.8) * faNormal(r));
+    const vel = faPoisson(r, (fraud ? 4 : 1) + vb);
+    const la = Math.log1p(amt);
+    // fixed offsets rather than statistics of the data: a bank cannot
+    // standardise against numbers that only the other banks know
+    X[i] = [la - 6.5, (Math.min(vel / 10, 1) - 0.25) * 4];
+    y[i] = fraud ? 1 : 0;
+    raw[i] = [la, vel];
+  }
+  return { X, y, raw, n };
+}
+function faPooled(n, seed, het) {
+  const out = { X: [], y: [], n: 0 };
+  for (let k = 0; k < 3; k++) {
+    const b = faBank(k, Math.round(n / 3), seed + k, het);
+    out.X.push(...b.X); out.y.push(...b.y);
+  }
+  out.n = out.y.length;
+  return out;
+}
+
+const faSig = z => 1 / (1 + Math.exp(-z));
+const faP = (w, x) => faSig(w[0] * x[0] + w[1] * x[1] + w[2]);
+
+// client/local_trainer.py: a fresh Adam every round, lr 1e-3, batch 64,
+// fraud weighted 10x in the loss, gradient norm clipped to 1
+function faTrain(w0, d, epochs, seed) {
+  const r = faRng(seed), w = w0.slice(), m = [0, 0, 0], v = [0, 0, 0];
+  const lr = 1e-3, b1 = .9, b2 = .999, eps = 1e-8;
+  const idx = Array.from({ length: d.n }, (_, i) => i);
+  let t = 0;
+  for (let e = 0; e < epochs; e++) {
+    for (let i = idx.length - 1; i > 0; i--) {
+      const j = Math.floor(r() * (i + 1)); const s = idx[i]; idx[i] = idx[j]; idx[j] = s;
+    }
+    for (let s = 0; s < idx.length; s += 64) {
+      const g = [0, 0, 0], end = Math.min(s + 64, idx.length), B = end - s;
+      for (let q = s; q < end; q++) {
+        const x = d.X[idx[q]], y = d.y[idx[q]], p = faP(w, x);
+        const dz = -FA_PW * y * (1 - p) + (1 - y) * p;
+        g[0] += dz * x[0]; g[1] += dz * x[1]; g[2] += dz;
+      }
+      for (let c = 0; c < 3; c++) g[c] /= B;
+      const nrm = Math.hypot(g[0], g[1], g[2]);
+      if (nrm > 1) for (let c = 0; c < 3; c++) g[c] /= nrm;
+      t++;
+      for (let c = 0; c < 3; c++) {
+        m[c] = b1 * m[c] + (1 - b1) * g[c];
+        v[c] = b2 * v[c] + (1 - b2) * g[c] * g[c];
+        w[c] -= lr * (m[c] / (1 - b1 ** t)) / (Math.sqrt(v[c] / (1 - b2 ** t)) + eps);
+      }
+    }
+  }
+  return w;
+}
+
+// server/evaluator.py: the cutoff that maximises F1 over 300 score quantiles,
+// and AUROC by its own trapezoid rule
+function faQuantile(sorted, q) {
+  const pos = (sorted.length - 1) * q, lo = Math.floor(pos), hi = Math.ceil(pos);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo);
+}
+function faCounts(P, y, thr) {
+  let tp = 0, fp = 0, tn = 0, fn = 0;
+  for (let i = 0; i < P.length; i++) {
+    const pr = P[i] >= thr;
+    if (pr && y[i]) tp++; else if (pr) fp++; else if (y[i]) fn++; else tn++;
+  }
+  const pre = tp / Math.max(tp + fp, 1), rec = tp / Math.max(tp + fn, 1);
+  return { tp, fp, tn, fn, pre, rec, f1: 2 * pre * rec / Math.max(pre + rec, 1e-9) };
+}
+function faTune(w, d) {
+  const P = d.X.map(x => faP(w, x)), S = P.slice().sort((a, b) => a - b);
+  const cand = [...new Set(Array.from({ length: 300 }, (_, i) => faQuantile(S, .5 + (.9995 - .5) * i / 299)))];
+  let best = .5, bf = -1;
+  for (const t of cand) { const f = faCounts(P, d.y, t).f1; if (f > bf) { bf = f; best = t; } }
+  return best;
+}
+function faEval(w, d, thr) {
+  const P = d.X.map(x => faP(w, x)), k = faCounts(P, d.y, thr);
+  const order = P.map((_, i) => i).sort((a, b) => P[b] - P[a]);
+  const nP = d.y.reduce((a, b) => a + b, 0), nN = d.y.length - nP;
+  let tc = 0, prev = 0, auc = 0;
+  for (const i of order) { if (d.y[i]) tc++; else { auc += (tc + prev) / 2 / nP; prev = tc; } }
+  return { auroc: auc / Math.max(nN, 1), f1: k.f1, rec: k.rec, pre: k.pre };
+}
+
+/* The whole run is computed once, up front, and Step, Play and Run replay it,
+   exactly as the other algorithm demos do. A round is four events: training
+   at home, sending weights, averaging, scoring. */
+function faBuildTrace(het, sizeKey) {
+  const sizes = FA_SIZES[sizeKey], N = sizes.reduce((a, b) => a + b, 0);
+  const banks = sizes.map((n, k) => faBank(k, n, k * 100, het));
+  const val = faPooled(2000, 8888, het), test = faPooled(2000, 9999, het);
+
+  // What gets drawn: every fraud case and a sample of the rest, jittered
+  // vertically because transaction counts are whole numbers and would otherwise
+  // stack into rows. A separate generator, so drawing never changes training.
+  // Fraud is 2% of the data, so drawing both at the same rate would leave about
+  // sixty amber dots in a field of thousands; it is shown in full instead, and
+  // the key says so. With only 260 legitimate dots a bank, fraud read as nearly
+  // half of all traffic, so the sample is large enough that it no longer does.
+  const r = faRng(het * 31 + sizes[2]);
+  const dots = [], centres = [];
+  banks.forEach(b => {
+    let sa = 0, sv = 0, nl = 0, kept = 0;
+    for (let i = 0; i < b.n; i++) {
+      if (!b.y[i]) { sa += b.raw[i][0]; sv += b.raw[i][1]; nl++; }
+      if (b.y[i] || (kept < 700 && r() < 760 / b.n)) {
+        if (!b.y[i]) kept++;
+        dots.push({ la: b.raw[i][0], v: b.raw[i][1] + (r() - .5) * .7, f: b.y[i] });
+      }
+    }
+    centres.push({ la: sa / nl, v: sv / nl });
+  });
+
+  const rounds = [];
+  let w = [0, 0, 0];
+  for (let rd = 1; rd <= FA_ROUNDS; rd++) {
+    const locals = banks.map((b, k) => faTrain(w, b, FA_EPOCHS, rd * 10 + k));
+    const g = [0, 0, 0];
+    locals.forEach((lw, k) => { for (let c = 0; c < 3; c++) g[c] += sizes[k] / N * lw[c]; });
+    const thr = faTune(g, val);
+    rounds.push(Object.assign({ rd, locals, global: g, thr }, faEval(g, test, thr)));
+    w = g;
+  }
+  // each bank alone: the same local work, the same threshold search, the same test
+  const solo = banks.map((b, k) => {
+    let ws = [0, 0, 0];
+    for (let rd = 1; rd <= FA_ROUNDS; rd++) ws = faTrain(ws, b, FA_EPOCHS, rd * 10 + k);
+    return faEval(ws, test, faTune(ws, val));
+  });
+
+  const ev = [{ kind: 'ready', round: -1 }];
+  rounds.forEach((_, i) => { for (const kind of ['train', 'send', 'avg', 'eval']) ev.push({ kind, round: i }); });
+  ev.push({ kind: 'done', round: FA_ROUNDS - 1 });
+  return { het, sizeKey, sizes, N, dots, centres, rounds, solo, ev };
+}
+
+let faTrace = null, faAt = 0, faTimer = 0, faPlaying = false, faToken = 0;
+const f2 = v => v.toFixed(2), f3 = v => v.toFixed(3);
+const FA_READY = 'Ready. Each Step is one stage of a round: training at home, sending weights, averaging, then scoring.';
+
+function faLabel() {
+  const v = +faHet.value;
+  faHetV.innerHTML = v === 0 ? '0&times;, identical' : v === 1 ? '1&times;, as in the repo' : v + '&times;';
+}
+function faBuild() {
+  faStop();
+  faTrace = null;
+  faOut.innerHTML = '';
+  faRead.innerHTML = 'Training ten rounds across three banks&hellip;';
+  faSync();
+  const token = ++faToken;
+  // let the message paint before a fraction of a second of arithmetic
+  setTimeout(() => {
+    if (token !== faToken || faDemo.hidden) return;
+    faTrace = faBuildTrace(+faHet.value, faSize.value);
+    faAt = 0;
+    faRead.innerHTML = FA_READY;
+    faCv.setAttribute('aria-label', 'Transactions from three banks, with each bank’s decision boundary and the federated one');
+    faSync(); faDraw();
+  }, 30);
+}
+function faStop() { clearTimeout(faTimer); faTimer = 0; faPlaying = false; faSync(); }
+function faSync() {
+  const end = !faTrace || faAt >= faTrace.ev.length - 1;
+  document.getElementById('faPlay').textContent = faPlaying ? 'Pause' : 'Play';
+  document.getElementById('faPlay').disabled = !faTrace;
+  document.getElementById('faReset').disabled = !faTrace;
+  document.getElementById('faStep').disabled = end;
+  document.getElementById('faRun').disabled = end;
+}
+
+// a boundary is drawn where the model's probability crosses the current cutoff
+const faLogit = p => Math.log(p / (1 - p));
+
+function faDraw() {
+  if (!faTrace) return;
+  const T = faTrace, e = T.ev[faAt], R = T.rounds;
+  const wrapW = faDemo.querySelector('.demo-scroll').clientWidth || 540;
+  // fits the column down to a phone rather than scrolling sideways; the key
+  // wraps and the axes are sparse enough to survive 300px
+  const w = Math.max(300, Math.min(600, wrapW)), h = Math.round(w * 0.9);
+  const d = Math.min(devicePixelRatio || 1, 2);
+  faCv.width = w * d; faCv.height = h * d;
+  faCv.style.width = w + 'px'; faCv.style.height = h + 'px';
+  const c = faCtx;
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.clearRect(0, 0, w, h);
+  const line = css('--line'), dim = css('--dim'), fg = css('--fg'), muted = css('--muted');
+  const lite = css('--sn-lite'), mid = css('--sn-mid'), badge = css('--badge');
+  c.font = '10px ' + MONO;
+
+  // what is visible at this event
+  const r = e.round;
+  const showLocals = e.kind === 'train' || e.kind === 'send' || e.kind === 'avg';
+  const globalAt = e.kind === 'avg' || e.kind === 'eval' || e.kind === 'done' ? r : r - 1;
+  const scored = e.kind === 'eval' || e.kind === 'done' ? r : r - 1;
+  const thr = scored >= 0 ? R[scored].thr : FA_PW / (1 + FA_PW);
+
+  // ---- key ----
+  // Above the plot rather than inside it. Inside, it sat on the densest dots
+  // and, once it wrapped to two lines on a phone, on top of the velocity-cap
+  // label as well. Every entry is always laid out, and the per-bank one only
+  // dims when those lines are off screen, so the plot never shifts between
+  // steps as the key changes length.
+  const L = 40, Rt = w - 14;
+  const keys = [
+    [(x, y) => { c.fillStyle = badge; c.beginPath(); c.arc(x + 5, y, 2.4, 0, 7); c.fill(); }, 'fraud, every case', 1],
+    [(x, y) => { c.fillStyle = dim; c.fillRect(x + 3, y - 1, 2, 2); c.fillRect(x + 7, y + 1, 2, 2); }, 'legitimate, sampled', 1],
+    [(x, y) => { c.strokeStyle = lite; c.lineWidth = 2.4; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 11, y); c.stroke(); }, 'federated', 1],
+    [(x, y) => { c.strokeStyle = muted; c.lineWidth = 1.1; c.beginPath(); c.moveTo(x, y); c.lineTo(x + 11, y); c.stroke(); }, 'each bank',
+      showLocals ? 1 : .35]
+  ];
+  c.textBaseline = 'middle'; c.textAlign = 'left';
+  let kx = L, ky = 8;
+  for (const [mark, label, alpha] of keys) {
+    const lw = 16 + c.measureText(label).width;
+    if (kx + lw > Rt && kx > L) { kx = L; ky += 15; }
+    c.globalAlpha = alpha;
+    mark(kx, ky); c.fillStyle = muted; c.fillText(label, kx + 16, ky);
+    c.globalAlpha = 1;
+    kx += lw + 14;
+  }
+
+  // ---- feature space ----
+  const top = ky + 14, bot = Math.round(h * 0.56);
+  const LA0 = 3.6, LA1 = 10.2, V0 = -0.6, V1 = 12.4;
+  const X = la => L + (la - LA0) / (LA1 - LA0) * (Rt - L);
+  const Y = v => bot - (v - V0) / (V1 - V0) * (bot - top);
+
+  c.strokeStyle = line; c.lineWidth = 1;
+  c.strokeRect(L + .5, top + .5, Rt - L - 1, bot - top - 1);
+  c.fillStyle = dim; c.textAlign = 'center'; c.textBaseline = 'top';
+  for (const [amt, lab] of [[50, '50'], [300, '300'], [2000, '2k'], [12000, '12k']]) {
+    const x = X(Math.log1p(amt));
+    c.fillText(lab, x, bot + 5);
+    c.globalAlpha = .45; c.beginPath(); c.moveTo(x + .5, top); c.lineTo(x + .5, bot); c.stroke(); c.globalAlpha = 1;
+  }
+  c.fillText('transaction amount', (L + Rt) / 2, bot + 18);
+  c.textAlign = 'right'; c.textBaseline = 'middle';
+  for (const v of [0, 4, 8, 12]) c.fillText(v, L - 7, Y(v));
+  c.save(); c.translate(11, (top + bot) / 2); c.rotate(-Math.PI / 2);
+  c.textAlign = 'center'; c.fillText('transactions in the past hour', 0, 0); c.restore();
+
+  c.save();
+  c.beginPath(); c.rect(L + 1, top + 1, Rt - L - 2, bot - top - 2); c.clip();
+
+  // the model reads velocity as count / 10 capped at 1, so above ten every
+  // account looks the same to it
+  if (T.dots.some(p => p.v > 10.4)) {
+    c.setLineDash([3, 4]); c.strokeStyle = dim;
+    c.beginPath(); c.moveTo(L, Y(10) + .5); c.lineTo(Rt, Y(10) + .5); c.stroke(); c.setLineDash([]);
+    c.textAlign = 'right'; c.textBaseline = 'bottom';
+    const capW = c.measureText('the model reads 10+ as 10').width;
+    c.fillStyle = css('--bg'); c.globalAlpha = .85;
+    c.fillRect(Rt - 10 - capW, Y(10) - 14, capW + 8, 12); c.globalAlpha = 1;
+    c.fillStyle = dim; c.fillText('the model reads 10+ as 10', Rt - 6, Y(10) - 2);
+  }
+  for (const p of T.dots) if (!p.f) {
+    c.fillStyle = dim; c.globalAlpha = .24;
+    c.fillRect(X(p.la) - 1, Y(Math.min(p.v, 12.2)) - 1, 2, 2);
+  }
+  for (const p of T.dots) if (p.f) {
+    c.fillStyle = badge; c.globalAlpha = .72;
+    c.beginPath(); c.arc(X(p.la), Y(Math.min(p.v, 12.2)), 1.6, 0, 7); c.fill();
+  }
+  c.globalAlpha = 1;
+
+  // where each bank's ordinary traffic sits: this is what non-IID data looks like
+  c.textBaseline = 'middle'; c.textAlign = 'left';
+  T.centres.forEach((q, k) => {
+    const x = X(q.la), y = Y(q.v);
+    c.strokeStyle = fg; c.lineWidth = 1.2;
+    c.beginPath(); c.arc(x, y, 6, 0, 7); c.stroke();
+    c.fillStyle = fg; c.fillText('bank ' + k, x + 9, y);
+  });
+
+  const boundary = (wt, color, width, alpha) => {
+    const Lg = faLogit(Math.min(Math.max(thr, 1e-6), 1 - 1e-6));
+    c.save();
+    c.beginPath(); c.rect(L, Y(10), Rt - L, bot - Y(10)); c.clip();
+    c.strokeStyle = color; c.lineWidth = width; c.globalAlpha = alpha;
+    c.beginPath();
+    if (Math.abs(wt[1]) > 1e-6) {
+      const vAt = la => ((Lg - wt[2] - wt[0] * (la - 6.5)) / wt[1] + 1) / 0.4;
+      c.moveTo(X(LA0), Y(vAt(LA0))); c.lineTo(X(LA1), Y(vAt(LA1)));
+    } else if (Math.abs(wt[0]) > 1e-6) {
+      const la = (Lg - wt[2] + wt[1]) / wt[0] + 6.5;
+      c.moveTo(X(la), Y(V0)); c.lineTo(X(la), Y(10));
+    }
+    c.stroke();
+    c.restore();
+  };
+  if (showLocals) R[r].locals.forEach(lw => boundary(lw, muted, 1.1, .8));
+  if (globalAt >= 0) boundary(R[globalAt].global, lite, 2.4, 1);
+  c.restore();
+
+
+  // ---- score by round ----
+  const cTop = Math.round(h * 0.68), cBot = h - 30, cL = L, cR = Rt;
+  const RX = i => cL + i / (FA_ROUNDS - 1) * (cR - cL);
+  const RY = v => cBot - v * (cBot - cTop);
+  c.strokeStyle = line; c.lineWidth = 1;
+  for (const v of [0, .5, 1]) { c.beginPath(); c.moveTo(cL, RY(v) + .5); c.lineTo(cR, RY(v) + .5); c.stroke(); }
+  c.fillStyle = dim; c.textAlign = 'right';
+  for (const v of [0, .5, 1]) c.fillText(v.toFixed(1), cL - 7, RY(v));
+  c.textAlign = 'center'; c.textBaseline = 'top';
+  for (let i = 0; i < FA_ROUNDS; i++) c.fillText(i + 1, RX(i), cBot + 5);
+  c.textAlign = 'left';
+  c.fillText('round', cL, cBot + 17);
+  // said down here rather than beside the band, where the series labels land on it
+  if (scored >= 0) {
+    c.textAlign = 'right';
+    c.fillStyle = mid; c.globalAlpha = .45; c.fillRect(cR - c.measureText('each bank alone, AUROC').width - 20, cBot + 19, 11, 8);
+    c.globalAlpha = 1; c.fillStyle = muted; c.fillText('each bank alone, AUROC', cR, cBot + 17);
+  }
+
+  if (scored >= 0) {
+    // the spread you would get if every bank trained alone
+    const A = T.solo.map(s => s.auroc), lo = Math.min(...A), hi = Math.max(...A);
+    c.fillStyle = mid; c.globalAlpha = .16;
+    c.fillRect(cL, RY(hi) - 1, cR - cL, Math.max(2, RY(lo) - RY(hi) + 2));
+    c.globalAlpha = 1;
+
+    const series = (field, color, width) => {
+      c.strokeStyle = color; c.fillStyle = color; c.lineWidth = width;
+      c.beginPath();
+      for (let i = 0; i <= scored; i++) i ? c.lineTo(RX(i), RY(R[i][field])) : c.moveTo(RX(i), RY(R[i][field]));
+      c.stroke();
+      for (let i = 0; i <= scored; i++) { c.beginPath(); c.arc(RX(i), RY(R[i][field]), 2.6, 0, 7); c.fill(); }
+    };
+    series('auroc', lite, 2);
+    series('f1', badge, 1.4);
+    c.textAlign = 'left'; c.textBaseline = 'middle';
+    const last = R[scored], lx = Math.min(RX(scored) + 8, cR - 44);
+    c.fillStyle = lite; c.fillText('AUROC', lx, RY(last.auroc) - 10);
+    c.fillStyle = badge; c.fillText('F1', lx, RY(last.f1) + 11);
+  } else {
+    c.fillStyle = dim; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('scores appear as each round is evaluated', (cL + cR) / 2, (cTop + cBot) / 2);
+  }
+}
+
+function faMessage(e) {
+  const T = faTrace, R = T.rounds[e.round];
+  switch (e.kind) {
+    case 'train':
+      return `Round <b>${R.rd}</b> of ${FA_ROUNDS}. Each bank starts from the global model and trains for <b>${FA_EPOCHS}</b> epochs on its own ` +
+        (T.sizeKey === 'eq' ? '<b>10,000</b> transactions' : 'data: <b>10,000</b>, <b>3,000</b> and <b>1,000</b> transactions') +
+        '. No transaction leaves its bank.';
+    case 'send':
+      return 'Each bank sends back three numbers and nothing else: ' +
+        R.locals.map((lw, k) => `bank ${k} <i>(${f2(lw[0])}, ${f2(lw[1])}, ${f2(lw[2])})</i>`).join(', ') +
+        `. That is <b>9</b> numbers leaving, against <b>${T.N.toLocaleString('en')}</b> transactions that stay where they are.`;
+    case 'avg':
+      return 'Averaged by each bank’s share of the data: global = ' +
+        T.sizes.map((n, k) => `<b>${f2(n / T.N)}</b> &times; bank ${k}`).join(' + ') + '.';
+    case 'eval':
+      return `Scored on the held-out set: AUROC <b>${f3(R.auroc)}</b>, F1 <b>${f3(R.f1)}</b>, at a cutoff of <b>${f3(R.thr)}</b> picked on the validation split.`;
+    default: return '';
+  }
+}
+
+function faReport() {
+  const T = faTrace, last = T.rounds[FA_ROUNDS - 1];
+  const A = T.solo.map(s => s.auroc), best = Math.max(...A), worst = Math.min(...A);
+  const bi = A.indexOf(best), wi = A.indexOf(worst);
+  let msg;
+  if (best - worst < 0.01) {
+    msg = `Federated AUROC <b>${f3(last.auroc)}</b>, and each bank trained alone reaches <b>${f3(worst)}</b> to <b>${f3(best)}</b>. ` +
+      (T.het === 1 && T.sizeKey === 'eq'
+        ? 'At the repo’s own settings the banks differ only by a shift, so every one of them learns the same boundary and federating adds nothing. Push the banks further apart to see where it starts to matter.'
+        : 'The banks are alike enough that each one already learns the same boundary on its own, so federating adds nothing here.');
+  } else {
+    const gap = last.auroc - best;
+    const vsBest = Math.abs(gap) < 0.005 ? 'level with' : gap > 0 ? `<b>${f3(gap)}</b> ahead of` : `<b>${f3(-gap)}</b> behind`;
+    msg = `Federated AUROC <b>${f3(last.auroc)}</b>, ${vsBest} the best bank trained alone (bank ${bi}, <b>${f3(best)}</b>) ` +
+      `and <b>${f3(last.auroc - worst)}</b> ahead of the worst (bank ${wi}, <b>${f3(worst)}</b>). No bank ever saw another bank’s transactions.`;
+  }
+  if (last.auroc > 0.75 && last.f1 < 0.25) {
+    msg += ` F1 is only <b>${f3(last.f1)}</b> all the same: the model still ranks transactions well, but one cutoff has to serve banks whose normal traffic looks different.`;
+  }
+  faRead.innerHTML = msg;
+  faOut.innerHTML = [
+    [f3(last.auroc), 'AUROC, federated'], [f3(last.f1), 'F1, federated'],
+    [f3(best), 'best bank alone'], [f3(worst), 'worst bank alone']
+  ].map(([v, k]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+  faCv.setAttribute('aria-label', `After ${FA_ROUNDS} rounds the federated model scores AUROC ${f3(last.auroc)} and F1 ${f3(last.f1)}; ` +
+    `the three banks trained alone score between ${f3(worst)} and ${f3(best)} AUROC.`);
+}
+
+function faStepOnce() {
+  if (!faTrace || faAt >= faTrace.ev.length - 1) return false;
+  faAt++;
+  const e = faTrace.ev[faAt];
+  if (e.kind === 'done') faReport(); else faRead.innerHTML = faMessage(e);
+  faDraw();
+  return true;
+}
+function faLoop() {
+  if (!faStepOnce()) { faStop(); return; }
+  faTimer = setTimeout(faLoop, 2400 / +faSpd.value);
+}
+document.getElementById('faPlay').addEventListener('click', () => {
+  if (!faTrace) return;
+  if (faPlaying) { faStop(); return; }
+  // the run is deterministic, so replaying from the end rewinds rather than retrains
+  if (faAt >= faTrace.ev.length - 1) { faAt = 0; faOut.innerHTML = ''; faDraw(); }
+  faPlaying = true; faSync(); faLoop();
+});
+document.getElementById('faStep').addEventListener('click', () => { faStop(); faStepOnce(); faSync(); });
+document.getElementById('faRun').addEventListener('click', () => { faStop(); while (faStepOnce()); faSync(); });
+document.getElementById('faReset').addEventListener('click', () => {
+  if (!faTrace) return;
+  faStop(); faAt = 0; faOut.innerHTML = ''; faRead.innerHTML = FA_READY;
+  faDraw(); faSync();
+});
+faHet.addEventListener('input', faLabel);
+faHet.addEventListener('change', () => { faBuild(); writeState(); });
+faSize.addEventListener('change', () => { faBuild(); writeState(); });
+
+function faOpen(on) {
+  faDemo.hidden = !on;
+  faTry.setAttribute('aria-expanded', String(on));
+  faTry.querySelector('.sub').textContent = on ? 'collapse' : 'FedAvg, round by round';
+  if (on) { faLabel(); faBuild(); } else { faStop(); faToken++; }
+  resize(); draw(performance.now() / 1000);
+}
+faTry.addEventListener('click', () => { faOpen(faDemo.hidden); writeState(); });
+
 /* ---- deep links ----
    A demo you have set up is worth sending to someone, so the open panel and its
    controls live in the URL. replaceState rather than pushState: dragging a
@@ -4787,6 +5447,7 @@ function writeState() {
     p.set('d', 'el'); p.set('v', elVoice.value); p.set('t', elThr.value);
     p.set('f', elF1.value); p.set('p', elPitch.value);
   }
+  else if (!faDemo.hidden) { p.set('d', 'fa'); p.set('h', faHet.value); p.set('s', faSize.value); }
   if (activeKind) p.set('k', activeKind);
   const q = p.toString();
   history.replaceState(null, '', q ? '#' + q : location.pathname + location.search);
@@ -4819,10 +5480,14 @@ function readState() {
       elThrV.textContent = (+elThr.value / 1000).toFixed(3);
       elOpen(true);
       break;
+    case 'fa':
+      num('h', faHet); num('s', faSize);
+      faOpen(true);
+      break;
     default: stateLock = false; return;   // a filter on its own is a valid link
   }
   stateLock = false;
-  document.getElementById(p.get('d') === 'hd' ? 'hdDemo' : p.get('d') === 'cc' ? 'ccDemo' : 'elDemo')
+  document.getElementById(p.get('d') + 'Demo')
     .scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
 }
 
@@ -5058,7 +5723,8 @@ addEventListener('resize', () => {
     if (!hdDemo.hidden) hdDraw();
     if (!ccDemo.hidden) ccDraw();
     if (!elDemo.hidden) elDraw();
-    for (const k of ['cc', 'hd', 'el']) {
+    if (!faDemo.hidden) faDraw();
+    for (const k of ['cc', 'hd', 'el', 'fa']) {
       const h = document.getElementById(k + 'How');
       if (h && !h.hidden && h._redraw) h._redraw();
     }
@@ -5117,6 +5783,8 @@ wireWalk('hd', () => { if (hdDemo.hidden) hdTry.click(); hdDemo.scrollIntoView({
   'four steps, from audio to alignment');
 wireWalk('el', () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
   'four steps, from signal to verdict');
+wireWalk('fa', () => { if (faDemo.hidden) faTry.click(); faDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
+  'four steps, and no data moves');
 
 // a shared demo link opens the panel it names and restores the controls with it
 readState();
