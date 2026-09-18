@@ -24,8 +24,8 @@
 <meta name="twitter:title" content="Shezin Khais">
 <meta name="twitter:description" content="Computer science student building small, focused tools in Python. Every one ships with tests and CI.">
 <meta name="twitter:image" content="https://shezinkhais.github.io/social.png">
-<meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
-<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#161b22" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#efebe2" media="(prefers-color-scheme: light)">
 
 <!-- Space Grotesk is Space Mono's sibling: same skeleton, drawn for display
      sizes, so it sets the name and the project titles against a monospace page
@@ -58,12 +58,13 @@
 <style>
   :root {
     --display:'Space Grotesk', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    --bg:#0d1117; --panel:rgba(18,24,32,.70); --panel-hi:rgba(30,39,52,.86);
+    --bg:#161b22; --panel:rgba(30,37,47,.72); --panel-hi:rgba(40,49,62,.90);
     /* --dim clears 4.5:1 on the page and on --panel, but composited over the
-       page it reaches only 4.43:1 on --panel-hi. Text inside the palette uses
-       --muted for that reason; do not put --dim text on --panel-hi. */
-    --fg:#e6edf3; --muted:#8b949e; --dim:#808894;
-    --line:#22282f; --accent:#58a6ff;
+       page it reaches only 4.52:1 on --panel-hi, too close to rely on. Text
+       inside the palette uses --muted for that reason; do not put --dim text
+       on --panel-hi. */
+    --fg:#e6edf3; --muted:#9aa4af; --dim:#8d96a1;
+    --line:#303843; --accent:#58a6ff;
     --py:#4b8bbe; --py2:#ffd43b;
     /* Text greens and ambers are separate tokens from the snake's, because the
        snake is a graphic and these have to clear 4.5:1 against the page. Tying
@@ -71,7 +72,7 @@
     --num:#7ad48f; --badge:#ffd43b;
     /* the sticky label sits over the canvas, so it veils the snake rather than
        cutting a solid band out of it */
-    --veil:rgba(13,17,23,.62);
+    --veil:rgba(22,27,34,.62);
     /* snake */
     --sn-deep:#123d1e; --sn-dark:#1d6b33; --sn-mid:#3fa055;
     --sn-lite:#7ad48f; --sn-belly:#d7e9a8; --sn-eye:#ffd43b;
@@ -80,26 +81,26 @@
      and the user hasn't pinned dark, or when they've explicitly pinned light. */
   @media (prefers-color-scheme: light) {
     :root:not([data-theme="dark"]) {
-      /* The page is tinted and the panels are white, rather than both being
-         near-white. A layout carried almost entirely by hairlines needs the
-         paper to sit on something, or the rules disappear and it reads blank. */
-      --bg:#eef1f5; --panel:rgba(255,255,255,.86); --panel-hi:rgba(255,255,255,.97);
-      --fg:#12171d; --muted:#4a5460; --dim:#5f6875;
-      --line:#c3ccd7; --accent:#0757ba;
+      /* Warm paper with lighter panels, not white on near-white. A layout
+         carried almost entirely by hairlines needs the paper to have a tone,
+         or the rules disappear and the page reads as blank. */
+      --bg:#efebe2; --panel:rgba(249,247,242,.88); --panel-hi:rgba(252,251,248,.97);
+      --fg:#1c1b18; --muted:#524d45; --dim:#655f55;
+      --line:#d3cbbb; --accent:#0757ba;
       --py:#3d78a8; --py2:#b87e00;
       --num:#1f7a3c; --badge:#8f5400;
-      --veil:rgba(238,241,245,.74);
+      --veil:rgba(239,235,226,.78);
       --sn-deep:#0c2a14; --sn-dark:#175227; --sn-mid:#2a7a41;
       --sn-lite:#4aa863; --sn-belly:#a9c97e; --sn-eye:#c78f00;
     }
   }
   :root[data-theme="light"] {
-    --bg:#eef1f5; --panel:rgba(255,255,255,.86); --panel-hi:rgba(255,255,255,.97);
-    --fg:#12171d; --muted:#4a5460; --dim:#5f6875;
-    --line:#c3ccd7; --accent:#0757ba;
+    --bg:#efebe2; --panel:rgba(249,247,242,.88); --panel-hi:rgba(252,251,248,.97);
+    --fg:#1c1b18; --muted:#524d45; --dim:#655f55;
+    --line:#d3cbbb; --accent:#0757ba;
     --py:#3d78a8; --py2:#b87e00;
     --num:#1f7a3c; --badge:#8f5400;
-    --veil:rgba(238,241,245,.74);
+    --veil:rgba(239,235,226,.78);
     --sn-deep:#0c2a14; --sn-dark:#175227; --sn-mid:#2a7a41;
     --sn-lite:#4aa863; --sn-belly:#a9c97e; --sn-eye:#c78f00;
   }
@@ -3426,7 +3427,7 @@ function setTheme(mode) {
   } catch {}
   themeBtn.textContent = 'Theme: ' + mode;
   themeBtn.setAttribute('aria-label', `Colour theme: ${mode}. Cycles auto, light, dark.`);
-  redrawSigs();
+  redrawSigs(); repaintPanels();
   if (rafId === 0) draw(performance.now() / 1000);   // repaint the canvas when frozen
 }
 motionBtn.addEventListener('click', () => setMotion(paused));
@@ -3442,7 +3443,7 @@ themeBtn.addEventListener('click', () => {
 // on auto, the canvas has to repaint when the device flips at sunset
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
   if (!document.documentElement.hasAttribute('data-theme')) {
-    redrawSigs();
+    redrawSigs(); repaintPanels();
     if (rafId === 0) draw(performance.now() / 1000);
   }
 });
@@ -5809,6 +5810,21 @@ resize();
 draw(0);
 syncRail();
 
+/* Every canvas that reads its colours from the theme tokens at draw time. A
+   resize repaints them, and so does a theme change: without that, switching
+   theme with a demo open left it drawn in the old palette. */
+function repaintPanels() {
+  if (!hdDemo.hidden) hdDraw();
+  if (!ccDemo.hidden) ccDraw();
+  if (!elDemo.hidden) elDraw();
+  if (!faDemo.hidden) faDraw();
+  for (const k of ['cc', 'hd', 'el', 'fa']) {
+    const h = document.getElementById(k + 'How');
+    if (h && !h.hidden && h._redraw) h._redraw();
+  }
+  if (cardA) idDraw();   // the first setTheme runs before the badge is built
+}
+
 let savedTheme = null, savedMotion = null;
 try { savedTheme = localStorage.getItem('theme'); savedMotion = localStorage.getItem('motion'); } catch {}
 setTheme(savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'auto');
@@ -5825,15 +5841,7 @@ addEventListener('resize', () => {
   clearTimeout(rt);
   rt = setTimeout(() => {
     resize(); draw(performance.now() / 1000);
-    if (!hdDemo.hidden) hdDraw();
-    if (!ccDemo.hidden) ccDraw();
-    if (!elDemo.hidden) elDraw();
-    if (!faDemo.hidden) faDraw();
-    for (const k of ['cc', 'hd', 'el', 'fa']) {
-      const h = document.getElementById(k + 'How');
-      if (h && !h.hidden && h._redraw) h._redraw();
-    }
-    idDraw(); redrawSigs();
+    repaintPanels(); redrawSigs();
   }, 130);
 });
 
