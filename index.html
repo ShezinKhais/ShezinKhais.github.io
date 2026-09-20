@@ -779,18 +779,28 @@
   #race {
     position:fixed; inset:0; z-index:70; display:flex;
     align-items:center; justify-content:center; padding:18px;
+    /* the box is taller than a phone once the chooser and the pedals are in
+       it, so the overlay scrolls rather than hiding its own buttons */
+    overflow-y:auto; overscroll-behavior:contain;
     background:rgba(0,0,0,.6);
     backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
     animation:gIn .16s ease;
   }
   .rbox {
     background:var(--panel-hi); border:1px solid var(--sn-mid); padding:18px;
-    max-width:min(96vw,880px); width:100%;
+    max-width:min(96vw,880px); width:100%; margin:auto;
     box-shadow:0 26px 70px rgba(0,0,0,.45);
   }
   .rstage { border:1px solid var(--line); background:var(--bg); line-height:0; }
   #raceCv { display:block; width:100%; height:auto; touch-action:none; }
   .rcars { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  /* on a phone the six of them are three rows of chooser above a small road,
+     so they become one row you push sideways instead */
+  @media (max-width: 560px) {
+    .rcars { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+    .rcars::-webkit-scrollbar { display:none; }
+    .rcars button { flex:0 0 auto; }
+  }
   .rcars button {
     font:inherit; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
     color:var(--muted); background:var(--bg); border:1px solid var(--line);
@@ -802,6 +812,16 @@
   .rcars button:hover { color:var(--fg); }
   .rcars button[aria-pressed="true"] { color:var(--fg); border-color:var(--sn-mid); }
   .rcars button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .rlevel {
+    display:flex; align-items:center; gap:10px; margin:11px 0 0;
+    font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+  }
+  .rlevel select {
+    font:inherit; font-size:11px; color:var(--fg); background:var(--bg);
+    border:1px solid var(--line); border-radius:0; padding:6px 8px; text-transform:none; letter-spacing:0;
+  }
+  .rlevel select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  @media (pointer: coarse) { .rlevel select { min-height:44px; } }
   .rkeys { margin:11px 0 0; font-size:10.5px; color:var(--muted); letter-spacing:.03em; }
   .rkeys kbd { font:inherit; color:var(--fg); border:1px solid var(--line); padding:1px 5px; margin:0 2px; }
   .rtouch { display:none; }
@@ -946,13 +966,23 @@
       <button type="button" data-rc="left" aria-label="Steer left">&#9664;</button>
       <button type="button" data-rc="right" aria-label="Steer right">&#9654;</button>
       <button type="button" data-rc="down">Brake</button>
+      <button type="button" data-rc="flash">Flash</button>
       <button type="button" data-rc="gdn" class="g" aria-label="Change down">Gear &minus;</button>
       <button type="button" data-rc="gup" class="g" aria-label="Change up">Gear +</button>
     </div>
     <div class="rcars" id="rcCars" role="group" aria-label="Choose a car"></div>
+    <p class="rlevel">
+      <label for="rcLevel">Traffic</label>
+      <select id="rcLevel">
+        <option value="quiet">Quiet road</option>
+        <option value="busy">Busy</option>
+        <option value="rush">Rush hour, and they drive like it</option>
+      </select>
+    </p>
     <p class="rkeys">
-      <kbd>&larr;</kbd><kbd>&rarr;</kbd> steer &middot; <kbd>&uarr;</kbd> throttle &middot;
-      <kbd>&darr;</kbd> brake &middot; <kbd>Q</kbd><kbd>E</kbd> gears in manual &middot;
+      <kbd>&larr;</kbd><kbd>&rarr;</kbd> or <kbd>A</kbd><kbd>D</kbd> steer &middot;
+      <kbd>&uarr;</kbd><kbd>W</kbd> throttle &middot; <kbd>&darr;</kbd><kbd>S</kbd> brake &middot;
+      <kbd>Shift</kbd><kbd>Ctrl</kbd> gears in manual &middot; <kbd>F</kbd> flash the car ahead &middot;
       <kbd>T</kbd> gearbox &middot; <kbd>R</kbd> restart &middot; <kbd>P</kbd> pause
     </p>
     <p class="gfoot">
@@ -6029,7 +6059,7 @@ const RC_CAMH = 2.00;        // camera height, metres
    of a real motorway are three screen widths across and the car fills a third
    of the view, so you cannot see the gap you are aiming for. High enough, too,
    to see over the roof of whatever is in front. */
-const RC_CAMB = 10;
+const RC_CAMB = 11;
 const RC_WHEELBASE = 2.8;
 
 const rcHash = n => {
@@ -6121,6 +6151,32 @@ function rcNeighbours(cars, z, lane, self) {
   return [ahead, behind];
 }
 
+/* ---- roadworks ----
+   Cones used to appear as six of them dropped in the middle of a live lane
+   every so often, which read as litter rather than as anything a road would
+   do. A closure is a thing with a shape: a board, a taper across the lane it
+   is taking, then a line of cones along the edge of the closed lane, and
+   traffic that gets out of it in good time rather than at the last moment. */
+const RC_WORKS = 1600;                     // one stretch of road per block, at most
+function rcWorks(b) {
+  if (b < 0 || rcHash(b * 3 + 991) > 0.45) return null;
+  const from = b * RC_WORKS + 420 + rcHash(b + 17) * 620;
+  const lanes = Math.floor(rcLanes(from));
+  return {
+    b, from, to: from + 200 + rcHash(b + 31) * 280,
+    lane: rcHash(b + 53) < 0.5 ? lanes - 1 : 0   // they close the inside or the outside
+  };
+}
+// the closure that applies at z, taper included, or null out on the open road
+function rcWorksAt(z) {
+  const b = Math.floor(z / RC_WORKS);
+  for (const k of [b - 1, b]) {
+    const wz = rcWorks(k);
+    if (wz && z > wz.from - 120 && z < wz.to) return wz;
+  }
+  return null;
+}
+
 /* ---- the highway: the drive ---- */
 const raceEl = document.getElementById('race');
 const raceCv = document.getElementById('raceCv');
@@ -6132,14 +6188,36 @@ const rcModeBtn = document.getElementById('rcMode');
 const rcCarsEl = document.getElementById('rcCars');
 
 let rcBest = 0;
-try { rcBest = +(localStorage.getItem('raceBest') || 0) || 0; } catch {}
+const rcBestKey = () => 'raceBest_' + RC.level;
+function rcLoadBest() {
+  rcBest = 0;
+  // the old single figure, from before there were difficulties, counts as busy
+  try { rcBest = +(localStorage.getItem(rcBestKey()) || (RC.level === 'busy' ? localStorage.getItem('raceBest') : 0) || 0) || 0; } catch {}
+}
+
+/* Difficulty, as the two things that actually make a motorway hard: how much
+   of it is occupied, and how well the people on it are driving. Quiet is an
+   empty road at night, rush hour is a road where somebody changes lane into a
+   gap that is not there every few seconds. `gap` scales every distance the
+   traffic insists on before it pulls across, `wander` is how often a car moves
+   for no reason, `spook` is phantom braking, the brake lights that ripple back
+   through a queue for nothing at all. */
+const RC_LEVELS = {
+  quiet: { name: 'Quiet road', cars: 10, gap: 1.3, wander: 0.02, spook: 0, stroppy: 0.08, cone: 0.7 },
+  busy:  { name: 'Busy', cars: 18, gap: 1.0, wander: 0.05, spook: 0.012, stroppy: 0.16, cone: 1 },
+  rush:  { name: 'Rush hour', cars: 30, gap: 0.76, wander: 0.13, spook: 0.045, stroppy: 0.28, cone: 1.5 }
+};
 
 const RC = {
   on: false, state: 'ready', car: RC_CARS[0], mode: 'auto',
   z: 0, x: 0, v: 0, yaw: 0, gear: 0, shiftFor: 0, steer: 0, camX: 0,
   cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
-  keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0
+  keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
+  lamp: 0, lampCool: 0, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {}
 };
+try { RC.level = localStorage.getItem('raceLevel') || 'busy'; } catch {}
+if (!RC_LEVELS[RC.level]) RC.level = 'busy';
+const rcLevel = () => RC_LEVELS[RC.level];
 
 const rcKm = m => (m / 1000).toFixed(m < 10000 ? 2 : 1) + ' km';
 
@@ -6147,13 +6225,16 @@ const rcKm = m => (m / 1000).toFixed(m < 10000 ? 2 : 1) + ' km';
    way you would actually join a motorway. Starting from rest in a live lane
    meant the first thing that happened to a new driver was being rear ended by
    traffic doing 120, which is accurate and no fun at all. */
+rcLoadBest();
+
 function rcReset(keepCar) {
   const lanes = rcLanes(0);
   RC.state = 'ready';
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
-  RC.cars = []; RC.cones = []; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
+  RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
+  RC.lamp = 0; RC.lampCool = 0; RC.lampAt = null; RC.msgUntil = 0;
   RC.msg = rcTouchUI ? 'tap drive to start' : 'press enter, or any arrow, to start';
   if (!keepCar) RC.car = RC_CARS[0];
   // the gear it would be in at that speed, so manual does not open on the limiter
@@ -6196,11 +6277,23 @@ function rcSpawn(z) {
   RC.cars.push({
     z, lane, target: lane, v: v0 * (0.92 + Math.random() * 0.08), v0,
     shape: m.shape, paint: RC_PAINT[Math.floor(Math.random() * RC_PAINT.length)],
-    brake: 0, wait: Math.random() * 3
+    brake: 0, wait: Math.random() * 3,
+    mood: rcMood(m.shape), flashes: 0, check: 0
   });
 }
 
+/* What the car in front does about being flashed. Most people move over if
+   there is room, a good few carry on as though nothing happened, and a few
+   take it badly. Lorries are mostly the middle case: a driver who would move
+   over usually cannot, at least not quickly. */
+function rcMood(shape) {
+  const r = Math.random(), stroppy = rcLevel().stroppy;
+  if (shape === 'truck' || shape === 'bus') return r < 0.3 ? 'polite' : 'deaf';
+  return r < 0.52 ? 'polite' : r < 1 - stroppy ? 'deaf' : 'stroppy';
+}
+
 function rcTrafficStep(dt) {
+  const D = rcLevel();
   const ahead = RC.z + 780, behind = RC.z - 120;
   // the player is an obstacle to them as much as they are to the player
   const me = { z: RC.z, lane: RC.x / RC_LANE - 0.5, v: RC.v, player: true };
@@ -6218,19 +6311,30 @@ function rcTrafficStep(dt) {
     if (Math.abs(c.lane - c.target) < 0.02 && c.wait <= 0) {
       c.lane = c.target;
       const edge = lanes - 1;
-      if (c.lane > edge - 0.1) {                    // the lane is running out
+      const shut = rcWorksAt(c.z + 60);
+      if (shut && Math.round(c.lane) === shut.lane) {
+        // out of the lane that is closing, towards the middle of the road
+        c.target = rcClamp(shut.lane + (shut.lane === 0 ? 1 : -1), 0, Math.round(edge));
+        c.wait = 2;
+      } else if (c.lane > edge - 0.1) {             // the lane is running out
         c.target = Math.max(0, Math.round(edge) - (c.lane > edge ? 1 : 0));
         c.wait = 1.5;
       } else if (a < 0.25) {                        // held up: look for a way past
         for (const d of [-1, 1]) {
           const t = c.lane + d;
           if (t < 0 || t > edge - 0.1) continue;
+          if (shut && Math.round(t) === shut.lane) continue;
           const [l2, b2] = rcNeighbours(all, c.z, t, c);
           const gA = l2 ? l2.z - c.z : 1e4, gB = b2 ? c.z - b2.z : 1e4;
-          if (gA < 45 + c.v * 0.9 || gB < 22 + (b2 ? Math.max(0, b2.v - c.v) * 2.4 : 0)) continue;
+          if (gA < (45 + c.v * 0.9) * D.gap
+              || gB < (22 + (b2 ? Math.max(0, b2.v - c.v) * 2.4 : 0)) * D.gap) continue;
           const a2 = rcIdm(c.v, c.v0, gA - RC_SHAPES[c.shape].len, l2 ? c.v - l2.v : 0);
           if (a2 > a + 0.28) { c.target = t; c.wait = 3 + Math.random() * 4; break; }
         }
+      } else if (Math.random() < dt * D.wander) {
+        // somebody moving for no reason anyone else can see
+        const to = Math.round(c.lane) + (Math.random() < 0.5 ? -1 : 1);
+        if (to >= 0 && to <= lanes - 1.1) { c.target = to; c.wait = 2 + Math.random() * 3; }
       } else if (c.lane > 0 && Math.random() < dt * 0.10) {
         // and back over once past, rather than sitting in the fast lane
         const [l2, b2] = rcNeighbours(all, c.z, c.lane + 1, c);
@@ -6245,8 +6349,13 @@ function rcTrafficStep(dt) {
       c.lane += rcClamp(c.target - c.lane, -step, step);
     }
 
+    /* Phantom braking, and the reply to a flash: both are a car deciding to
+       slow down hard for reasons of its own, and both are what makes the
+       traffic behind concertina. */
+    if (c.check <= 0 && Math.random() < dt * D.spook) c.check = 0.4 + Math.random() * 0.4;
+    if (c.check > 0) { c.check -= dt; a = -5.5; }
     a = rcClamp(a, -6, RC_A);
-    c.brake = a < -0.6 ? 1 : Math.max(0, c.brake - dt * 3);
+    c.brake = a < -0.6 || c.check > 0 ? 1 : Math.max(0, c.brake - dt * 3);
     c.v = Math.max(3, c.v + a * dt);
     c.z += c.v * dt;
   }
@@ -6254,26 +6363,38 @@ function rcTrafficStep(dt) {
   RC.cars = RC.cars.filter(c => c.z > behind && c.z < ahead + 260);
 
   // keep the road populated, and busier the further you get
-  const want = 16 + Math.min(16, RC.z / 2600);
+  const want = D.cars + Math.min(D.cars, RC.z / 2600);
   while (RC.spawnZ < ahead) {
-    RC.spawnZ += 24 + Math.random() * 110;
+    RC.spawnZ += (24 + Math.random() * 110) * (18 / D.cars);
     if (RC.cars.length < want) rcSpawn(RC.spawnZ);
   }
 
-  /* Cones: where a lane is being dropped they stand along the taper, which is
-     the edge of the road anyway. The rest are roadworks in a live lane, which
-     is the only obstacle here that is not a vehicle. */
+  /* Cones: along the taper where a lane is being dropped, which is the edge
+     of the road anyway, and around a closure, which is laid out once when its
+     block comes into range rather than a few at a time. */
   while (RC.coneZ < ahead) {
     RC.coneZ += 40;
     const z = RC.coneZ;
-    const dl = rcLanes(z + 6) - rcLanes(z - 6);
-    if (dl < -0.02) {
-      for (let k = 0; k < 3; k++) RC.cones.push({ z: z + k * 13, x: rcWidth(z + k * 13) + 0.35, taper: true });
-    } else if (rcHash(Math.floor(z / 40) + 77) < 0.045 + Math.min(0.05, RC.z / 90000)) {
-      const lane = Math.floor(rcHash(z) * Math.floor(rcLanes(z)));
-      for (let k = 0; k < 6; k++)
-        RC.cones.push({ z: z + k * 9, x: rcLaneX(lane) + (k - 2.5) * 0.15, taper: false });
-    }
+    if (rcLanes(z + 6) - rcLanes(z - 6) < -0.02)
+      for (let k = 0; k < 3; k++)
+        RC.cones.push({ z: z + k * 13, x: rcWidth(z + k * 13) + 0.35 });
+  }
+  for (let b = Math.floor(RC.z / RC_WORKS); b <= Math.floor(ahead / RC_WORKS); b++) {
+    if (RC.laidOut[b]) continue;
+    RC.laidOut[b] = 1;
+    const wz = rcWorks(b);
+    if (!wz || Math.random() > D.cone * 0.8) continue;
+    /* A closure is cones on the boundary the traffic must not cross: for the
+       outside lane that is its inner white line, for lane one it is the line
+       between one and two. The taper walks from the edge of the road across
+       to that boundary, which is the diagonal you see coming. */
+    const edgeX = wz.lane === 0 ? 0 : rcWidth(wz.from);
+    const bound = wz.lane === 0 ? RC_LANE : wz.lane * RC_LANE;
+    RC.cones.push({ z: wz.from - 116, x: edgeX + (wz.lane === 0 ? 0.6 : -0.6), board: true });
+    for (let k = 0; k <= 9; k++)                     // the taper across the lane
+      RC.cones.push({ z: wz.from - 95 + k * 10, x: rcLerp(edgeX, bound, k / 9) });
+    for (let z = wz.from; z < wz.to; z += 14)        // and along the closure itself
+      RC.cones.push({ z, x: bound });
   }
   RC.cones = RC.cones.filter(c => c.z > behind);
 }
@@ -6343,18 +6464,60 @@ function rcDrive(dt) {
     if (k.hit || Math.abs(k.z - RC.z) > 3) continue;
     if (Math.abs(k.x - RC.x) < mine.w / 2 + 0.3) {
       k.hit = true; RC.hits++; RC.v *= 0.86; RC.flash = 0.5;
-      RC.msg = 'cone'; rcHudText();
+      rcSay('cone');
     }
   }
+}
+
+/* Flashing the car in front. Three things can come back: they pull over, they
+   ignore you, or they stand on the brakes to make a point. Which one it is was
+   settled when that car was spawned rather than rolled here, so the same car
+   answers the same way twice and leaning on the button does not reroll the
+   dice. What repeated flashing does do is talk some of the deaf ones into
+   being stroppy, which is also what happens on a real motorway. */
+function rcSay(msg) { RC.msg = msg; RC.msgUntil = RC.t + 2.6; rcHudText(); }
+
+function rcFlash() {
+  if (RC.state !== 'run' || RC.lampCool > 0) return;
+  RC.lampCool = 0.45; RC.lamp = 0.3;
+  const lane = RC.x / RC_LANE - 0.5;
+  let t = null;
+  for (const c of RC.cars) {
+    if (Math.abs(c.lane - lane) > 0.62) continue;
+    const dz = c.z - RC.z;
+    if (dz > 4 && dz < 95 && (!t || dz < t.z - RC.z)) t = c;
+  }
+  RC.lampAt = t;
+  if (!t) return rcSay('flashed at nobody in particular');
+  t.flashes++;
+  const mood = t.mood === 'deaf' && t.flashes >= 3 && Math.random() < 0.4 ? 'stroppy' : t.mood;
+
+  if (mood === 'stroppy') { t.check = 0.9; return rcSay('brake check'); }
+  if (mood === 'deaf') return rcSay(t.flashes > 1 ? 'still nothing' : 'no reaction');
+
+  // polite: over to the right if there is room, otherwise the other way
+  const lanes = rcLanes(t.z);
+  const all = RC.cars.concat({ z: RC.z, lane, v: RC.v });
+  for (const d of [1, -1]) {
+    const to = Math.round(t.lane) + d;
+    if (to < 0 || to > lanes - 1.1) continue;
+    const [lead, back] = rcNeighbours(all, t.z, to, t);
+    if (lead && lead.z - t.z < 30) continue;
+    if (back && t.z - back.z < 26) continue;
+    t.target = to; t.wait = 4;
+    return rcSay('they pull over');
+  }
+  return rcSay('they would, but there is nowhere to go');
 }
 
 function rcCrash(how) {
   RC.state = 'crash';
   RC.shake = 1;
   RC.msg = how + ' at ' + Math.round(RC.v * 3.6) + ' km/h';
+  RC.msgUntil = Infinity;              // this one stays up until you drive again
   if (RC.z > rcBest) {
     rcBest = RC.z;
-    try { localStorage.setItem('raceBest', String(Math.round(rcBest))); } catch {}
+    try { localStorage.setItem(rcBestKey(), String(Math.round(rcBest))); } catch {}
   }
   rcHudText();
 }
@@ -6378,6 +6541,12 @@ function rcStep(dt) {
     rcTrafficStep(dt);
     RC.t += dt;
     if (RC.flash > 0) RC.flash = Math.max(0, RC.flash - dt);
+    if (RC.lamp > 0) RC.lamp = Math.max(0, RC.lamp - dt * 1.6);
+    if (RC.lampCool > 0) RC.lampCool = Math.max(0, RC.lampCool - dt);
+    /* The state is checked as well as the clock: a crash happens part way
+       through this same step, and without it the line saying what you hit was
+       wiped by the timer a few lines later, every time. */
+    if (RC.state === 'run' && RC.msg && RC.t > RC.msgUntil) { RC.msg = ''; rcHudText(); }
     if ((RC.t * 4 | 0) % 2 === 0) rcHudText();
   } else if (RC.state === 'crash') {
     RC.shake = Math.max(0, RC.shake - dt * 1.4);
@@ -6395,12 +6564,12 @@ function rcStep(dt) {
    a night drive with the tail lights lit and a light one is the middle of
    the afternoon. */
 const RC_DAY = {
-  sky: ['#8fb4d6', '#cfdce8'], haze: '#cfdce8', sand: ['#d9cfb6', '#d3c8ad'],
+  sky: ['#8fb4d6', '#cfdce8'], haze: '#cfdce8', sand: ['#d9cfb6', '#d3c8ad'], dune: '#c7bda4',
   road: ['#5b6066', '#565b61'], edge: '#eef0f2', dash: '#eef0f2',
   rumble: ['#b8bcc1', '#8d9298'], pole: '#9aa0a7', lamp: '#c9ced4', shade: 0.30
 };
 const RC_NIGHT = {
-  sky: ['#080d15', '#16202e'], haze: '#16202e', sand: ['#141a20', '#11161c'],
+  sky: ['#080d15', '#16202e'], haze: '#16202e', sand: ['#141a20', '#11161c'], dune: '#182029',
   road: ['#23282f', '#1f242b'], edge: '#9aa3ad', dash: '#8b949e',
   rumble: ['#2e343c', '#1c2128'], pole: '#2b3139', lamp: '#ffd9a0', shade: 0.55
 };
@@ -6419,86 +6588,183 @@ function rcSize() {
   raceCv.style.width = w + 'px'; raceCv.style.height = h + 'px';
 }
 
+/* The camera rides above the roof of whatever you chose, not at a fixed
+   height: in the Land Cruiser a 2m camera was level with its own roof and you
+   could not see the traffic you were about to join. */
+function rcCamH() {
+  const f = RC_HERO[RC.car.id];
+  return Math.max(2.10, (f ? f.h : 1.4) + 0.80);
+}
+
+/* Sky, sun or moon, and two ranges of dunes. The far range is lighter and
+   barely moves, the near one is darker and slides past: two layers is all it
+   takes for the horizon to have depth. */
+function rcSky(c, w, h, horizon, P) {
+  const g = c.createLinearGradient(0, 0, 0, horizon);
+  g.addColorStop(0, P.sky[0]); g.addColorStop(0.72, P.sky[1]); g.addColorStop(1, P.haze);
+  c.fillStyle = g; c.fillRect(0, 0, w, horizon + 1);
+
+  const night = P === RC_NIGHT;
+  if (night) {
+    c.fillStyle = 'rgba(226,232,240,.75)';
+    for (let i = 0; i < 26; i++) {
+      const x = rcHash(i * 7 + 1) * w, y = rcHash(i * 13 + 5) * horizon * 0.72;
+      const r = 0.6 + rcHash(i * 17) * 0.9;
+      c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+    }
+  }
+  // the sun or the moon, parked off to one side rather than dead ahead
+  const cx = w * 0.74, cy = horizon * 0.34, r = h * (night ? 0.045 : 0.06);
+  const halo = c.createRadialGradient(cx, cy, 0, cx, cy, r * 6);
+  halo.addColorStop(0, night ? 'rgba(206,222,244,.30)' : 'rgba(255,238,190,.55)');
+  halo.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = halo; c.beginPath(); c.arc(cx, cy, r * 6, 0, 7); c.fill();
+  c.fillStyle = night ? '#dbe4f0' : '#fff3cf';
+  c.beginPath(); c.arc(cx, cy, r, 0, 7); c.fill();
+  if (night) {                                    // a bite out of it, so it is a moon
+    c.fillStyle = P.sky[0];
+    c.beginPath(); c.arc(cx + r * 0.42, cy - r * 0.3, r * 0.92, 0, 7); c.fill();
+  }
+
+  const dune = (amp, lift, col, speed) => {
+    c.fillStyle = col;
+    c.beginPath(); c.moveTo(0, horizon);
+    for (let x = 0; x <= w; x += 14) {
+      const d = Math.sin((x + RC.z * speed) * 0.0065) * amp
+              + Math.sin((x + RC.z * speed * 0.6) * 0.017) * amp * 0.45;
+      c.lineTo(x, horizon - lift - d);
+    }
+    c.lineTo(w, horizon); c.closePath(); c.fill();
+  };
+  dune(7, 14, P.dune, 0.012);
+  dune(5, 6, P.sand[1], 0.03);
+  c.fillStyle = P.sand[0]; c.fillRect(0, horizon, w, h - horizon);
+}
+
+/* The road, as a handful of long strips rather than six quads a segment. The
+   old way was about nine hundred fills a frame for a surface that is mostly
+   one colour; this is four paths plus the markings that actually change. */
+function rcRoad(c, pts, base, P, w, h, near) {
+  const strip = (inset, outset, fill) => {
+    c.fillStyle = fill;
+    c.beginPath();
+    for (let n = 0; n <= RC_DRAW; n++) {
+      const p = pts[n];
+      c.lineTo(p.l.x + (typeof inset === 'function' ? inset(p) : inset) * p.s, p.l.y);
+    }
+    for (let n = RC_DRAW; n >= 0; n--) {
+      const p = pts[n];
+      c.lineTo(p.l.x + (typeof outset === 'function' ? outset(p) : outset) * p.s, p.l.y);
+    }
+    c.closePath(); c.fill();
+  };
+
+  strip(-2.8, p => p.width + 2.8, P.rumble[1]);          // the shoulders
+  strip(0, p => p.width, P.road[1]);                     // tarmac
+  // the bands that give the road its speed, near enough to be worth drawing
+  c.fillStyle = P.road[0];
+  for (let n = near; n >= 0; n--) {
+    const i = base + n;
+    if ((i % 8) >= 4) continue;
+    const a = pts[n], b = pts[n + 1];
+    c.beginPath();
+    c.moveTo(a.l.x, a.l.y); c.lineTo(a.l.x + a.width * a.s, a.l.y);
+    c.lineTo(b.l.x + b.width * b.s, b.l.y); c.lineTo(b.l.x, b.l.y);
+    c.closePath(); c.fill();
+  }
+  strip(0.06, 0.26, P.edge);                             // edge lines
+  strip(p => p.width - 0.26, p => p.width - 0.06, P.edge);
+
+  // lane separators, dashed, the new one fading in as the road widens
+  c.fillStyle = P.dash;
+  for (let n = near; n >= 0; n--) {
+    const i = base + n;
+    if ((i % 8) >= 4) continue;
+    const a = pts[n], b = pts[n + 1];
+    const lanes = a.width / RC_LANE;
+    for (let k = 1; k < Math.ceil(lanes); k++) {
+      const fade = Math.min(1, (lanes - k) * 2.2);
+      if (fade <= 0.05) continue;
+      c.globalAlpha = fade;
+      c.beginPath();
+      c.moveTo(a.l.x + (k * RC_LANE - 0.09) * a.s, a.l.y);
+      c.lineTo(a.l.x + (k * RC_LANE + 0.09) * a.s, a.l.y);
+      c.lineTo(b.l.x + (k * RC_LANE + 0.09) * b.s, b.l.y);
+      c.lineTo(b.l.x + (k * RC_LANE - 0.09) * b.s, b.l.y);
+      c.closePath(); c.fill();
+      c.globalAlpha = 1;
+    }
+  }
+}
+
+/* What was missing when every vehicle was a flat rear panel: the roof and one
+   flank, drawn from where the same car projects one car length further away.
+   The camera is above the roof and usually off to one side, so both faces are
+   really there to be seen, and with them a car has a front. */
+function rcVolume(c, mw, mh, p, pf, paint, P, vx) {
+  if (p.s < 5 || pf.y >= p.y) return;
+  const night = P === RC_NIGHT;
+  const hw = mw / 2;
+  const rT = p.y - mh * p.s, fT = pf.y - mh * pf.s;
+  const rl = p.x - hw * p.s, rr = p.x + hw * p.s;
+  const fl = pf.x - hw * pf.s, fr = pf.x + hw * pf.s;
+
+  c.fillStyle = rcMix(paint, night ? 40 : 255, night ? 0.22 : 0.16);
+  c.beginPath();
+  c.moveTo(rl, rT); c.lineTo(rr, rT); c.lineTo(fr, fT); c.lineTo(fl, fT);
+  c.closePath(); c.fill();
+
+  c.fillStyle = rcMix(paint, 0, night ? 0.55 : 0.34);
+  c.beginPath();
+  if (p.x < vx) { c.moveTo(rr, rT); c.lineTo(rr, p.y); c.lineTo(fr, pf.y); c.lineTo(fr, fT); }
+  else { c.moveTo(rl, rT); c.lineTo(rl, p.y); c.lineTo(fl, pf.y); c.lineTo(fl, fT); }
+  c.closePath(); c.fill();
+}
+
 function rcDraw() {
   const c = rcC, w = rcW, h = rcH;
   const P = rcNight() ? RC_NIGHT : RC_DAY;
   const FOC = w * 0.92;
+  const camH = rcCamH();
   const camZ = RC.z - RC_CAMB;
   const shake = RC.shake * (RC.state === 'crash' ? 9 : 1.6);
   const sx0 = shake ? (Math.random() - 0.5) * shake : 0;
   const sy0 = shake ? (Math.random() - 0.5) * shake : 0;
-  const horizon = Math.round(h * 0.44) + sy0;
+  const horizon = Math.round(h * 0.42) + sy0;
 
   c.setTransform(rcDpr, 0, 0, rcDpr, 0, 0);
   c.clearRect(0, 0, w, h);
+  rcSky(c, w, h, horizon, P);
 
-  // sky, and the dunes it sits on
-  const sky = c.createLinearGradient(0, 0, 0, horizon);
-  sky.addColorStop(0, P.sky[0]); sky.addColorStop(1, P.sky[1]);
-  c.fillStyle = sky; c.fillRect(0, 0, w, horizon + 1);
-  c.fillStyle = P.sand[1];
-  c.beginPath(); c.moveTo(0, horizon);
-  for (let x = 0; x <= w; x += 20) {
-    const d = Math.sin((x + RC.z * 0.04) * 0.011) * 5 + Math.sin((x + RC.z * 0.02) * 0.004) * 8;
-    c.lineTo(x, horizon - 9 - d);
-  }
-  c.lineTo(w, horizon); c.closePath(); c.fill();
-  c.fillStyle = P.sand[0]; c.fillRect(0, horizon, w, h - horizon);
-
+  const vx = w / 2 - RC.yaw * FOC + sx0;          // where the camera is looking
   const proj = (xr, zw, off) => {
     const s = FOC / Math.max(zw, 1.4);
-    return { x: w / 2 + (xr - RC.camX + off) * s - RC.yaw * FOC + sx0, y: horizon + RC_CAMH * s + sy0, s };
+    return { x: vx + (xr - RC.camX + off) * s, y: horizon + camH * s + sy0, s };
   };
 
-  // the road, far to near
   const base = Math.floor(camZ / RC_SEG);
   const offs = new Float64Array(RC_DRAW + 2);
   const pts = [];
-  let dxAcc = 0, off = 0;
+  let dxAcc = 0, off = 0, near = 0;
   for (let n = 0; n <= RC_DRAW + 1; n++) {
     const az = (base + n) * RC_SEG;
     offs[n] = off;
     const width = rcWidth(az);
-    const l = proj(0, az - camZ, off), r = proj(width, az - camZ, off);
-    pts.push({ az, l, r, width, s: l.s });
+    const l = proj(0, az - camZ, off);
+    pts.push({ az, l, width, s: l.s });
+    if (l.s > 2.4) near = n;                      // markings stop being visible past here
     dxAcc += rcCurve(az) * RC_SEG; off += dxAcc * RC_SEG;
   }
 
-  for (let n = RC_DRAW; n >= 0; n--) {
-    const a = pts[n], b = pts[n + 1];
-    if (b.l.y >= h && a.l.y >= h) continue;
-    const i = base + n, band = (i % 8) < 4;
-    const quad = (x1a, x1b, x2a, x2b, fill) => {
-      c.fillStyle = fill;
-      c.beginPath();
-      c.moveTo(a.l.x + x1a * a.s, a.l.y); c.lineTo(a.l.x + x1b * a.s, a.l.y);
-      c.lineTo(b.l.x + x2b * b.s, b.l.y); c.lineTo(b.l.x + x2a * b.s, b.l.y);
-      c.closePath(); c.fill();
-    };
-    // shoulder rumble, tarmac, edge lines
-    quad(-1.9, a.width + 1.9, -1.9, b.width + 1.9, band ? P.rumble[0] : P.rumble[1]);
-    quad(0, a.width, 0, b.width, band ? P.road[0] : P.road[1]);
-    quad(0.05, 0.22, 0.05, 0.22, P.edge);
-    quad(a.width - 0.22, a.width - 0.05, b.width - 0.22, b.width - 0.05, P.edge);
-    // lane separators, dashed, and the new lane fades in as the road widens
-    if (band) {
-      const lanes = a.width / RC_LANE;
-      for (let k = 1; k < Math.ceil(lanes); k++) {
-        const fade = Math.min(1, (lanes - k) * 2.2);
-        if (fade <= 0.05) continue;
-        c.globalAlpha = fade;
-        quad(k * RC_LANE - 0.09, k * RC_LANE + 0.09, k * RC_LANE - 0.09, k * RC_LANE + 0.09, P.dash);
-        c.globalAlpha = 1;
-      }
-    }
-    // lighting columns down the central reservation side
-    if (i % 6 === 0 && a.s > 0.02) rcPole(c, a, P, h);
+  rcRoad(c, pts, base, P, w, h, Math.min(near, RC_DRAW - 1));
+  for (let n = Math.min(near + 14, RC_DRAW); n >= 0; n--) {
+    if ((base + n) % 6 === 0) rcPole(c, pts[n], P, h);
   }
 
   // haze into the distance, so the horizon is not a hard seam
-  const haze = c.createLinearGradient(0, horizon - 4, 0, horizon + h * 0.16);
+  const haze = c.createLinearGradient(0, horizon - 5, 0, horizon + h * 0.14);
   haze.addColorStop(0, P.haze); haze.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = haze; c.fillRect(0, horizon - 4, w, h * 0.17);
+  c.fillStyle = haze; c.fillRect(0, horizon - 5, w, h * 0.15);
 
   const atZ = z => {
     const k = rcClamp(z / RC_SEG - base, 0, RC_DRAW);
@@ -6513,139 +6779,370 @@ function rcDraw() {
     const pool = (zw, rx, ry, alpha) => {
       const p = proj(RC.x, zw, atZ(RC.z + zw - RC_CAMB));
       const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx * p.s);
-      g.addColorStop(0, 'rgba(255,240,210,' + alpha + ')');
+      g.addColorStop(0, 'rgba(255,240,210,' + Math.min(0.55, alpha).toFixed(3) + ')');
       g.addColorStop(1, 'rgba(255,240,210,0)');
-      c.save(); c.translate(p.x, p.y); c.scale(1, (ry * p.s) / (rx * p.s)); c.translate(-p.x, -p.y);
+      c.save(); c.translate(p.x, p.y); c.scale(1, ry / rx); c.translate(-p.x, -p.y);
       c.fillStyle = g;
       c.beginPath(); c.arc(p.x, p.y, rx * p.s, 0, 7); c.fill();
       c.restore();
     };
-    pool(RC_CAMB + 6, 9, 3.4, '.14');
-    pool(RC_CAMB + 28, 13, 4.0, '.10');
+    pool(RC_CAMB + 6, 9, 3.4, 0.14 + RC.lamp * 0.9);
+    pool(RC_CAMB + 28, 13, 4.0, 0.10 + RC.lamp * 0.8);
   }
 
   // everything standing on the road, furthest first
+  const far = camZ + RC_DRAW * RC_SEG;
   const things = [];
-  for (const t of RC.cars) if (t.z > camZ + 2) things.push(t);
-  for (const k of RC.cones) if (k.z > camZ + 2 && !k.hit) things.push(k);
+  for (const t of RC.cars) if (t.z > camZ + 2 && t.z < far) things.push(t);
+  for (const k of RC.cones) if (k.z > camZ + 2 && k.z < far && !k.hit) things.push(k);
   things.sort((p, q) => q.z - p.z);
   for (const t of things) {
-    const zw = t.z - camZ;
-    if (zw > RC_DRAW * RC_SEG) continue;
-    const p = proj(t.x !== undefined ? t.x : rcLaneX(t.lane), zw, atZ(t.z));
-    if (p.y > h + 40) continue;
-    if (t.shape) rcSprite(c, t.shape, p.x, p.y, p.s, t.paint, P, t.brake > 0, false);
-    else rcCone(c, p.x, p.y, p.s, P);
+    const p = proj(t.x !== undefined ? t.x : rcLaneX(t.lane), t.z - camZ, atZ(t.z));
+    if (p.y > h + 60) continue;
+    if (!t.shape) { rcCone(c, p.x, p.y, p.s, P, t.board); continue; }
+    const m = RC_SHAPES[t.shape];
+    const pf = proj(rcLaneX(t.lane), t.z - camZ + m.len, atZ(t.z + m.len));
+    const paint = P === RC_NIGHT ? rcMix(t.paint, 0, 0.42) : t.paint;
+    rcVolume(c, m.w, m.h, p, pf, paint, P, vx);
+    rcSprite(c, t.shape, p.x, p.y, p.s, t.paint, P, t.brake > 0, false, null,
+      t === RC.lampAt ? RC.lamp : 0);
   }
 
   // the car you are in, drawn as itself rather than as a set of proportions
+  const f = RC_HERO[RC.car.id];
   const me = proj(RC.x, RC_CAMB, 0);
+  const mef = proj(RC.x, RC_CAMB + f.len, atZ(RC.z + f.len));
+  rcVolume(c, f.w * 0.94, f.h * 0.88, me, mef,
+    P === RC_NIGHT ? rcMix(RC.car.paint, 0, 0.42) : RC.car.paint, P, vx);
   rcHero(c, RC.car, me.x, me.y, me.s, P, !!RC.keys.down);
 
+  // how fast it feels: streaks down the edges, which only arrive at speed
+  if (RC.v > 52) {
+    const k = Math.min(1, (RC.v - 52) / 40);
+    c.strokeStyle = 'rgba(255,255,255,' + (0.05 * k).toFixed(3) + ')';
+    c.lineWidth = 1.5;
+    for (let i = 0; i < 7; i++) {
+      const y = horizon + h * (0.12 + rcHash(i * 3 + ((RC.z * 0.3) | 0)) * 0.85);
+      const len = 30 + rcHash(i * 5) * 90;
+      c.beginPath(); c.moveTo(0, y); c.lineTo(len * k, y - 4); c.stroke();
+      c.beginPath(); c.moveTo(w, y + 12); c.lineTo(w - len * k, y + 8); c.stroke();
+    }
+  }
+
   if (RC.flash > 0) {
-    c.fillStyle = 'rgba(255,170,60,' + (RC.flash * 0.35).toFixed(3) + ')';
+    c.fillStyle = 'rgba(255,170,60,' + (RC.flash * 0.3).toFixed(3) + ')';
     c.fillRect(0, 0, w, h);
   }
+  rcVignette(c, w, h);
   rcHud(c, w, h, P);
 }
 
+// one gradient, kept, because it never changes until the canvas is resized
+let rcVig = null, rcVigFor = '';
+function rcVignette(c, w, h) {
+  const key = w + 'x' + h;
+  if (rcVigFor !== key) {
+    const g = c.createRadialGradient(w / 2, h * 0.55, h * 0.4, w / 2, h * 0.55, h * 1.05);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.35)');
+    rcVig = g; rcVigFor = key;
+  }
+  c.fillStyle = rcVig; c.fillRect(0, 0, w, h);
+}
+
 function rcPole(c, a, P, h) {
-  const x = a.l.x + (a.width + 2.6) * a.s, y = a.l.y;
-  const ht = 9 * a.s;
-  if (y > h + 10 || ht < 1) return;
-  c.strokeStyle = P.pole; c.lineWidth = Math.max(1, 0.18 * a.s);
+  const s = a.s;
+  const x = a.l.x + (a.width + 2.9) * s, y = a.l.y;
+  const ht = 9 * s;
+  if (y > h + 10 || ht < 2) return;
+  c.strokeStyle = P.pole; c.lineWidth = Math.max(1, 0.16 * s);
   c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - ht); c.stroke();
-  c.beginPath(); c.moveTo(x, y - ht); c.lineTo(x - 2.2 * a.s, y - ht); c.stroke();
+  c.beginPath(); c.moveTo(x, y - ht); c.lineTo(x - 2.2 * s, y - ht + 0.5 * s); c.stroke();
   c.fillStyle = P.lamp;
-  c.fillRect(x - 3.0 * a.s, y - ht - 0.3 * a.s, 1.1 * a.s, 0.45 * a.s);
-  if (P === RC_NIGHT) {
-    const g = c.createRadialGradient(x - 2.4 * a.s, y - ht, 0, x - 2.4 * a.s, y - ht, 7 * a.s);
-    g.addColorStop(0, 'rgba(255,214,150,.20)'); g.addColorStop(1, 'rgba(255,214,150,0)');
+  c.fillRect(x - 3.0 * s, y - ht + 0.3 * s, 1.1 * s, 0.4 * s);
+  if (P === RC_NIGHT && s > 3) {
+    const g = c.createRadialGradient(x - 2.4 * s, y - ht, 0, x - 2.4 * s, y - ht, 8 * s);
+    g.addColorStop(0, 'rgba(255,214,150,.22)'); g.addColorStop(1, 'rgba(255,214,150,0)');
     c.fillStyle = g;
-    c.beginPath(); c.arc(x - 2.4 * a.s, y - ht, 7 * a.s, 0, 7); c.fill();
+    c.beginPath(); c.arc(x - 2.4 * s, y - ht, 8 * s, 0, 7); c.fill();
   }
 }
 
-function rcCone(c, x, y, s, P) {
-  const hh = 0.75 * s, ww = 0.38 * s;
+// cones, and the arrow board that stands at the head of a closure
+function rcCone(c, x, y, s, P, board) {
+  if (board) {
+    const bw = 1.6 * s, bh = 1.1 * s, top = y - 2.4 * s;
+    c.fillStyle = '#2b2f35';
+    c.fillRect(x - 0.06 * s, y - 1.4 * s, 0.12 * s, 1.4 * s);
+    c.fillStyle = '#15181c';
+    c.fillRect(x - bw / 2, top, bw, bh);
+    c.fillStyle = (RC.t * 2 | 0) % 2 ? '#ffc857' : '#6b5a2e';
+    const ax = x - bw * 0.30, ay = top + bh / 2;
+    c.beginPath();
+    c.moveTo(ax + bw * 0.55, ay); c.lineTo(ax + bw * 0.2, ay - bh * 0.3);
+    c.lineTo(ax + bw * 0.2, ay - bh * 0.1); c.lineTo(ax - bw * 0.1, ay - bh * 0.1);
+    c.lineTo(ax - bw * 0.1, ay + bh * 0.1); c.lineTo(ax + bw * 0.2, ay + bh * 0.1);
+    c.lineTo(ax + bw * 0.2, ay + bh * 0.3);
+    c.closePath(); c.fill();
+    return;
+  }
+  const hh = 0.78 * s, ww = 0.40 * s;
+  c.fillStyle = 'rgba(0,0,0,.28)';
+  c.beginPath(); c.ellipse(x, y, ww * 1.1, ww * 0.35, 0, 0, 7); c.fill();
+  c.fillStyle = '#1e2126';
+  c.fillRect(x - ww, y - hh * 0.12, ww * 2, hh * 0.12);
   c.fillStyle = '#e07b2a';
-  c.beginPath(); c.moveTo(x, y - hh); c.lineTo(x + ww, y); c.lineTo(x - ww, y); c.closePath(); c.fill();
-  c.fillStyle = P === RC_NIGHT ? '#f6f1e6' : '#ffffff';
-  c.fillRect(x - ww * 0.62, y - hh * 0.62, ww * 1.24, Math.max(1, hh * 0.16));
+  c.beginPath(); c.moveTo(x, y - hh); c.lineTo(x + ww * 0.82, y - hh * 0.1);
+  c.lineTo(x - ww * 0.82, y - hh * 0.1); c.closePath(); c.fill();
+  if (s > 8) {
+    c.fillStyle = P === RC_NIGHT ? '#f6f1e6' : '#ffffff';
+    c.fillRect(x - ww * 0.48, y - hh * 0.62, ww * 0.96, Math.max(1, hh * 0.16));
+  }
 }
 
-/* A car from behind, drawn from its proportions rather than from a sprite, so
-   the same code draws a lorry and a wedge and they stay recognisable at any
-   distance. Shading is two flat tones and a glass band: enough to read the
-   shape, cheap enough to draw forty of them a frame. */
-function rcSprite(c, shape, x, ground, s, paint, P, braking, mine, trim) {
-  const m = RC_SHAPES[shape];
-  const W = m.w * s, H = m.h * s;
-  if (W < 1.2) return;
-  const bodyH = H * (1 - m.roofH), roofH = H * m.roofH, roofW = W * m.roofW;
-  const top = ground - H;
+/* The traffic, drawn the same way the car you are in is: in metres, from
+   behind, one function a body style. They were proportions on a box before,
+   which was fine at 200m and poor at 20, and you spend a lot of the run at 20.
+   Everything is behind a level of detail switch, so the far ones cost a
+   handful of fills and only the close ones get shut lines and badges. */
+function rcPlate(c, y, fine) {
+  if (!fine) return;
+  c.fillStyle = '#d9d9d3'; c.fillRect(-0.17, y, 0.34, 0.14);
+  c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(-0.13, y + 0.05, 0.26, 0.035);
+}
 
-  c.globalAlpha = 0.28;
-  c.fillStyle = '#000';
-  c.beginPath(); c.ellipse(x, ground, W * 0.56, H * 0.10, 0, 0, 7); c.fill();
-  c.globalAlpha = 1;
+// the arch shadow is what stops a car looking like a box balanced on tyres
+function rcArch(c, halfTrack, top, wide) {
+  c.fillStyle = 'rgba(0,0,0,.35)';
+  for (const sx of [-1, 1]) c.fillRect(sx * halfTrack - (sx < 0 ? -0.01 : wide + 0.01), top - 0.04, wide + 0.02, 0.06);
+}
 
-  // wheels, just proud of the body
-  c.fillStyle = '#15181c';
-  c.fillRect(x - W / 2 - W * 0.03, ground - H * 0.20, W * 0.14, H * 0.20);
-  c.fillRect(x + W / 2 - W * 0.11, ground - H * 0.20, W * 0.14, H * 0.20);
+// a soft band of sky reflected off the upper body
+function rcSheen(c, w, top, h) {
+  const g = c.createLinearGradient(0, top, 0, top + h);
+  g.addColorStop(0, 'rgba(255,255,255,.16)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  c.fillStyle = g;
+  c.fillRect(-w / 2, top, w, h);
+}
 
-  // cabin
-  c.fillStyle = paint;
-  c.beginPath();
-  c.moveTo(x - roofW / 2, top); c.lineTo(x + roofW / 2, top);
-  c.lineTo(x + W / 2, top + roofH); c.lineTo(x - W / 2, top + roofH);
-  c.closePath(); c.fill();
-  // glass
-  c.fillStyle = P === RC_NIGHT ? 'rgba(20,26,34,.92)' : 'rgba(40,52,66,.75)';
-  const gW = roofW * 0.86, gH = H * m.glass;
-  c.fillRect(x - gW / 2, top + roofH * 0.16, gW, gH);
-
-  // body
-  c.fillStyle = paint;
-  c.fillRect(x - W / 2, top + roofH, W, bodyH);
-  c.fillStyle = 'rgba(0,0,0,' + P.shade.toFixed(2) + ')';
-  c.fillRect(x - W / 2, ground - bodyH * 0.34, W, bodyH * 0.34);
-  if (trim) { c.fillStyle = trim; c.fillRect(x - W / 2, ground - bodyH * 0.16, W, bodyH * 0.10); }
-
-  // lights
-  const lit = P === RC_NIGHT || braking;
-  const lw = W * (m.light === 'low' ? 0.16 : 0.22), lh = H * 0.07;
-  const ly = top + roofH + bodyH * (m.light === 'low' ? 0.62 : 0.30);
-  c.fillStyle = braking ? '#ff3b2f' : lit ? '#d4332b' : '#7a2b26';
-  if (m.light === 'strip' || m.light === 'bar') {
-    c.fillRect(x - W / 2 + W * 0.06, ly, lw, lh);
-    c.fillRect(x + W / 2 - W * 0.06 - lw, ly, lw, lh);
-    if (m.light === 'bar' && W > 22) c.fillRect(x - W * 0.3, ly + lh * 0.25, W * 0.6, lh * 0.5);
-  } else if (m.light === 'vee') {
-    c.fillRect(x - W / 2 + W * 0.08, ly, lw * 0.8, lh * 1.5);
-    c.fillRect(x + W / 2 - W * 0.08 - lw * 0.8, ly, lw * 0.8, lh * 1.5);
-  } else if (m.light === 'triple') {
-    for (let k = 0; k < 3; k++) {
-      c.fillRect(x - W / 2 + W * 0.06 + k * lw * 0.42, ly, lw * 0.32, lh);
-      c.fillRect(x + W / 2 - W * 0.06 - lw * 0.32 - k * lw * 0.42, ly, lw * 0.32, lh);
+const RC_MODELS = {
+  sedan: { draw(c, paint, P, braking, fine) {
+    const hw = 0.90, on = P === RC_NIGHT || braking;
+    rcTyres(c, 0.86, -0.56, 0.19); rcArch(c, 0.86, -0.56, 0.19);
+    c.fillStyle = rcPaint(c, paint, -1.47);
+    c.beginPath();
+    c.moveTo(-0.64, -1.47); c.lineTo(0.64, -1.47);
+    c.lineTo(0.84, -1.10); c.lineTo(hw, -0.62); c.lineTo(hw - 0.02, -0.26);
+    c.lineTo(-hw + 0.02, -0.26); c.lineTo(-hw, -0.62); c.lineTo(-0.84, -1.10);
+    c.closePath(); c.fill();
+    rcGlass(c, P, -0.60, -1.43, 1.20, 0.38, 0.04);
+    rcSheen(c, 1.7, -1.05, 0.22);
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, on, braking);
+      c.beginPath();
+      c.moveTo(sx * 0.38, -0.86); c.lineTo(sx * 0.87, -0.90);
+      c.lineTo(sx * 0.89, -0.64); c.lineTo(sx * 0.40, -0.66);
+      c.closePath(); c.fill();
+      rcGlow(c, sx * 0.64, -0.77, 0.45, on);
     }
-  } else {
-    c.fillRect(x - W / 2 + W * 0.05, ly, lw * 0.8, lh * 2.2);
-    c.fillRect(x + W / 2 - W * 0.05 - lw * 0.8, ly, lw * 0.8, lh * 2.2);
+    if (fine) {
+      c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(-0.84, -1.00, 1.68, 0.02);
+      c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(-0.26, -0.82, 0.52, 0.025);
+    }
+    rcPlate(c, -0.60, fine);
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(-hw + 0.04, -0.30, 2 * hw - 0.08, 0.30);
+    c.fillStyle = '#3d434a';
+    for (const sx of [-1, 1]) { c.beginPath(); c.ellipse(sx * 0.42, -0.14, 0.07, 0.045, 0, 0, 7); c.fill(); }
+  } },
+
+  hatch: { draw(c, paint, P, braking, fine) {
+    const hw = 0.90, on = P === RC_NIGHT || braking;
+    rcTyres(c, 0.86, -0.56, 0.19); rcArch(c, 0.86, -0.56, 0.19);
+    c.fillStyle = rcPaint(c, paint, -1.46);
+    c.beginPath();
+    c.moveTo(-0.72, -1.46); c.lineTo(0.72, -1.46);
+    c.lineTo(hw, -0.78); c.lineTo(hw - 0.02, -0.28);
+    c.lineTo(-hw + 0.02, -0.28); c.lineTo(-hw, -0.78);
+    c.closePath(); c.fill();
+    rcGlass(c, P, -0.66, -1.42, 1.32, 0.46, 0.05);
+    c.fillStyle = rcMix(paint, 0, 0.35);              // roof spoiler
+    c.fillRect(-0.70, -1.52, 1.40, 0.07);
+    rcSheen(c, 1.7, -0.92, 0.20);
+    for (const sx of [-1, 1]) {                       // lamps up the corners
+      rcLampFill(c, on, braking);
+      c.fillRect(sx * 0.88 - (sx < 0 ? 0 : 0.22), -0.94, 0.22, 0.36);
+      rcGlow(c, sx * 0.78, -0.76, 0.4, on);
+    }
+    if (fine) { c.fillStyle = 'rgba(0,0,0,.30)'; c.fillRect(-0.66, -0.92, 1.32, 0.02); }
+    rcPlate(c, -0.62, fine);
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(-hw + 0.04, -0.32, 2 * hw - 0.08, 0.32);
+    c.fillStyle = '#3d434a';
+    c.beginPath(); c.ellipse(-0.40, -0.16, 0.06, 0.04, 0, 0, 7); c.fill();
+  } },
+
+  suv: { draw(c, paint, P, braking, fine) {
+    const hw = 0.99, on = P === RC_NIGHT || braking;
+    rcTyres(c, 0.94, -0.72, 0.24); rcArch(c, 0.94, -0.72, 0.24);
+    c.fillStyle = rcPaint(c, paint, -1.95);
+    c.beginPath();
+    c.moveTo(-0.90, -1.95); c.lineTo(0.90, -1.95);
+    c.lineTo(hw, -1.62); c.lineTo(hw, -0.46);
+    c.lineTo(-hw, -0.46); c.lineTo(-hw, -1.62);
+    c.closePath(); c.fill();
+    rcGlass(c, P, -0.78, -1.86, 1.56, 0.54, 0.04);
+    c.fillStyle = rcMix(paint, 255, 0.08); c.fillRect(-0.56, -2.02, 1.12, 0.08);
+    c.fillStyle = '#2a2e34';                          // roof rails
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.84 - (sx < 0 ? 0 : 0.08), -2.01, 0.08, 0.07);
+    rcSheen(c, 1.9, -1.24, 0.24);
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, on, braking);
+      c.fillRect(sx * 0.96 - (sx < 0 ? 0 : 0.19), -1.26, 0.19, 0.34);
+      rcGlow(c, sx * 0.86, -1.10, 0.45, on);
+    }
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(-0.72, -1.22, 1.44, 0.05);
+      c.fillStyle = 'rgba(0,0,0,.3)'; c.fillRect(-0.72, -1.00, 1.44, 0.02);
+    }
+    rcPlate(c, -0.92, fine);
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(-hw, -0.46, 2 * hw, 0.26);
+    c.fillStyle = '#8f959c'; c.fillRect(-0.54, -0.22, 1.08, 0.09);
+  } },
+
+  van: { draw(c, paint, P, braking, fine) {
+    const hw = 0.98, on = P === RC_NIGHT || braking;
+    rcTyres(c, 0.93, -0.66, 0.22); rcArch(c, 0.93, -0.66, 0.22);
+    c.fillStyle = rcPaint(c, paint, -2.10);
+    c.fillRect(-hw, -2.10, 2 * hw, 1.62);
+    // barn doors, with the shut line down the middle and small high windows
+    if (fine) {
+      c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(-0.015, -2.06, 0.03, 1.58);
+      c.fillStyle = 'rgba(0,0,0,.25)';
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.90 - (sx < 0 ? 0 : 0.05), -1.70, 0.05, 0.22);
+    }
+    rcGlass(c, P, -0.80, -2.02, 0.74, 0.40, 0.02);
+    rcGlass(c, P, 0.06, -2.02, 0.74, 0.40, 0.02);
+    rcSheen(c, 1.9, -1.50, 0.26);
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, on, braking);
+      c.fillRect(sx * 0.94 - (sx < 0 ? 0 : 0.20), -0.92, 0.20, 0.40);
+      rcGlow(c, sx * 0.84, -0.72, 0.45, on);
+    }
+    rcPlate(c, -0.82, fine);
+    c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(-hw, -0.48, 2 * hw, 0.28);
+    c.fillStyle = '#3d434a';
+    c.beginPath(); c.ellipse(0.5, -0.14, 0.06, 0.04, 0, 0, 7); c.fill();
+  } },
+
+  pickup: { draw(c, paint, P, braking, fine) {
+    const hw = 0.98, on = P === RC_NIGHT || braking;
+    rcTyres(c, 0.94, -0.74, 0.24); rcArch(c, 0.94, -0.74, 0.24);
+    // cab above, bed sides below, with daylight between them
+    c.fillStyle = rcPaint(c, paint, -1.88);
+    c.fillRect(-0.74, -1.88, 1.48, 0.44);
+    rcGlass(c, P, -0.66, -1.84, 1.32, 0.32, 0.03);
+    c.fillStyle = 'rgba(0,0,0,.45)'; c.fillRect(-0.74, -1.44, 1.48, 0.10);
+    c.fillStyle = rcPaint(c, paint, -1.34);
+    c.fillRect(-hw, -1.34, 2 * hw, 0.88);
+    if (fine) {
+      c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(-hw + 0.06, -1.22, 2 * hw - 0.12, 0.02);
+      c.fillStyle = 'rgba(255,255,255,.25)'; c.fillRect(-0.20, -1.16, 0.40, 0.05);
+    }
+    rcSheen(c, 1.9, -1.30, 0.20);
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, on, braking);
+      c.fillRect(sx * 0.96 - (sx < 0 ? 0 : 0.21), -1.10, 0.21, 0.34);
+      rcGlow(c, sx * 0.86, -0.94, 0.45, on);
+    }
+    rcPlate(c, -0.80, fine);
+    c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(-hw, -0.46, 2 * hw, 0.24);
+    c.fillStyle = '#9aa0a7'; c.fillRect(-0.60, -0.26, 1.20, 0.10);   // step bumper
+  } },
+
+  truck: { draw(c, paint, P, braking, fine) {
+    const hw = 1.25, on = P === RC_NIGHT || braking;
+    c.fillStyle = '#12151a';                          // twin axles
+    for (const sx of [-1, 1]) for (const dx of [0, 0.26])
+      c.fillRect(sx * (1.14 - dx) - (sx < 0 ? 0 : 0.22), -0.90, 0.22, 0.90);
+    c.fillStyle = rcPaint(c, paint, -3.60);
+    c.fillRect(-hw, -3.60, 2 * hw, 2.75);
+    if (fine) {
+      c.fillStyle = 'rgba(0,0,0,.35)';                // the doors and their hinges
+      c.fillRect(-0.02, -3.56, 0.04, 2.68);
+      for (const y of [-3.30, -2.30, -1.30]) for (const sx of [-1, 1])
+        c.fillRect(sx * 1.19 - (sx < 0 ? 0 : 0.07), y, 0.07, 0.16);
+      c.fillStyle = 'rgba(255,255,255,.10)';
+      c.fillRect(-1.18, -3.52, 2.36, 0.05);
+    }
+    rcSheen(c, 2 * hw, -3.10, 0.5);
+    // the marker lights along the top edge
+    if (fine) {
+      c.fillStyle = on ? '#ffb257' : '#6d5a35';
+      for (let i = -2; i <= 2; i++) c.fillRect(i * 0.4 - 0.05, -3.64, 0.10, 0.05);
+    }
+    c.fillStyle = '#1b1e23';                          // rear bar and mudflaps
+    c.fillRect(-1.18, -0.70, 2.36, 0.16);
+    c.fillStyle = 'rgba(0,0,0,.6)';
+    for (const sx of [-1, 1]) c.fillRect(sx * 1.20 - (sx < 0 ? 0 : 0.26), -0.50, 0.26, 0.50);
+    // conspicuity chevrons, which is how a lorry reads at any distance
+    const band = -0.86;
+    for (let i = -3; i <= 3; i++) {
+      c.fillStyle = i % 2 ? '#d64533' : '#e6e2d8';
+      c.fillRect(i * 0.30 - 0.15, band, 0.30, 0.16);
+    }
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, on, braking);
+      c.fillRect(sx * 1.14 - (sx < 0 ? 0 : 0.26), -1.34, 0.26, 0.42);
+      rcGlow(c, sx * 1.0, -1.14, 0.55, on);
+    }
+  } },
+
+  bus: { draw(c, paint, P, braking, fine) {
+    const hw = 1.27, on = P === RC_NIGHT || braking;
+    c.fillStyle = '#12151a';
+    for (const sx of [-1, 1]) c.fillRect(sx * 1.16 - (sx < 0 ? 0 : 0.24), -0.86, 0.24, 0.86);
+    c.fillStyle = rcPaint(c, paint, -3.20);
+    c.fillRect(-hw, -3.20, 2 * hw, 2.55);
+    rcGlass(c, P, -1.06, -3.10, 2.12, 1.08, 0.06);
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.14)';          // destination panel
+      c.fillRect(-0.70, -3.16, 1.40, 0.14);
+      c.fillStyle = 'rgba(0,0,0,.35)';                // engine hatch
+      c.fillRect(-0.80, -1.60, 1.60, 0.50);
+      c.fillStyle = 'rgba(255,255,255,.08)';
+      for (let i = 0; i < 4; i++) c.fillRect(-0.76, -1.54 + i * 0.12, 1.52, 0.04);
+    }
+    rcSheen(c, 2 * hw, -2.00, 0.4);
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, on, braking);
+      c.fillRect(sx * 1.16 - (sx < 0 ? 0 : 0.24), -1.10, 0.24, 0.46);
+      rcGlow(c, sx * 1.02, -0.88, 0.5, on);
+    }
+    c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(-hw, -0.65, 2 * hw, 0.30);
+    rcPlate(c, -0.55, fine);
+  } }
+};
+
+/* One entry point for anything that is not the car you are in. The night
+   darkening, the shadow and the flash of your headlights are common to all of
+   them, so they live here rather than in seven copies. */
+function rcSprite(c, shape, x, ground, s, paint, P, braking, mine, trim, lamp) {
+  const m = RC_SHAPES[shape];
+  if (m.w * s < 1.2) return;
+  const model = RC_MODELS[shape] || RC_MODELS.sedan;
+  if (P === RC_NIGHT) paint = rcMix(paint, 0, 0.42);
+  c.save();
+  c.translate(x, ground); c.scale(s, s);
+  c.globalAlpha = 0.30; c.fillStyle = '#000';
+  c.beginPath(); c.ellipse(0, 0, m.w * 0.60, 0.16, 0, 0, 7); c.fill();
+  c.globalAlpha = 1;
+  model.draw(c, paint, P, braking, m.w * s > 26);
+  if (lamp > 0) {
+    c.fillStyle = 'rgba(255,248,225,' + Math.min(0.45, lamp * 1.4).toFixed(3) + ')';
+    c.fillRect(-m.w / 2, -m.h, m.w, m.h);
   }
-  if (lit && W > 14) {
-    c.globalAlpha = braking ? 0.5 : 0.28;
-    c.fillStyle = '#ff4436';
-    c.fillRect(x - W / 2 + W * 0.02, ly - lh * 0.5, W * 0.30, lh * 2.2);
-    c.fillRect(x + W / 2 - W * 0.32, ly - lh * 0.5, W * 0.30, lh * 2.2);
-    c.globalAlpha = 1;
-  }
+  c.restore();
 }
 
-/* The instruments. Everything a driver would actually look at while the car is
-   moving sits in one place at the bottom left, rather than spread across four
-   corners of the screen. */
 /* ---- the highway: the car you are in ----
    The traffic is drawn from proportions, which is enough for something you see
    for two seconds at 200m. The car you are sitting behind for the whole run is
@@ -6673,11 +7170,21 @@ function rcMix(hex, to, t) {
   const m = (v) => Math.round(v + (to - v) * t).toString(16).padStart(2, '0');
   return '#' + m((n >> 16) & 255) + m((n >> 8) & 255) + m(n & 255);
 }
+/* Cached: the gradient is built in the car's own metre space, where the same
+   body is always the same size, so one per colour and height serves every car
+   of that kind at every distance. Without this it was a new gradient object
+   per car per frame, thirty of them, sixty times a second. */
+const rcPaints = new Map();
 function rcPaint(c, hex, top) {
-  const g = c.createLinearGradient(0, top, 0, 0);
-  g.addColorStop(0, rcMix(hex, 255, 0.22));
-  g.addColorStop(0.45, hex);
-  g.addColorStop(1, rcMix(hex, 0, 0.42));
+  const key = hex + '@' + top;
+  let g = rcPaints.get(key);
+  if (!g) {
+    g = c.createLinearGradient(0, top, 0, 0);
+    g.addColorStop(0, rcMix(hex, 255, 0.22));
+    g.addColorStop(0.45, hex);
+    g.addColorStop(1, rcMix(hex, 0, 0.42));
+    rcPaints.set(key, g);
+  }
   return g;
 }
 
@@ -6705,7 +7212,7 @@ const RC_HERO = {
   /* IS 350C: the convertible, so it is drawn with the roof down and the two
      headrests standing above the deck. Wrap around lamps and a pair of round
      pipes under a body coloured valance. */
-  is350c: { w: 1.79, len: 4.7, draw(c, car, P, braking, fine) {
+  is350c: { w: 1.79, len: 4.7, h: 1.4, draw(c, car, P, braking, fine) {
     const hw = 0.895;
     rcTyres(c, 0.87, -0.60, 0.19);
     c.fillStyle = rcPaint(c, car.paint, -1.10);
@@ -6755,7 +7262,7 @@ const RC_HERO = {
 
   /* Huracan: as wide and low as it will go, the engine cover slatted, a Y in
      each lamp, and a diffuser with fins under a hexagonal pipe. */
-  huracan: { w: 1.92, len: 4.5, draw(c, car, P, braking, fine) {
+  huracan: { w: 1.92, len: 4.5, h: 1.21, draw(c, car, P, braking, fine) {
     const hw = 0.96;
     rcTyres(c, 0.94, -0.52, 0.25);
     c.fillStyle = rcPaint(c, car.paint, -1.17);
@@ -6806,7 +7313,7 @@ const RC_HERO = {
 
   /* Type R: the wing is the car. Three pipes in the middle of the diffuser and
      a light bar across the tailgate do the rest. */
-  typer: { w: 1.89, len: 4.4, draw(c, car, P, braking, fine) {
+  typer: { w: 1.89, len: 4.4, h: 1.5, draw(c, car, P, braking, fine) {
     const hw = 0.945;
     rcTyres(c, 0.92, -0.58, 0.21);
     c.fillStyle = rcPaint(c, car.paint, -1.44);
@@ -6851,7 +7358,7 @@ const RC_HERO = {
 
   /* R34: four round lamps, a flat boot and a wing with end plates. Nothing
      else about the back of this car matters. */
-  r34: { w: 1.785, len: 4.6, draw(c, car, P, braking, fine) {
+  r34: { w: 1.785, len: 4.6, h: 1.42, draw(c, car, P, braking, fine) {
     const hw = 0.893;
     rcTyres(c, 0.87, -0.56, 0.20);
     c.fillStyle = rcPaint(c, car.paint, -1.36);
@@ -6900,7 +7407,7 @@ const RC_HERO = {
 
   /* 911: the full width bar over a slatted engine lid, hips wider than the
      roof, and the spoiler sitting just under the glass. */
-  carrera: { w: 1.85, len: 4.5, draw(c, car, P, braking, fine) {
+  carrera: { w: 1.85, len: 4.5, h: 1.32, draw(c, car, P, braking, fine) {
     const hw = 0.925;
     rcTyres(c, 0.90, -0.54, 0.23);
     c.fillStyle = rcPaint(c, car.paint, -1.30);
@@ -6945,7 +7452,7 @@ const RC_HERO = {
 
   /* Land Cruiser: tall, square, roof rails, a chrome band across the tailgate
      and the lamps standing up the pillars. */
-  cruiser: { w: 1.98, len: 5.0, draw(c, car, P, braking, fine) {
+  cruiser: { w: 1.98, len: 5.0, h: 2.05, draw(c, car, P, braking, fine) {
     const hw = 0.99;
     rcTyres(c, 0.95, -0.76, 0.27);
     c.fillStyle = rcPaint(c, car.paint, -1.95);
@@ -7000,7 +7507,8 @@ function rcHero(c, car, x, ground, s, P, braking) {
   c.beginPath(); c.ellipse(0, 0, f.w * 0.60, 0.16, 0, 0, 7); c.fill();
   c.globalAlpha = 1;
   f.draw(c, car, P, braking, s > 26);
-  // a flat tone down the flanks, so it reads as a body and not a cut out
+  rcSheen(c, f.w * 0.96, -f.h * 0.86, f.h * 0.22);
+  // a flat tone down the sill, so it reads as a body and not a cut out
   c.fillStyle = 'rgba(0,0,0,.18)';
   c.fillRect(-f.w / 2, -0.30, f.w, 0.30);
   c.restore();
@@ -7126,8 +7634,12 @@ const RC_HELD = {
   ArrowUp: 'up', w: 'up', ArrowDown: 'down', s: 'down',
   ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right'
 };
-const RC_UPSHIFT = { e: 1, x: 1, ']': 1, '+': 1, '=': 1 };
-const RC_DOWNSHIFT = { q: 1, z: 1, '[': 1, '-': 1, _: 1 };
+/* Shift changes up and Control changes down, the way most driving games have
+   them, with E and Q kept for anyone who learned it the other way. A bare
+   modifier keydown is the shift; anything with a modifier held is the
+   browser's shortcut and is left alone. */
+const RC_UPSHIFT = { e: 1, x: 1, ']': 1, '+': 1, '=': 1, Shift: 1 };
+const RC_DOWNSHIFT = { q: 1, z: 1, '[': 1, '-': 1, _: 1, Control: 1 };
 
 function rcStart() {
   if (RC.state === 'crash') rcReset(true);
@@ -7187,6 +7699,8 @@ function rcOpen() {
   rcGoBack = document.activeElement;
   raceEl.hidden = false;
   rcBuildCars();
+  rcLevelEl.value = RC.level;
+  rcLoadBest();
   rcSize();
   rcReset(true);
   rcSetMode(RC.mode);
@@ -7211,6 +7725,14 @@ let rcGoBack = null;
 document.getElementById('rcClose').addEventListener('click', rcClose);
 document.getElementById('rcAgain').addEventListener('click', () => { rcReset(true); rcStart(); });
 rcModeBtn.addEventListener('click', () => rcSetMode(RC.mode === 'auto' ? 'manual' : 'auto'));
+
+const rcLevelEl = document.getElementById('rcLevel');
+rcLevelEl.addEventListener('change', () => {
+  RC.level = rcLevelEl.value;
+  try { localStorage.setItem('raceLevel', RC.level); } catch {}
+  rcLoadBest();                      // each difficulty keeps its own best
+  rcReset(true);
+});
 raceEl.addEventListener('click', e => { if (e.target === raceEl) rcClose(); });
 
 addEventListener('keydown', e => {
@@ -7221,6 +7743,8 @@ addEventListener('keydown', e => {
   const onBtn = e.target instanceof Element && e.target.closest('button');
   if (onBtn && (e.key === 'Enter' || e.key === ' ')) return;
   const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  // Control on its own is a downshift; Control with something is the browser's
+  if ((e.ctrlKey || e.metaKey || e.altKey) && k !== 'Control') return;
   if (RC_HELD[k]) {
     RC.keys[RC_HELD[k]] = 1;
     if (RC.state === 'ready') rcStart();
@@ -7230,6 +7754,7 @@ addEventListener('keydown', e => {
     if (RC.state !== 'run') { rcStart(); e.preventDefault(); }
     return;
   }
+  if (k === 'f') { rcFlash(); e.preventDefault(); return; }
   if (RC_UPSHIFT[k]) { rcShift(1); e.preventDefault(); return; }
   if (RC_DOWNSHIFT[k]) { rcShift(-1); e.preventDefault(); return; }
   if (k === 't') { rcSetMode(RC.mode === 'auto' ? 'manual' : 'auto'); e.preventDefault(); return; }
@@ -7272,6 +7797,7 @@ document.getElementById('rcTouch').addEventListener('pointerdown', e => {
   const b = e.target.closest('button'); if (!b) return;
   const a = b.dataset.rc;
   if (a === 'drive') { rcStart(); return; }
+  if (a === 'flash') { rcFlash(); return; }
   if (a === 'gup') { rcShift(1); return; }
   if (a === 'gdn') { rcShift(-1); return; }
   RC.keys[a] = 1;
