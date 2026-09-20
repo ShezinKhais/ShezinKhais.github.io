@@ -798,7 +798,7 @@
     display:inline-flex; align-items:center; gap:7px;
     transition:color .2s, border-color .2s;
   }
-  .rcars button i { width:9px; height:9px; display:block; border:1px solid rgba(0,0,0,.3); }
+  .rcars button canvas { display:block; width:54px; height:30px; }
   .rcars button:hover { color:var(--fg); }
   .rcars button[aria-pressed="true"] { color:var(--fg); border-color:var(--sn-mid); }
   .rcars button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
@@ -5900,31 +5900,46 @@ const RC_G = 9.81;
    squats under power: it is what stops the front drive hatch launching like
    the four wheel drive cars, same tyres, a little over half the grip to put it
    down with. shift is how long the drive is interrupted, so the two cars with
-   a manual gearbox lose real time on every change. */
+   a manual gearbox lose real time on every change.
+
+   The last three are what separate them once they are moving. aero is
+   downforce in newtons per (m/s)^2, so it grows with the square of speed and
+   presses the car into the road: the supercars gain over a hundred kilos of it
+   by 250, which is why they still turn up there, and the Land Cruiser's is
+   negative because a tall box gets light. agile is how quickly steering builds,
+   damp is how quickly the car settles again. Together they are the difference
+   between a car that changes lane with a flick and one that has to be leaned
+   on and then caught. */
 const RC_CARS = [
   { id: 'is350c', name: 'Lexus IS 350C', tag: 'convertible coupe',
     kw: 228, peak: 6400, redline: 6800, mass: 1735, vmax: 250, ng: 6, mu: 1.00,
     drive: 0.66, shift: 0.22,
+    aero: 0.00, agile: 0.95, damp: 1.5,
     paint: '#cfd3d8', trim: '#6d737b', shape: 'coupe' },
   { id: 'huracan', name: 'Lamborghini Huracan', tag: 'V10, rear view only',
     kw: 470, peak: 8000, redline: 8500, mass: 1422, vmax: 325, ng: 7, mu: 1.25,
     drive: 1.00, shift: 0.10,
+    aero: 0.22, agile: 1.35, damp: 2.5,
     paint: '#7ad48f', trim: '#1d6b33', shape: 'wedge' },
   { id: 'typer', name: 'Honda Civic Type R', tag: 'front drive, turbo',
     kw: 242, peak: 6500, redline: 7000, mass: 1429, vmax: 275, ng: 6, mu: 1.08,
     drive: 0.62, shift: 0.45,
+    aero: 0.10, agile: 1.20, damp: 2.1,
     paint: '#e2574c', trim: '#7d241d', shape: 'hatch' },
   { id: 'r34', name: 'Nissan Skyline GT-R R34', tag: 'straight six, all wheel drive',
     kw: 246, peak: 6800, redline: 7600, mass: 1560, vmax: 265, ng: 6, mu: 1.18,
     drive: 0.95, shift: 0.45,
+    aero: 0.08, agile: 1.10, damp: 1.9,
     paint: '#5aa9e6', trim: '#1f5d8c', shape: 'coupe' },
   { id: 'carrera', name: 'Porsche 911 Carrera S', tag: 'flat six, rear engine',
     kw: 331, peak: 6500, redline: 7500, mass: 1515, vmax: 308, ng: 8, mu: 1.25,
     drive: 0.82, shift: 0.10,
+    aero: 0.16, agile: 1.30, damp: 2.3,
     paint: '#f0e6d2', trim: '#8a7a5c', shape: 'porsche' },
   { id: 'cruiser', name: 'Toyota Land Cruiser', tag: 'heavy, and it shows',
     kw: 305, peak: 5600, redline: 6000, mass: 2600, vmax: 210, ng: 8, mu: 0.92,
     drive: 0.95, shift: 0.30,
+    aero: -0.03, agile: 0.70, damp: 1.1,
     paint: '#e8e4dc', trim: '#5d5a52', shape: 'suv' }
 ];
 
@@ -5965,23 +5980,34 @@ function rcDerive(car) {
 }
 RC_CARS.forEach(rcDerive);
 
+/* Cars have between six and eight gears, so an index that made sense for one
+   car can be past the end of another's box. An undefined ratio turns the force
+   into NaN, and from there the speed, the position and the whole run: one bad
+   frame and the car is nowhere, silently. Every read of a ratio goes through
+   here instead. */
+function rcRatio(car, gear) {
+  return car.gears[rcClamp(gear | 0, 0, car.gears.length - 1)];
+}
+
 // force at the wheels, newtons, before traction is considered
 function rcWheelForce(car, gear, v, throttle) {
-  const rpm = Math.max(900, Math.min(car.redline, rcRpmOf(v, car.gears[gear])));
+  const ratio = rcRatio(car, gear);
+  const rpm = Math.max(900, Math.min(car.redline, rcRpmOf(v, ratio)));
   // On the limiter the fuel is cut, not merely trimmed: at 0.12 an engine held
   // far past the redline still pulled hard enough to reach 180 in first, and
   // choosing the right gear stopped mattering.
-  const cut = rcRpmOf(v, car.gears[gear]) > car.redline ? 0 : 1;
-  return car.tq * rcShape(rpm, car) * car.gears[gear] / RC_RW * 0.92 * throttle * cut;
+  const cut = rcRpmOf(v, ratio) > car.redline ? 0 : 1;
+  return car.tq * rcShape(rpm, car) * ratio / RC_RW * 0.92 * throttle * cut;
 }
 
 /* Which gear an automatic would be in: the highest one that still has the
    revs to pull, shifting up near the redline and back down as they fall. */
 function rcAutoGear(car, gear, v, throttle) {
-  const rpm = rcRpmOf(v, car.gears[gear]);
+  gear = rcClamp(gear | 0, 0, car.gears.length - 1);
+  const rpm = rcRpmOf(v, rcRatio(car, gear));
   const up = car.redline * (0.72 + 0.22 * throttle);
   if (rpm > up && gear < car.gears.length - 1) return gear + 1;
-  if (gear > 0 && rcRpmOf(v, car.gears[gear - 1]) < car.redline * 0.80
+  if (gear > 0 && rcRpmOf(v, rcRatio(car, gear - 1)) < car.redline * 0.80
       && rpm < car.peak * (0.42 + 0.30 * throttle)) return gear - 1;
   return gear;
 }
@@ -6133,7 +6159,7 @@ function rcReset(keepCar) {
   // the gear it would be in at that speed, so manual does not open on the limiter
   RC.gear = RC.car.gears.length - 1;
   for (let g = 0; g < RC.car.gears.length; g++) {
-    if (rcRpmOf(RC.v, RC.car.gears[g]) < RC.car.redline * 0.85) { RC.gear = g; break; }
+    if (rcRpmOf(RC.v, rcRatio(RC.car, g)) < RC.car.redline * 0.85) { RC.gear = g; break; }
   }
   rcSeedTraffic();
   rcHudText();
@@ -6255,6 +6281,7 @@ function rcTrafficStep(dt) {
 /* ---- the car you are driving ---- */
 function rcDrive(dt) {
   const car = RC.car;
+  RC.gear = rcClamp(RC.gear | 0, 0, car.gears.length - 1);
   const throttle = RC.keys.up ? 1 : (rcTouchUI && RC.state === 'run' ? 1 : 0);
   const braking = RC.keys.down ? 1 : 0;
 
@@ -6265,14 +6292,19 @@ function rcDrive(dt) {
     if (g !== RC.gear) { RC.gear = g; RC.shiftFor = car.shift; }
   }
 
+  /* Downforce, and everything that leans on it. One number, used three times:
+     what the tyres can put down, what they can stop with, and how hard the car
+     can be turned. It is why the Huracan is still stable at 280 and the Land
+     Cruiser, whose figure is negative, is not. */
+  const load = car.mass * RC_G + car.aero * RC.v * RC.v;
   const cutting = RC.shiftFor > 0;
   let F = cutting ? 0 : rcWheelForce(car, RC.gear, RC.v, throttle);
-  F = Math.min(F, car.mu * car.drive * car.mass * RC_G);
+  F = Math.min(F, car.mu * car.drive * load);
   const drag = RC_AIR * car.cda * RC.v * RC.v;
   const width = rcWidth(RC.z);
   const off = RC.x < 0.25 || RC.x > width - 0.25;      // a wheel on the shoulder
   const roll = car.roll * (off ? 7 : 1);
-  const brakeF = braking * 0.95 * car.mu * car.mass * RC_G;
+  const brakeF = braking * 0.95 * car.mu * load;
   RC.v = Math.max(0, RC.v + (F - drag - roll - brakeF) / car.mass * dt);
   RC.top = Math.max(RC.top, RC.v);
 
@@ -6281,12 +6313,13 @@ function rcDrive(dt) {
      the driver is actually doing on a bend is cancelling the second with the
      first, which is why a fast bend needs holding rather than a flick. */
   const want = (RC.keys.right ? 1 : 0) - (RC.keys.left ? 1 : 0) + rcDragSteer;
-  RC.steer += rcClamp(want - RC.steer, -dt * 5.5, dt * 5.5);
+  const rate = dt * 5.5 * car.agile;
+  RC.steer += rcClamp(want - RC.steer, -rate, rate);
   const v = Math.max(4, RC.v);
-  const dMax = Math.min(0.55, car.mu * RC_G * RC_WHEELBASE / (v * v));
+  const dMax = Math.min(0.55, car.mu * (load / car.mass) * RC_WHEELBASE / (v * v));
   const delta = rcClamp(RC.steer, -1, 1) * dMax * (off ? 0.55 : 1);
   RC.yaw += (v / RC_WHEELBASE * delta - RC.v * rcCurve(RC.z)) * dt;
-  RC.yaw *= Math.max(0, 1 - 1.6 * dt);                 // it settles if you let go
+  RC.yaw *= Math.max(0, 1 - car.damp * dt);            // it settles if you let go
   RC.x += RC.v * RC.yaw * dt;
   RC.z += RC.v * dt;
 
@@ -6297,7 +6330,7 @@ function rcDrive(dt) {
   if (RC.x < -1.3 || RC.x > width + 1.3) return rcCrash('into the barrier');
 
   // traffic
-  const mine = RC_SHAPES[car.shape];
+  const mine = RC_HERO[car.id];
   for (const c of RC.cars) {
     const s = RC_SHAPES[c.shape];
     if (Math.abs(c.z - RC.z) > (s.len + mine.len) / 2) continue;
@@ -6505,9 +6538,9 @@ function rcDraw() {
     else rcCone(c, p.x, p.y, p.s, P);
   }
 
-  // the car you are in
+  // the car you are in, drawn as itself rather than as a set of proportions
   const me = proj(RC.x, RC_CAMB, 0);
-  rcSprite(c, RC.car.shape, me.x, me.y, me.s, RC.car.paint, P, !!RC.keys.down, true, RC.car.trim);
+  rcHero(c, RC.car, me.x, me.y, me.s, P, !!RC.keys.down);
 
   if (RC.flash > 0) {
     c.fillStyle = 'rgba(255,170,60,' + (RC.flash * 0.35).toFixed(3) + ')';
@@ -6613,6 +6646,376 @@ function rcSprite(c, shape, x, ground, s, paint, P, braking, mine, trim) {
 /* The instruments. Everything a driver would actually look at while the car is
    moving sits in one place at the bottom left, rather than spread across four
    corners of the screen. */
+/* ---- the highway: the car you are in ----
+   The traffic is drawn from proportions, which is enough for something you see
+   for two seconds at 200m. The car you are sitting behind for the whole run is
+   not: it is drawn per model, from the back, with the details that actually
+   identify one of these cars at a glance. Four round lamps means R34 and
+   nothing else; a full width bar over a slatted engine lid means 911.
+
+   Everything below is drawn in metres, with the origin on the road at the
+   centre of the car and y going up as it goes negative, so the numbers are
+   real dimensions and the projection does the rest. `fine` is the level of
+   detail switch: badges and slats are skipped once the car is small, which is
+   what lets the same code draw the chooser thumbnails. */
+function rcTyres(c, halfTrack, top, wide) {
+  c.fillStyle = '#12151a';
+  for (const sx of [-1, 1]) c.fillRect(sx * halfTrack - (sx < 0 ? 0 : wide), top, wide, -top);
+  c.fillStyle = 'rgba(255,255,255,.07)';
+  for (const sx of [-1, 1]) c.fillRect(sx * halfTrack - (sx < 0 ? 0 : wide), top, wide, -top * 0.22);
+}
+
+/* Paint, shaded from the shoulder line down. A flat fill makes even a good
+   outline read as a cardboard cut out; two stops and a darker sill are enough
+   for a body panel to look like it curves. */
+function rcMix(hex, to, t) {
+  const n = parseInt(hex.slice(1), 16);
+  const m = (v) => Math.round(v + (to - v) * t).toString(16).padStart(2, '0');
+  return '#' + m((n >> 16) & 255) + m((n >> 8) & 255) + m(n & 255);
+}
+function rcPaint(c, hex, top) {
+  const g = c.createLinearGradient(0, top, 0, 0);
+  g.addColorStop(0, rcMix(hex, 255, 0.22));
+  g.addColorStop(0.45, hex);
+  g.addColorStop(1, rcMix(hex, 0, 0.42));
+  return g;
+}
+
+function rcGlass(c, P, x, y, w, h, r) {
+  c.fillStyle = P === RC_NIGHT ? 'rgba(14,19,26,.95)' : 'rgba(38,50,64,.82)';
+  c.beginPath();
+  if (c.roundRect) c.roundRect(x, y, w, h, r || 0.04); else c.rect(x, y, w, h);
+  c.fill();
+}
+
+// a lamp that reads as lit glass rather than a red rectangle
+function rcLampFill(c, on, braking) {
+  c.fillStyle = braking ? '#ff3a2c' : on ? '#d8352c' : '#8e2f2a';
+}
+function rcGlow(c, x, y, r, on) {
+  if (!on) return;
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  // gentle: at .45 the glow bleached the whole back of the car
+  g.addColorStop(0, 'rgba(255,60,46,.24)'); g.addColorStop(1, 'rgba(255,60,46,0)');
+  c.fillStyle = g;
+  c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+}
+
+const RC_HERO = {
+  /* IS 350C: the convertible, so it is drawn with the roof down and the two
+     headrests standing above the deck. Wrap around lamps and a pair of round
+     pipes under a body coloured valance. */
+  is350c: { w: 1.79, len: 4.7, draw(c, car, P, braking, fine) {
+    const hw = 0.895;
+    rcTyres(c, 0.87, -0.60, 0.19);
+    c.fillStyle = rcPaint(c, car.paint, -1.10);
+    c.beginPath();
+    c.moveTo(-0.84, -1.06); c.lineTo(0.84, -1.06);
+    c.lineTo(hw, -0.62); c.lineTo(hw - 0.04, -0.20);
+    c.lineTo(-hw + 0.04, -0.20); c.lineTo(-hw, -0.62);
+    c.closePath(); c.fill();
+    // the open cabin behind the headrests
+    c.fillStyle = 'rgba(0,0,0,.55)';
+    c.fillRect(-0.58, -1.13, 1.16, 0.08);
+    c.fillStyle = rcMix(car.paint, 0, 0.62);          // headrests, in trim not paint
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      if (c.roundRect) c.roundRect(sx * 0.42 - 0.10, -1.28, 0.20, 0.22, 0.08);
+      else c.rect(sx * 0.42 - 0.10, -1.28, 0.20, 0.22);
+      c.fill();
+    }
+    c.fillStyle = 'rgba(0,0,0,.30)';                 // boot lid shading
+    c.fillRect(-0.84, -0.74, 1.68, 0.06);
+    // lamps, wrapping round the corners
+    for (const sx of [-1, 1]) {
+      // the fill is set per side: rcGlow leaves a gradient behind it, and
+      // setting it once before the loop painted the second lamp with the
+      // first lamp's halo, which at that distance is nothing at all
+      rcLampFill(c, P === RC_NIGHT, braking);
+      c.beginPath();
+      c.moveTo(sx * 0.33, -0.82); c.lineTo(sx * 0.86, -0.86);
+      c.lineTo(sx * 0.89, -0.62); c.lineTo(sx * 0.36, -0.64);
+      c.closePath(); c.fill();
+      rcGlow(c, sx * 0.6, -0.74, 0.5, P === RC_NIGHT || braking);
+    }
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.42)';         // the clear inner section
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.74 - (sx < 0 ? 0.10 : 0), -0.80, 0.10, 0.12);
+      c.fillStyle = 'rgba(255,255,255,.22)';         // chrome across the boot
+      c.fillRect(-0.30, -0.80, 0.60, 0.025);
+    }
+    c.fillStyle = 'rgba(0,0,0,.45)';                 // valance and plate
+    c.fillRect(-hw + 0.06, -0.24, 2 * hw - 0.12, 0.24);
+    if (fine) { c.fillStyle = '#d8d8d2'; c.fillRect(-0.17, -0.52, 0.34, 0.15); }
+    c.fillStyle = '#2b2f35';
+    for (const sx of [-1, 1]) {
+      c.beginPath(); c.ellipse(sx * 0.46, -0.13, 0.085, 0.055, 0, 0, 7); c.fill();
+    }
+  } },
+
+  /* Huracan: as wide and low as it will go, the engine cover slatted, a Y in
+     each lamp, and a diffuser with fins under a hexagonal pipe. */
+  huracan: { w: 1.92, len: 4.5, draw(c, car, P, braking, fine) {
+    const hw = 0.96;
+    rcTyres(c, 0.94, -0.52, 0.25);
+    c.fillStyle = rcPaint(c, car.paint, -1.17);
+    c.beginPath();
+    c.moveTo(-0.66, -1.17); c.lineTo(0.66, -1.17);
+    c.lineTo(hw, -0.66); c.lineTo(hw, -0.30);
+    c.lineTo(-hw, -0.30); c.lineTo(-hw, -0.66);
+    c.closePath(); c.fill();
+    c.fillStyle = 'rgba(0,0,0,.45)';                 // ducktail lip
+    c.fillRect(-0.68, -1.21, 1.36, 0.05);
+    // engine cover: dark glass with slats over it
+    rcGlass(c, P, -0.60, -1.15, 1.20, 0.26, 0.03);
+    if (fine) {
+      c.strokeStyle = 'rgba(0,0,0,.55)'; c.lineWidth = 0.022;
+      for (let i = 1; i < 5; i++) {
+        c.beginPath(); c.moveTo(-0.56, -1.13 + i * 0.05); c.lineTo(0.56, -1.13 + i * 0.05); c.stroke();
+      }
+    }
+    // the Y in each lamp
+    rcLampFill(c, P === RC_NIGHT, braking);
+    c.lineCap = 'round';
+    c.strokeStyle = c.fillStyle; c.lineWidth = 0.062;
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(sx * 0.34, -0.70); c.lineTo(sx * 0.62, -0.70);
+      c.moveTo(sx * 0.62, -0.70); c.lineTo(sx * 0.86, -0.82);
+      c.moveTo(sx * 0.62, -0.70); c.lineTo(sx * 0.86, -0.58);
+      c.stroke();
+      rcGlow(c, sx * 0.62, -0.70, 0.55, P === RC_NIGHT || braking);
+    }
+    c.lineCap = 'butt';
+    // intakes at the shoulders
+    c.fillStyle = 'rgba(0,0,0,.6)';
+    for (const sx of [-1, 1]) c.fillRect(sx * hw - (sx < 0 ? 0 : 0.10), -0.86, 0.10, 0.22);
+    // diffuser
+    c.fillStyle = '#1b1e23';
+    c.fillRect(-0.82, -0.34, 1.64, 0.34);
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.10)';
+      for (let i = -2; i <= 2; i++) c.fillRect(i * 0.24 - 0.02, -0.30, 0.04, 0.28);
+    }
+    c.fillStyle = '#3a3f46';                          // hexagonal pipe
+    c.beginPath();
+    c.moveTo(-0.11, -0.50); c.lineTo(0.11, -0.50); c.lineTo(0.16, -0.42);
+    c.lineTo(0.11, -0.34); c.lineTo(-0.11, -0.34); c.lineTo(-0.16, -0.42);
+    c.closePath(); c.fill();
+  } },
+
+  /* Type R: the wing is the car. Three pipes in the middle of the diffuser and
+     a light bar across the tailgate do the rest. */
+  typer: { w: 1.89, len: 4.4, draw(c, car, P, braking, fine) {
+    const hw = 0.945;
+    rcTyres(c, 0.92, -0.58, 0.21);
+    c.fillStyle = rcPaint(c, car.paint, -1.44);
+    c.beginPath();
+    c.moveTo(-0.74, -1.44); c.lineTo(0.74, -1.44);
+    c.lineTo(hw, -0.74); c.lineTo(hw - 0.03, -0.30);
+    c.lineTo(-hw + 0.03, -0.30); c.lineTo(-hw, -0.74);
+    c.closePath(); c.fill();
+    rcGlass(c, P, -0.68, -1.40, 1.36, 0.42, 0.05);
+    if (fine) {                                       // wiper
+      c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 0.025;
+      c.beginPath(); c.moveTo(-0.10, -1.02); c.lineTo(0.34, -1.26); c.stroke();
+    }
+    // the wing, on two struts, above the roofline
+    c.fillStyle = rcMix(car.paint, 0, 0.55);
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.44 - 0.04, -1.60, 0.08, 0.18);
+    c.fillStyle = rcPaint(c, car.paint, -1.70);
+    c.fillRect(-0.78, -1.68, 1.56, 0.09);
+    c.fillStyle = 'rgba(0,0,0,.35)';
+    c.fillRect(-0.78, -1.62, 1.56, 0.03);
+    c.fillStyle = '#20242a';                          // end plates
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.78 - (sx < 0 ? 0 : 0.05), -1.72, 0.05, 0.16);
+    // full width lamp bar, turning up at the corners
+    rcLampFill(c, P === RC_NIGHT, braking);
+    c.fillRect(-0.80, -0.92, 1.60, 0.12);
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.80 - (sx < 0 ? 0 : 0.16), -1.04, 0.16, 0.24);
+    rcGlow(c, 0, -0.86, 0.9, P === RC_NIGHT || braking);
+    if (fine) {
+      c.fillStyle = '#d8352c'; c.fillRect(-0.07, -0.74, 0.14, 0.09);   // the red badge
+    }
+    c.fillStyle = '#1b1e23';                          // diffuser
+    c.fillRect(-0.84, -0.36, 1.68, 0.36);
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.09)';
+      for (const sx of [-1, 1]) for (let i = 1; i < 4; i++) c.fillRect(sx * (0.40 + i * 0.12), -0.30, 0.03, 0.28);
+    }
+    c.fillStyle = '#4a5058';                          // three pipes
+    for (const x of [-0.19, 0, 0.19]) {
+      c.beginPath(); c.arc(x, -0.20, x === 0 ? 0.075 : 0.06, 0, 7); c.fill();
+    }
+  } },
+
+  /* R34: four round lamps, a flat boot and a wing with end plates. Nothing
+     else about the back of this car matters. */
+  r34: { w: 1.785, len: 4.6, draw(c, car, P, braking, fine) {
+    const hw = 0.893;
+    rcTyres(c, 0.87, -0.56, 0.20);
+    c.fillStyle = rcPaint(c, car.paint, -1.36);
+    c.beginPath();
+    c.moveTo(-0.80, -1.36); c.lineTo(0.80, -1.36);
+    c.lineTo(hw, -0.66); c.lineTo(hw - 0.02, -0.34);
+    c.lineTo(-hw + 0.02, -0.34); c.lineTo(-hw, -0.66);
+    c.closePath(); c.fill();
+    rcGlass(c, P, -0.72, -1.32, 1.44, 0.34, 0.03);
+    // the wing, sitting on the boot lid
+    c.fillStyle = rcMix(car.paint, 0, 0.5);
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.52 - 0.05, -1.56, 0.10, 0.22);
+    c.fillStyle = rcPaint(c, car.paint, -1.70);
+    c.fillRect(-0.74, -1.64, 1.48, 0.10);
+    c.fillStyle = '#20242a';
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.74 - (sx < 0 ? 0 : 0.05), -1.68, 0.05, 0.18);
+    // four round lamps
+    const on = P === RC_NIGHT || braking;
+    for (const sx of [-1, 1]) for (const dx of [0.40, 0.66]) {
+      rcLampFill(c, P === RC_NIGHT, braking);
+      c.beginPath(); c.arc(sx * dx, -0.82, 0.115, 0, 7); c.fill();
+      if (fine) {
+        c.fillStyle = 'rgba(0,0,0,.35)';
+        c.beginPath(); c.arc(sx * dx, -0.82, 0.115, 0, 7); c.lineWidth = 0.02;
+        c.strokeStyle = 'rgba(0,0,0,.45)'; c.stroke();
+        c.fillStyle = 'rgba(255,255,255,.35)';
+        c.beginPath(); c.arc(sx * dx - 0.03, -0.85, 0.035, 0, 7); c.fill();
+      }
+      rcGlow(c, sx * dx, -0.82, 0.34, on);
+    }
+    if (fine) {
+      c.fillStyle = 'rgba(0,0,0,.35)';                // boot shut line and badge
+      c.fillRect(-0.80, -0.96, 1.60, 0.02);
+      c.fillStyle = 'rgba(255,255,255,.45)';
+      c.fillRect(-0.12, -0.78, 0.24, 0.05);
+    }
+    c.fillStyle = '#d8d8d2';
+    if (fine) c.fillRect(-0.18, -0.62, 0.36, 0.15);   // plate
+    c.fillStyle = 'rgba(0,0,0,.5)';                   // valance
+    c.fillRect(-hw + 0.05, -0.30, 2 * hw - 0.10, 0.30);
+    c.fillStyle = '#42474e';
+    for (const sx of [-1, 1]) {
+      c.beginPath(); c.arc(sx * 0.20, -0.15, 0.075, 0, 7); c.fill();
+    }
+  } },
+
+  /* 911: the full width bar over a slatted engine lid, hips wider than the
+     roof, and the spoiler sitting just under the glass. */
+  carrera: { w: 1.85, len: 4.5, draw(c, car, P, braking, fine) {
+    const hw = 0.925;
+    rcTyres(c, 0.90, -0.54, 0.23);
+    c.fillStyle = rcPaint(c, car.paint, -1.30);
+    c.beginPath();
+    c.moveTo(-0.60, -1.30); c.lineTo(0.60, -1.30);
+    c.lineTo(0.86, -1.02); c.lineTo(hw, -0.62);
+    c.lineTo(hw - 0.03, -0.28); c.lineTo(-hw + 0.03, -0.28);
+    c.lineTo(-hw, -0.62); c.lineTo(-0.86, -1.02);
+    c.closePath(); c.fill();
+    // engine lid slats
+    c.fillStyle = 'rgba(0,0,0,.40)';
+    c.fillRect(-0.48, -1.22, 0.96, 0.26);
+    if (fine) {
+      c.strokeStyle = 'rgba(255,255,255,.10)'; c.lineWidth = 0.02;
+      for (let i = 1; i < 6; i++) {
+        c.beginPath(); c.moveTo(-0.45, -1.21 + i * 0.042); c.lineTo(0.45, -1.21 + i * 0.042); c.stroke();
+      }
+    }
+    c.fillStyle = 'rgba(0,0,0,.35)';                  // spoiler lip
+    c.fillRect(-0.62, -1.26, 1.24, 0.05);
+    // the bar
+    rcLampFill(c, P === RC_NIGHT, braking);
+    c.fillRect(-0.80, -0.88, 1.60, 0.075);
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      if (c.roundRect) c.roundRect(sx * 0.82 - (sx < 0 ? 0 : 0.22), -0.94, 0.22, 0.20, 0.05);
+      else c.rect(sx * 0.82 - (sx < 0 ? 0 : 0.22), -0.94, 0.22, 0.20);
+      c.fill();
+    }
+    rcGlow(c, 0, -0.85, 1.0, P === RC_NIGHT || braking);
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.5)';           // the script, as ticks
+      for (let i = 0; i < 7; i++) c.fillRect(-0.24 + i * 0.075, -0.72, 0.035, 0.05);
+    }
+    c.fillStyle = '#1b1e23';
+    c.fillRect(-0.80, -0.32, 1.60, 0.32);
+    c.fillStyle = '#4a5058';                          // twin ovals, inboard
+    for (const sx of [-1, 1]) {
+      c.beginPath(); c.ellipse(sx * 0.28, -0.17, 0.085, 0.05, 0, 0, 7); c.fill();
+    }
+  } },
+
+  /* Land Cruiser: tall, square, roof rails, a chrome band across the tailgate
+     and the lamps standing up the pillars. */
+  cruiser: { w: 1.98, len: 5.0, draw(c, car, P, braking, fine) {
+    const hw = 0.99;
+    rcTyres(c, 0.95, -0.76, 0.27);
+    c.fillStyle = rcPaint(c, car.paint, -1.95);
+    c.beginPath();
+    c.moveTo(-0.92, -1.95); c.lineTo(0.92, -1.95);
+    c.lineTo(hw, -1.60); c.lineTo(hw, -0.50);
+    c.lineTo(-hw, -0.50); c.lineTo(-hw, -1.60);
+    c.closePath(); c.fill();
+    rcGlass(c, P, -0.80, -1.86, 1.60, 0.56, 0.04);
+    // roof spoiler with the high brake light, and the rails either side
+    c.fillStyle = rcMix(car.paint, 255, 0.10); c.fillRect(-0.58, -2.03, 1.16, 0.09);
+    rcLampFill(c, P === RC_NIGHT, braking);
+    c.fillRect(-0.26, -2.00, 0.52, 0.035);
+    c.fillStyle = '#2a2e34';
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.86 - (sx < 0 ? 0 : 0.09), -2.02, 0.09, 0.08);
+    // the lamps, standing up the pillars
+    for (const sx of [-1, 1]) {
+      rcLampFill(c, P === RC_NIGHT, braking);
+      c.fillRect(sx * 0.96 - (sx < 0 ? 0 : 0.20), -1.30, 0.20, 0.42);
+      if (fine) {
+        c.fillStyle = 'rgba(255,255,255,.55)';
+        c.fillRect(sx * 0.96 - (sx < 0 ? 0 : 0.20), -0.92, 0.20, 0.10);
+      }
+      rcGlow(c, sx * 0.86, -1.10, 0.5, P === RC_NIGHT || braking);
+    }
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.30)';          // chrome band and handle
+      c.fillRect(-0.74, -1.24, 1.48, 0.06);
+      c.fillStyle = 'rgba(0,0,0,.35)';
+      c.fillRect(-0.74, -1.02, 1.48, 0.02);
+      c.fillStyle = '#d8d8d2'; c.fillRect(-0.19, -0.90, 0.38, 0.16);
+    }
+    c.fillStyle = 'rgba(0,0,0,.45)';                  // bumper, step and towbar
+    c.fillRect(-hw, -0.50, 2 * hw, 0.26);
+    c.fillStyle = '#9aa0a7';
+    c.fillRect(-0.62, -0.24, 1.24, 0.10);
+    c.fillStyle = '#25292f';
+    c.fillRect(-0.09, -0.16, 0.18, 0.16);
+    c.fillStyle = '#42474e';
+    c.beginPath(); c.ellipse(0.62, -0.30, 0.07, 0.045, 0, 0, 7); c.fill();
+  } }
+};
+
+function rcHero(c, car, x, ground, s, P, braking) {
+  const f = RC_HERO[car.id];
+  // paint is darker after dark, or a white car at night is a white car in
+  // daylight with the road behind it changed
+  if (P === RC_NIGHT) car = Object.assign({}, car, { paint: rcMix(car.paint, 0, 0.42) });
+  c.save();
+  c.translate(x, ground); c.scale(s, s);
+  c.globalAlpha = 0.30; c.fillStyle = '#000';
+  c.beginPath(); c.ellipse(0, 0, f.w * 0.60, 0.16, 0, 0, 7); c.fill();
+  c.globalAlpha = 1;
+  f.draw(c, car, P, braking, s > 26);
+  // a flat tone down the flanks, so it reads as a body and not a cut out
+  c.fillStyle = 'rgba(0,0,0,.18)';
+  c.fillRect(-f.w / 2, -0.30, f.w, 0.30);
+  c.restore();
+}
+
+// the chooser buttons draw the same car, small
+function rcThumb(cv, car) {
+  const d = Math.min(devicePixelRatio || 1, 2);
+  cv.width = 54 * d; cv.height = 30 * d;
+  const c = cv.getContext('2d');
+  c.setTransform(d, 0, 0, d, 0, 0);
+  c.clearRect(0, 0, 54, 30);
+  rcHero(c, car, 27, 29, 24 / RC_HERO[car.id].w, rcNight() ? RC_NIGHT : RC_DAY, false);
+}
+
 function rcHud(c, w, h, P) {
   /* The binnacle keeps its own colours rather than the page's. It is a dark
      panel over the road, so the page's text colour turned it into black on
@@ -6621,7 +7024,7 @@ function rcHud(c, w, h, P) {
   const fg = '#f3f5f8', muted = 'rgba(243,245,248,.72)', num = '#7ad48f', bad = '#ff5b4a';
   const k = rcClamp(w / 640, 0.58, 1.12);
   const car = RC.car;
-  const rpm = rcClamp(rcRpmOf(RC.v, car.gears[RC.gear]), 900, car.redline);
+  const rpm = rcClamp(rcRpmOf(RC.v, rcRatio(car, RC.gear)), 900, car.redline);
   const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round(54 * k);
   const bx = pad, by = h - pad - bh;
 
@@ -6671,9 +7074,10 @@ function rcHud(c, w, h, P) {
   if (RC.state === 'ready') rcCard(c, w, h, [
     car.name, car.tag,
     Math.round(car.kw * 1.341) + ' hp, ' + car.mass + ' kg, ' + car.ng + ' gears',
+    rcHandling(car),
     rcTouchUI ? 'tap drive, then drag to steer' : 'enter to pull out'
   ], k);
-  if (RC.state === 'pause') rcCard(c, w, h, ['paused', '', '', 'P to carry on'], k);
+  if (RC.state === 'pause') rcCard(c, w, h, ['paused', '', 'P to carry on'], k);
   if (RC.state === 'crash') rcCard(c, w, h, [
     rcKm(RC.z), RC.msg,
     'top speed ' + Math.round(RC.top * 3.6) + ' km/h, ' + RC.hits + ' cones',
@@ -6681,17 +7085,30 @@ function rcHud(c, w, h, P) {
   ], k);
 }
 
+// what the numbers mean for the driver, in the words a driver would use
+function rcHandling(car) {
+  const kg = Math.round(car.aero * Math.pow(250 / 3.6, 2) / RC_G);
+  return car.mu.toFixed(2) + 'g of grip, '
+    + (kg > 8 ? kg + ' kg of downforce at 250'
+      : kg < -4 ? 'and it goes light at speed'
+      : 'no downforce to speak of');
+}
+
+/* One title, any number of lines under it, the last one in green because it is
+   the one telling you what to press. */
 function rcCard(c, w, h, lines, k) {
+  const n = lines.length;
+  const top = h * 0.5 - (n * 0.055 + 0.06) * h / 2;
   c.fillStyle = 'rgba(0,0,0,.55)';
-  c.fillRect(0, h * 0.30, w, h * 0.40);
+  c.fillRect(0, top, w, (n * 0.055 + 0.06) * h);
   c.textAlign = 'center';
   c.fillStyle = '#fff'; c.font = '600 ' + (22 * k).toFixed(1) + 'px ' + DISPLAY;
-  c.fillText(lines[0], w / 2, h * 0.42);
-  c.font = (11 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = 'rgba(255,255,255,.74)';
-  c.fillText(lines[1], w / 2, h * 0.49);
-  c.fillText(lines[2], w / 2, h * 0.56);
-  c.fillStyle = '#7ad48f';
-  c.fillText(lines[3], w / 2, h * 0.64);
+  c.fillText(lines[0], w / 2, top + h * 0.075);
+  c.font = (11 * k).toFixed(1) + 'px ' + MONO;
+  for (let i = 1; i < n; i++) {
+    c.fillStyle = i === n - 1 ? '#7ad48f' : 'rgba(255,255,255,.74)';
+    c.fillText(lines[i], w / 2, top + h * (0.075 + i * 0.055));
+  }
 }
 
 /* ---- the highway: controls and wiring ---- */
@@ -6744,7 +7161,11 @@ function rcBuildCars() {
     const b = document.createElement('button');
     b.type = 'button'; b.dataset.car = car.id;
     b.setAttribute('aria-pressed', String(car === RC.car));
-    b.innerHTML = '<i style="background:' + car.paint + '"></i>' + car.name;
+    const cv = document.createElement('canvas');
+    cv.setAttribute('aria-hidden', 'true');
+    b.appendChild(cv);
+    b.appendChild(document.createTextNode(car.name));
+    rcThumb(cv, car);
     b.addEventListener('click', () => rcPickCar(car));
     rcCarsEl.appendChild(b);
   }
@@ -6761,6 +7182,8 @@ function rcFrame(t) {
 
 function rcOpen() {
   if (!raceEl.hidden) return;
+  // the thumbnails carry lit lamps, so they are redrawn if the theme moved
+  rcCarsEl.querySelectorAll('canvas').forEach((cv, i) => rcThumb(cv, RC_CARS[i]));
   rcGoBack = document.activeElement;
   raceEl.hidden = false;
   rcBuildCars();
