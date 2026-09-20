@@ -770,6 +770,54 @@
   .gfoot .close { margin-left:auto; }
   @media (pointer: coarse) { .gfoot button { min-height:44px; } }
 
+
+  /* ---------- the highway ----------
+     Three taps on the badge. It is a bigger canvas than the snake, so it gets
+     a wider box, and the controls it needs are real buttons under the road
+     rather than keys nobody on a phone has. */
+  #race[hidden] { display:none; }
+  #race {
+    position:fixed; inset:0; z-index:70; display:flex;
+    align-items:center; justify-content:center; padding:18px;
+    background:rgba(0,0,0,.6);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    animation:gIn .16s ease;
+  }
+  .rbox {
+    background:var(--panel-hi); border:1px solid var(--sn-mid); padding:18px;
+    max-width:min(96vw,880px); width:100%;
+    box-shadow:0 26px 70px rgba(0,0,0,.45);
+  }
+  .rstage { border:1px solid var(--line); background:var(--bg); line-height:0; }
+  #raceCv { display:block; width:100%; height:auto; touch-action:none; }
+  .rcars { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .rcars button {
+    font:inherit; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase;
+    color:var(--muted); background:var(--bg); border:1px solid var(--line);
+    border-radius:0; padding:7px 10px; cursor:pointer;
+    display:inline-flex; align-items:center; gap:7px;
+    transition:color .2s, border-color .2s;
+  }
+  .rcars button i { width:9px; height:9px; display:block; border:1px solid rgba(0,0,0,.3); }
+  .rcars button:hover { color:var(--fg); }
+  .rcars button[aria-pressed="true"] { color:var(--fg); border-color:var(--sn-mid); }
+  .rcars button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .rkeys { margin:11px 0 0; font-size:10.5px; color:var(--muted); letter-spacing:.03em; }
+  .rkeys kbd { font:inherit; color:var(--fg); border:1px solid var(--line); padding:1px 5px; margin:0 2px; }
+  .rtouch { display:none; }
+  .rtouch button {
+    font:inherit; font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--muted); background:var(--bg); border:1px solid var(--line);
+    border-radius:0; min-height:54px; cursor:pointer; touch-action:none;
+  }
+  /* the gear buttons only mean anything with the manual gearbox selected */
+  .rtouch .g { display:none; }
+  @media (pointer: coarse) {
+    .rtouch { display:grid; grid-template-columns:repeat(auto-fit,minmax(64px,1fr)); gap:6px; margin-top:10px; }
+    .rtouch.man .g { display:block; }
+    .rkeys { display:none; }
+  }
+
   body.onsnake { cursor:pointer; }
 
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
@@ -817,7 +865,7 @@
     html, body { background:#fff !important; color:#000; }
     body { padding-bottom:0; }
     #bg, #prog, .tools, .rail, #pal, #peek, .idwrap, .demo, .tryit,
-    .how, .noscript-hero, .sig, #game { display:none !important; }
+    .how, .noscript-hero, .sig, #game, #race { display:none !important; }
     .wrap { max-width:none; margin:0; padding:0; }
     .card, .tryit { margin:0; padding:10px 0 10px 34px; break-inside:avoid; }
     .card::before { left:0; }
@@ -879,6 +927,39 @@
       <span id="gMsg">arrows or WASD to steer</span>
       <button id="gAgain" type="button">Restart</button>
       <button id="gClose" type="button" class="close">Close</button>
+    </p>
+  </div>
+</div>
+
+<div id="race" hidden role="dialog" aria-modal="true" aria-label="Highway">
+  <div class="rbox">
+    <div class="ghead">
+      <b>[ highway ]</b>
+      <span class="sc">distance <i id="rcDist">0.00 km</i> &middot; best <i id="rcBest">0.00 km</i></span>
+    </div>
+    <div class="rstage">
+      <canvas id="raceCv" role="img"
+              aria-label="A motorway seen from behind your car, with traffic ahead. Arrow keys steer and brake."></canvas>
+    </div>
+    <div class="rtouch" id="rcTouch">
+      <button type="button" data-rc="drive">Drive</button>
+      <button type="button" data-rc="left" aria-label="Steer left">&#9664;</button>
+      <button type="button" data-rc="right" aria-label="Steer right">&#9654;</button>
+      <button type="button" data-rc="down">Brake</button>
+      <button type="button" data-rc="gdn" class="g" aria-label="Change down">Gear &minus;</button>
+      <button type="button" data-rc="gup" class="g" aria-label="Change up">Gear +</button>
+    </div>
+    <div class="rcars" id="rcCars" role="group" aria-label="Choose a car"></div>
+    <p class="rkeys">
+      <kbd>&larr;</kbd><kbd>&rarr;</kbd> steer &middot; <kbd>&uarr;</kbd> throttle &middot;
+      <kbd>&darr;</kbd> brake &middot; <kbd>Q</kbd><kbd>E</kbd> gears in manual &middot;
+      <kbd>T</kbd> gearbox &middot; <kbd>R</kbd> restart &middot; <kbd>P</kbd> pause
+    </p>
+    <p class="gfoot">
+      <span id="rcMsg">press enter, or any arrow, to start</span>
+      <button id="rcMode" type="button">Automatic</button>
+      <button id="rcAgain" type="button">Restart</button>
+      <button id="rcClose" type="button" class="close">Close</button>
     </p>
   </div>
 </div>
@@ -1282,7 +1363,7 @@
       </div>
 
       <div class="idwrap">
-        <canvas id="idCv" role="img"
+        <canvas id="idCv" role="img" tabindex="-1"
                 aria-label="An ID badge on a lanyard showing Shezin Khais, computer science"></canvas>
         <span class="idhint">drag the badge</span>
       </div>
@@ -3523,7 +3604,7 @@ function markRow(next) {
   showPeek(el, Math.min(innerWidth - 250, r.right - 300), innerHeight / 2 - 60);
 }
 addEventListener('keydown', e => {
-  if (!pal.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (!pal.hidden || !raceEl.hidden || e.metaKey || e.ctrlKey || e.altKey) return;
   if (/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName)) return;
   if (e.key === 'j') { e.preventDefault(); markRow(kbd + 1); }
   else if (e.key === 'k') { e.preventDefault(); markRow(kbd < 0 ? 0 : kbd - 1); }
@@ -3622,6 +3703,7 @@ pal.addEventListener('click', e => { if (e.target === pal) closePal(); });
 palq.addEventListener('input', renderPal);
 
 addEventListener('keydown', e => {
+  if (!raceEl.hidden) return;          // driving: the page's shortcuts are not
   if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); pal.hidden ? openPal() : closePal(); return; }
   if (pal.hidden) {
     // "/" is a familiar search shortcut, but not while typing somewhere else
@@ -5548,7 +5630,7 @@ document.querySelectorAll('[data-share]').forEach(b => b.addEventListener('click
    snake is rebuilt exactly as a click would. Scoped to focus inside a panel,
    so it never competes with the palette, the game or row stepping. */
 addEventListener('keydown', e => {
-  if (e.key !== 'Escape' || !pal.hidden || !gameEl.hidden) return;
+  if (e.key !== 'Escape' || !pal.hidden || !gameEl.hidden || !raceEl.hidden) return;
   const panel = document.activeElement && document.activeElement.closest &&
     document.activeElement.closest('.demo:not([hidden]), .how:not([hidden])');
   if (!panel) return;
@@ -5788,7 +5870,7 @@ function onSnake(px, py) {
 }
 
 addEventListener('click', e => {
-  if (!gameEl.hidden || !pal.hidden) return;
+  if (!gameEl.hidden || !pal.hidden || !raceEl.hidden) return;
   if (e.target.closest('a, button, input, select, label, .demo, .how, canvas.sig')) return;
   if (!onSnake(e.pageX, e.pageY)) return;
   gLast = document.activeElement;
@@ -5797,11 +5879,1014 @@ addEventListener('click', e => {
 
 // a cursor is the only hint that the resting snake does anything
 addEventListener('pointermove', e => {
-  if (!gameEl.hidden) return;
+  if (!gameEl.hidden || !raceEl.hidden) return;
   const over = onSnake(e.pageX, e.pageY);
   if (over !== document.body.classList.contains('onsnake'))
     document.body.classList.toggle('onsnake', over);
 }, { passive: true });
+
+
+/* ---- the highway: cars ----
+   Each car is described by the numbers a spec sheet actually gives you (mass,
+   power, where it peaks, how fast it will go) and the gearing and drag are
+   derived from those. Picking ratios and a drag area by hand meant every car
+   needed its own tuning pass, and any of them could quietly end up doing 400
+   on the straight; deriving them means the headline figures are the input and
+   the rest follows. */
+const RC_AIR = 0.5 * 1.225;               // half air density, for 0.5*rho*Cd*A*v^2
+const RC_G = 9.81;
+
+/* drive is how much of the car's weight sits on the driven wheels once it
+   squats under power: it is what stops the front drive hatch launching like
+   the four wheel drive cars, same tyres, a little over half the grip to put it
+   down with. shift is how long the drive is interrupted, so the two cars with
+   a manual gearbox lose real time on every change. */
+const RC_CARS = [
+  { id: 'is350c', name: 'Lexus IS 350C', tag: 'convertible coupe',
+    kw: 228, peak: 6400, redline: 6800, mass: 1735, vmax: 250, ng: 6, mu: 1.00,
+    drive: 0.66, shift: 0.22,
+    paint: '#cfd3d8', trim: '#6d737b', shape: 'coupe' },
+  { id: 'huracan', name: 'Lamborghini Huracan', tag: 'V10, rear view only',
+    kw: 470, peak: 8000, redline: 8500, mass: 1422, vmax: 325, ng: 7, mu: 1.25,
+    drive: 1.00, shift: 0.10,
+    paint: '#7ad48f', trim: '#1d6b33', shape: 'wedge' },
+  { id: 'typer', name: 'Honda Civic Type R', tag: 'front drive, turbo',
+    kw: 242, peak: 6500, redline: 7000, mass: 1429, vmax: 275, ng: 6, mu: 1.08,
+    drive: 0.62, shift: 0.45,
+    paint: '#e2574c', trim: '#7d241d', shape: 'hatch' },
+  { id: 'r34', name: 'Nissan Skyline GT-R R34', tag: 'straight six, all wheel drive',
+    kw: 246, peak: 6800, redline: 7600, mass: 1560, vmax: 265, ng: 6, mu: 1.18,
+    drive: 0.95, shift: 0.45,
+    paint: '#5aa9e6', trim: '#1f5d8c', shape: 'coupe' },
+  { id: 'carrera', name: 'Porsche 911 Carrera S', tag: 'flat six, rear engine',
+    kw: 331, peak: 6500, redline: 7500, mass: 1515, vmax: 308, ng: 8, mu: 1.25,
+    drive: 0.82, shift: 0.10,
+    paint: '#f0e6d2', trim: '#8a7a5c', shape: 'porsche' },
+  { id: 'cruiser', name: 'Toyota Land Cruiser', tag: 'heavy, and it shows',
+    kw: 305, peak: 5600, redline: 6000, mass: 2600, vmax: 210, ng: 8, mu: 0.92,
+    drive: 0.95, shift: 0.30,
+    paint: '#e8e4dc', trim: '#5d5a52', shape: 'suv' }
+];
+
+const RC_RW = 0.34;                        // rolling radius, metres
+const rcRpmOf = (v, ratio) => v / RC_RW * ratio * 60 / (2 * Math.PI);
+const rcSpeedOf = (rpm, ratio) => rpm * 2 * Math.PI / 60 * RC_RW / ratio;
+
+/* Torque as a fraction of its peak. Flat enough through the middle to pull in
+   the wrong gear, down at both ends so the gear you pick still matters. */
+function rcShape(rpm, car) {
+  const t = (rpm - car.peak) / car.peak;
+  const f = 1 - (t < 0 ? 0.55 : 1.15) * t * t;
+  return Math.max(0.32, Math.min(1, f));
+}
+
+function rcDerive(car) {
+  const wPeak = car.peak * 2 * Math.PI / 60;
+  car.tq = car.kw * 1000 / wPeak;          // peak torque, Nm
+  // Top gear is set so the redline lands just past the quoted top speed: an
+  // engine still pulling hard at vmax means the speed is drag limited, which
+  // is what these cars actually are.
+  const vTop = car.vmax / 3.6 * 1.04;
+  const rTop = RC_RW * car.redline * 2 * Math.PI / 60 / vTop;
+  // A wider spread for the cars with more gears, so first stays usable
+  const spread = car.ng >= 8 ? 6.6 : car.ng === 7 ? 5.6 : 4.5;
+  car.gears = [];
+  for (let i = 0; i < car.ng; i++)
+    car.gears.push(rTop * Math.pow(spread, 1 - i / (car.ng - 1)));
+  // Drag is whatever it takes to stop it there: wheel force at vmax in top
+  // gear, less rolling resistance, has to be the air.
+  const rpmAt = rcRpmOf(car.vmax / 3.6, rTop);
+  const fWheel = car.tq * rcShape(rpmAt, car) * rTop / RC_RW * 0.92;
+  const roll = 0.012 * car.mass * RC_G;
+  const v = car.vmax / 3.6;
+  car.cda = Math.max(0.28, (fWheel - roll) / (RC_AIR * v * v));
+  car.roll = roll;
+  return car;
+}
+RC_CARS.forEach(rcDerive);
+
+// force at the wheels, newtons, before traction is considered
+function rcWheelForce(car, gear, v, throttle) {
+  const rpm = Math.max(900, Math.min(car.redline, rcRpmOf(v, car.gears[gear])));
+  // On the limiter the fuel is cut, not merely trimmed: at 0.12 an engine held
+  // far past the redline still pulled hard enough to reach 180 in first, and
+  // choosing the right gear stopped mattering.
+  const cut = rcRpmOf(v, car.gears[gear]) > car.redline ? 0 : 1;
+  return car.tq * rcShape(rpm, car) * car.gears[gear] / RC_RW * 0.92 * throttle * cut;
+}
+
+/* Which gear an automatic would be in: the highest one that still has the
+   revs to pull, shifting up near the redline and back down as they fall. */
+function rcAutoGear(car, gear, v, throttle) {
+  const rpm = rcRpmOf(v, car.gears[gear]);
+  const up = car.redline * (0.72 + 0.22 * throttle);
+  if (rpm > up && gear < car.gears.length - 1) return gear + 1;
+  if (gear > 0 && rcRpmOf(v, car.gears[gear - 1]) < car.redline * 0.80
+      && rpm < car.peak * (0.42 + 0.30 * throttle)) return gear - 1;
+  return gear;
+}
+
+/* ---- the highway: the road ----
+   A pseudo three dimensional renderer: the world is a line of segments with a
+   curvature and a lane count, and every point is projected through a pinhole
+   camera sitting behind the car. Nothing is stored ahead of time, the road is
+   a function of distance, so it runs forever without growing.
+
+   Positions across the road are metres from the left edge rather than from the
+   middle. Real motorways gain and lose lanes on the right, and with the middle
+   as the origin every lane moved sideways whenever the count changed. */
+const RC_SEG = 5;            // metres of road per segment
+const RC_DRAW = 150;         // segments drawn ahead
+const RC_LANE = 3.6;         // lane width, metres
+const RC_CAMH = 2.00;        // camera height, metres
+/* Ten metres back, which is further than it sounds: any closer and four lanes
+   of a real motorway are three screen widths across and the car fills a third
+   of the view, so you cannot see the gap you are aiming for. High enough, too,
+   to see over the roof of whatever is in front. */
+const RC_CAMB = 10;
+const RC_WHEELBASE = 2.8;
+
+const rcHash = n => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+const rcLerp = (a, b, t) => a + (b - a) * t;
+const rcSmooth = t => t * t * (3 - 2 * t);
+const rcClamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+/* Curvature in 1/m: three slow sine waves, so bends arrive at uneven spacing
+   and the road never repeats over any distance anyone will drive. The tightest
+   of them is about a 550m radius, which is roughly a motorway sliproad and is
+   deliberate: the grip limit works out at close to 300 km/h, so the quick cars
+   have to lift for a bend without the slower ones ever being held back. */
+function rcCurve(z) {
+  return 0.00095 * Math.sin(z * 0.00191)
+       + 0.00060 * Math.sin(z * 0.00069 + 1.9)
+       + 0.00035 * Math.sin(z * 0.00028 + 0.6);
+}
+
+/* Lane count, as a fraction rather than a whole number: a lane is added or
+   dropped over a 170m taper, which is what gives the edge of the road its
+   diagonal and leaves somewhere for the cones to stand. */
+const RC_BLOCK = 950;
+const rcLaneCount = b => 4 + Math.floor(rcHash(b) * 3);
+function rcLanes(z) {
+  const b = Math.floor(z / RC_BLOCK);
+  const t = rcClamp((z - b * RC_BLOCK) / 170, 0, 1);
+  return rcLerp(rcLaneCount(b - 1), rcLaneCount(b), rcSmooth(t));
+}
+const rcWidth = z => rcLanes(z) * RC_LANE;
+// where a lane sits, measured from the left edge
+const rcLaneX = i => (i + 0.5) * RC_LANE;
+
+/* ---- the highway: traffic ----
+   Each car runs the Intelligent Driver Model: it picks an acceleration from
+   the gap to the car in front and how fast that car is going, which is what
+   produces following distances that open and close, and the concertina of
+   brake lights when someone slows at the front of a queue. Lane changes are
+   the same model asked a second question: would I get along better over there,
+   and is the gap big enough that nobody has to brake for me. */
+const RC_SHAPES = {
+  coupe:   { w: 1.82, h: 1.40, len: 4.7, roofW: .62, roofH: .42, glass: .30, light: 'strip' },
+  wedge:   { w: 1.94, h: 1.17, len: 4.5, roofW: .52, roofH: .34, glass: .26, light: 'vee' },
+  hatch:   { w: 1.80, h: 1.46, len: 4.4, roofW: .70, roofH: .46, glass: .34, light: 'triple' },
+  porsche: { w: 1.85, h: 1.30, len: 4.5, roofW: .58, roofH: .40, glass: .30, light: 'bar' },
+  suv:     { w: 1.98, h: 1.95, len: 5.0, roofW: .80, roofH: .52, glass: .34, light: 'tall' },
+  sedan:   { w: 1.80, h: 1.47, len: 4.6, roofW: .66, roofH: .44, glass: .32, light: 'strip' },
+  van:     { w: 1.95, h: 2.10, len: 5.3, roofW: .86, roofH: .60, glass: .30, light: 'tall' },
+  pickup:  { w: 1.95, h: 1.88, len: 5.6, roofW: .74, roofH: .48, glass: .30, light: 'tall' },
+  truck:   { w: 2.50, h: 3.60, len: 14.0, roofW: .94, roofH: .74, glass: .18, light: 'low' },
+  bus:     { w: 2.55, h: 3.20, len: 12.0, roofW: .96, roofH: .82, glass: .46, light: 'low' }
+};
+
+// the everyday traffic, and how fast each kind is willing to go
+const RC_TRAFFIC = [
+  { shape: 'sedan', w: 34, vmin: 88, vmax: 128 },
+  { shape: 'hatch', w: 24, vmin: 84, vmax: 120 },
+  { shape: 'suv', w: 18, vmin: 90, vmax: 130 },
+  { shape: 'van', w: 10, vmin: 80, vmax: 104 },
+  { shape: 'pickup', w: 8, vmin: 82, vmax: 110 },
+  { shape: 'truck', w: 4, vmin: 68, vmax: 88 },
+  { shape: 'bus', w: 2, vmin: 72, vmax: 92 }
+];
+const RC_PAINT = ['#b9bec6', '#8f959e', '#6f757e', '#e7e9ec', '#4e5560',
+                  '#7c8ba0', '#9aa39b', '#c2b8a8', '#5f6b78'];
+
+const RC_A = 1.4;            // comfortable acceleration, m/s^2
+const RC_B = 2.2;            // comfortable braking
+const RC_S0 = 6;             // standstill gap, metres
+const RC_T = 1.3;            // headway, seconds
+
+function rcIdm(v, v0, gap, dv) {
+  const s = RC_S0 + Math.max(0, v * RC_T + v * dv / (2 * Math.sqrt(RC_A * RC_B)));
+  const free = 1 - Math.pow(v / v0, 4);
+  return RC_A * (free - (gap > 0 ? (s / gap) * (s / gap) : 9));
+}
+
+// nearest car ahead of z in a lane, and nearest behind, ignoring `self`
+function rcNeighbours(cars, z, lane, self) {
+  let ahead = null, behind = null;
+  for (const o of cars) {
+    if (o === self || Math.abs(o.lane - lane) > 0.55) continue;
+    const dz = o.z - z;
+    if (dz >= 0) { if (!ahead || dz < ahead.z - z) ahead = o; }
+    else if (!behind || dz > behind.z - z) behind = o;
+  }
+  return [ahead, behind];
+}
+
+/* ---- the highway: the drive ---- */
+const raceEl = document.getElementById('race');
+const raceCv = document.getElementById('raceCv');
+const rcC = raceCv.getContext('2d');
+const rcDistEl = document.getElementById('rcDist');
+const rcBestEl = document.getElementById('rcBest');
+const rcMsgEl = document.getElementById('rcMsg');
+const rcModeBtn = document.getElementById('rcMode');
+const rcCarsEl = document.getElementById('rcCars');
+
+let rcBest = 0;
+try { rcBest = +(localStorage.getItem('raceBest') || 0) || 0; } catch {}
+
+const RC = {
+  on: false, state: 'ready', car: RC_CARS[0], mode: 'auto',
+  z: 0, x: 0, v: 0, yaw: 0, gear: 0, shiftFor: 0, steer: 0, camX: 0,
+  cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
+  keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0
+};
+
+const rcKm = m => (m / 1000).toFixed(m < 10000 ? 2 : 1) + ' km';
+
+/* A rolling start, in the second lane from the right at a lawful speed, the
+   way you would actually join a motorway. Starting from rest in a live lane
+   meant the first thing that happened to a new driver was being rear ended by
+   traffic doing 120, which is accurate and no fun at all. */
+function rcReset(keepCar) {
+  const lanes = rcLanes(0);
+  RC.state = 'ready';
+  RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
+  RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
+  RC.cars = []; RC.cones = []; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
+  RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
+  RC.msg = rcTouchUI ? 'tap drive to start' : 'press enter, or any arrow, to start';
+  if (!keepCar) RC.car = RC_CARS[0];
+  // the gear it would be in at that speed, so manual does not open on the limiter
+  RC.gear = RC.car.gears.length - 1;
+  for (let g = 0; g < RC.car.gears.length; g++) {
+    if (rcRpmOf(RC.v, RC.car.gears[g]) < RC.car.redline * 0.85) { RC.gear = g; break; }
+  }
+  rcSeedTraffic();
+  rcHudText();
+}
+
+// a road that is already busy when you join it, rather than one that fills in
+// around you over the first ten seconds
+function rcSeedTraffic() {
+  for (let z = 90; z < 900; z += 40 + Math.random() * 90) rcSpawn(z);
+  RC.spawnZ = 900;
+}
+
+function rcPickModel() {
+  const total = RC_TRAFFIC.reduce((s, m) => s + m.w, 0);
+  let r = Math.random() * total;
+  for (const m of RC_TRAFFIC) { r -= m.w; if (r <= 0) return m; }
+  return RC_TRAFFIC[0];
+}
+
+/* Lorries keep right and the left lane runs fastest, as it does on a road
+   where everyone drives on the right. It also means overtaking has somewhere
+   to happen: without the gradient every lane moved at the same speed and the
+   traffic never interacted with itself. */
+function rcSpawn(z) {
+  const lanes = Math.floor(rcLanes(z));
+  const m = rcPickModel();
+  const heavy = m.shape === 'truck' || m.shape === 'bus';
+  let lane = heavy
+    ? lanes - 1 - (Math.random() < 0.25 ? 1 : 0)
+    : Math.floor(Math.random() * lanes);
+  lane = rcClamp(lane, 0, lanes - 1);
+  const fast = 1 - lane / Math.max(1, lanes - 1);       // 1 in the left lane
+  const v0 = (rcLerp(m.vmin, m.vmax, fast * 0.85 + Math.random() * 0.15)) / 3.6;
+  RC.cars.push({
+    z, lane, target: lane, v: v0 * (0.92 + Math.random() * 0.08), v0,
+    shape: m.shape, paint: RC_PAINT[Math.floor(Math.random() * RC_PAINT.length)],
+    brake: 0, wait: Math.random() * 3
+  });
+}
+
+function rcTrafficStep(dt) {
+  const ahead = RC.z + 780, behind = RC.z - 120;
+  // the player is an obstacle to them as much as they are to the player
+  const me = { z: RC.z, lane: RC.x / RC_LANE - 0.5, v: RC.v, player: true };
+  const all = RC.cars.concat(me);
+
+  for (const c of RC.cars) {
+    const lanes = rcLanes(c.z);
+    const [lead] = rcNeighbours(all, c.z, c.lane, c);
+    const gap = lead ? lead.z - c.z - RC_SHAPES[c.shape].len : 1e4;
+    let a = rcIdm(c.v, c.v0, gap, lead ? c.v - lead.v : 0);
+
+    // lane changes: only while settled in a lane, and never into a gap that
+    // would make the car behind brake hard
+    c.wait -= dt;
+    if (Math.abs(c.lane - c.target) < 0.02 && c.wait <= 0) {
+      c.lane = c.target;
+      const edge = lanes - 1;
+      if (c.lane > edge - 0.1) {                    // the lane is running out
+        c.target = Math.max(0, Math.round(edge) - (c.lane > edge ? 1 : 0));
+        c.wait = 1.5;
+      } else if (a < 0.25) {                        // held up: look for a way past
+        for (const d of [-1, 1]) {
+          const t = c.lane + d;
+          if (t < 0 || t > edge - 0.1) continue;
+          const [l2, b2] = rcNeighbours(all, c.z, t, c);
+          const gA = l2 ? l2.z - c.z : 1e4, gB = b2 ? c.z - b2.z : 1e4;
+          if (gA < 45 + c.v * 0.9 || gB < 22 + (b2 ? Math.max(0, b2.v - c.v) * 2.4 : 0)) continue;
+          const a2 = rcIdm(c.v, c.v0, gA - RC_SHAPES[c.shape].len, l2 ? c.v - l2.v : 0);
+          if (a2 > a + 0.28) { c.target = t; c.wait = 3 + Math.random() * 4; break; }
+        }
+      } else if (c.lane > 0 && Math.random() < dt * 0.10) {
+        // and back over once past, rather than sitting in the fast lane
+        const [l2, b2] = rcNeighbours(all, c.z, c.lane + 1, c);
+        if (c.lane + 1 <= edge - 0.1 &&
+            (!l2 || l2.z - c.z > 70) && (!b2 || c.z - b2.z > 40)) {
+          c.target = c.lane + 1; c.wait = 5 + Math.random() * 5;
+        }
+      }
+    }
+    if (c.lane !== c.target) {
+      const step = 1.1 * dt;                        // about a second a lane
+      c.lane += rcClamp(c.target - c.lane, -step, step);
+    }
+
+    a = rcClamp(a, -6, RC_A);
+    c.brake = a < -0.6 ? 1 : Math.max(0, c.brake - dt * 3);
+    c.v = Math.max(3, c.v + a * dt);
+    c.z += c.v * dt;
+  }
+
+  RC.cars = RC.cars.filter(c => c.z > behind && c.z < ahead + 260);
+
+  // keep the road populated, and busier the further you get
+  const want = 16 + Math.min(16, RC.z / 2600);
+  while (RC.spawnZ < ahead) {
+    RC.spawnZ += 24 + Math.random() * 110;
+    if (RC.cars.length < want) rcSpawn(RC.spawnZ);
+  }
+
+  /* Cones: where a lane is being dropped they stand along the taper, which is
+     the edge of the road anyway. The rest are roadworks in a live lane, which
+     is the only obstacle here that is not a vehicle. */
+  while (RC.coneZ < ahead) {
+    RC.coneZ += 40;
+    const z = RC.coneZ;
+    const dl = rcLanes(z + 6) - rcLanes(z - 6);
+    if (dl < -0.02) {
+      for (let k = 0; k < 3; k++) RC.cones.push({ z: z + k * 13, x: rcWidth(z + k * 13) + 0.35, taper: true });
+    } else if (rcHash(Math.floor(z / 40) + 77) < 0.045 + Math.min(0.05, RC.z / 90000)) {
+      const lane = Math.floor(rcHash(z) * Math.floor(rcLanes(z)));
+      for (let k = 0; k < 6; k++)
+        RC.cones.push({ z: z + k * 9, x: rcLaneX(lane) + (k - 2.5) * 0.15, taper: false });
+    }
+  }
+  RC.cones = RC.cones.filter(c => c.z > behind);
+}
+
+/* ---- the car you are driving ---- */
+function rcDrive(dt) {
+  const car = RC.car;
+  const throttle = RC.keys.up ? 1 : (rcTouchUI && RC.state === 'run' ? 1 : 0);
+  const braking = RC.keys.down ? 1 : 0;
+
+  // gears
+  if (RC.shiftFor > 0) RC.shiftFor -= dt;
+  if (RC.mode === 'auto' && RC.shiftFor <= 0) {
+    const g = rcAutoGear(car, RC.gear, RC.v, throttle);
+    if (g !== RC.gear) { RC.gear = g; RC.shiftFor = car.shift; }
+  }
+
+  const cutting = RC.shiftFor > 0;
+  let F = cutting ? 0 : rcWheelForce(car, RC.gear, RC.v, throttle);
+  F = Math.min(F, car.mu * car.drive * car.mass * RC_G);
+  const drag = RC_AIR * car.cda * RC.v * RC.v;
+  const width = rcWidth(RC.z);
+  const off = RC.x < 0.25 || RC.x > width - 0.25;      // a wheel on the shoulder
+  const roll = car.roll * (off ? 7 : 1);
+  const brakeF = braking * 0.95 * car.mu * car.mass * RC_G;
+  RC.v = Math.max(0, RC.v + (F - drag - roll - brakeF) / car.mass * dt);
+  RC.top = Math.max(RC.top, RC.v);
+
+  /* Steering as a bicycle model rather than sliding the car sideways: the
+     wheels set a yaw rate, and the road turning underneath sets another. What
+     the driver is actually doing on a bend is cancelling the second with the
+     first, which is why a fast bend needs holding rather than a flick. */
+  const want = (RC.keys.right ? 1 : 0) - (RC.keys.left ? 1 : 0) + rcDragSteer;
+  RC.steer += rcClamp(want - RC.steer, -dt * 5.5, dt * 5.5);
+  const v = Math.max(4, RC.v);
+  const dMax = Math.min(0.55, car.mu * RC_G * RC_WHEELBASE / (v * v));
+  const delta = rcClamp(RC.steer, -1, 1) * dMax * (off ? 0.55 : 1);
+  RC.yaw += (v / RC_WHEELBASE * delta - RC.v * rcCurve(RC.z)) * dt;
+  RC.yaw *= Math.max(0, 1 - 1.6 * dt);                 // it settles if you let go
+  RC.x += RC.v * RC.yaw * dt;
+  RC.z += RC.v * dt;
+
+  if (off) RC.shake = Math.min(1, RC.shake + dt * 2.4);
+  else RC.shake = Math.max(0, RC.shake - dt * 3);
+
+  // the barrier: a shoulder to catch a mistake, and a wall past it
+  if (RC.x < -1.3 || RC.x > width + 1.3) return rcCrash('into the barrier');
+
+  // traffic
+  const mine = RC_SHAPES[car.shape];
+  for (const c of RC.cars) {
+    const s = RC_SHAPES[c.shape];
+    if (Math.abs(c.z - RC.z) > (s.len + mine.len) / 2) continue;
+    if (Math.abs(rcLaneX(c.lane) - RC.x) < (s.w + mine.w) / 2 * 0.88)
+      return rcCrash(c.shape === 'truck' || c.shape === 'bus'
+        ? 'into the back of a lorry' : 'into traffic');
+  }
+  // cones scatter, they do not end a run
+  for (const k of RC.cones) {
+    if (k.hit || Math.abs(k.z - RC.z) > 3) continue;
+    if (Math.abs(k.x - RC.x) < mine.w / 2 + 0.3) {
+      k.hit = true; RC.hits++; RC.v *= 0.86; RC.flash = 0.5;
+      RC.msg = 'cone'; rcHudText();
+    }
+  }
+}
+
+function rcCrash(how) {
+  RC.state = 'crash';
+  RC.shake = 1;
+  RC.msg = how + ' at ' + Math.round(RC.v * 3.6) + ' km/h';
+  if (RC.z > rcBest) {
+    rcBest = RC.z;
+    try { localStorage.setItem('raceBest', String(Math.round(rcBest))); } catch {}
+  }
+  rcHudText();
+}
+
+function rcHudText() {
+  rcDistEl.textContent = rcKm(RC.z);
+  rcBestEl.textContent = rcKm(rcBest);
+  rcMsgEl.textContent = RC.state === 'crash'
+    ? RC.msg + '. R to drive again'
+    : RC.msg || (rcTouchUI ? 'drag to steer' : 'arrows to steer, up for throttle');
+}
+
+function rcStep(dt) {
+  if (RC.state === 'run') {
+    // a fixed substep, so a slow frame cannot tunnel the car through a lorry
+    let left = dt;
+    while (left > 0 && RC.state === 'run') {
+      const h = Math.min(1 / 120, left);
+      rcDrive(h); left -= h;
+    }
+    rcTrafficStep(dt);
+    RC.t += dt;
+    if (RC.flash > 0) RC.flash = Math.max(0, RC.flash - dt);
+    if ((RC.t * 4 | 0) % 2 === 0) rcHudText();
+  } else if (RC.state === 'crash') {
+    RC.shake = Math.max(0, RC.shake - dt * 1.4);
+    for (const c of RC.cars) c.z += c.v * dt;
+  } else {
+    rcTrafficStep(dt);        // the road is alive before you pull out
+  }
+  RC.camX += (RC.x - RC.camX) * Math.min(1, dt * 7);
+}
+
+/* ---- the highway: drawing ----
+   Painter's algorithm from the horizon forwards: the road is a strip of quads
+   between projected edge points, and everything standing on it is drawn after
+   the tarmac, furthest first. The palette follows the page, so a dark page is
+   a night drive with the tail lights lit and a light one is the middle of
+   the afternoon. */
+const RC_DAY = {
+  sky: ['#8fb4d6', '#cfdce8'], haze: '#cfdce8', sand: ['#d9cfb6', '#d3c8ad'],
+  road: ['#5b6066', '#565b61'], edge: '#eef0f2', dash: '#eef0f2',
+  rumble: ['#b8bcc1', '#8d9298'], pole: '#9aa0a7', lamp: '#c9ced4', shade: 0.30
+};
+const RC_NIGHT = {
+  sky: ['#080d15', '#16202e'], haze: '#16202e', sand: ['#141a20', '#11161c'],
+  road: ['#23282f', '#1f242b'], edge: '#9aa3ad', dash: '#8b949e',
+  rumble: ['#2e343c', '#1c2128'], pole: '#2b3139', lamp: '#ffd9a0', shade: 0.55
+};
+
+let rcW = 640, rcH = 360, rcDpr = 1;
+function rcSize() {
+  const box = raceCv.parentElement;
+  const w = Math.max(280, Math.min(900, box.clientWidth || 640));
+  // 16:9 on a phone is a letterbox with no road in it, so a narrow canvas is
+  // squarer and shows more of what is coming
+  const ratio = w < 420 ? 0.72 : 0.5625;
+  const h = Math.round(Math.min(w * ratio, Math.max(190, innerHeight * 0.52)));
+  rcDpr = Math.min(devicePixelRatio || 1, 2);
+  rcW = w; rcH = h;
+  raceCv.width = Math.round(w * rcDpr); raceCv.height = Math.round(h * rcDpr);
+  raceCv.style.width = w + 'px'; raceCv.style.height = h + 'px';
+}
+
+function rcDraw() {
+  const c = rcC, w = rcW, h = rcH;
+  const P = rcNight() ? RC_NIGHT : RC_DAY;
+  const FOC = w * 0.92;
+  const camZ = RC.z - RC_CAMB;
+  const shake = RC.shake * (RC.state === 'crash' ? 9 : 1.6);
+  const sx0 = shake ? (Math.random() - 0.5) * shake : 0;
+  const sy0 = shake ? (Math.random() - 0.5) * shake : 0;
+  const horizon = Math.round(h * 0.44) + sy0;
+
+  c.setTransform(rcDpr, 0, 0, rcDpr, 0, 0);
+  c.clearRect(0, 0, w, h);
+
+  // sky, and the dunes it sits on
+  const sky = c.createLinearGradient(0, 0, 0, horizon);
+  sky.addColorStop(0, P.sky[0]); sky.addColorStop(1, P.sky[1]);
+  c.fillStyle = sky; c.fillRect(0, 0, w, horizon + 1);
+  c.fillStyle = P.sand[1];
+  c.beginPath(); c.moveTo(0, horizon);
+  for (let x = 0; x <= w; x += 20) {
+    const d = Math.sin((x + RC.z * 0.04) * 0.011) * 5 + Math.sin((x + RC.z * 0.02) * 0.004) * 8;
+    c.lineTo(x, horizon - 9 - d);
+  }
+  c.lineTo(w, horizon); c.closePath(); c.fill();
+  c.fillStyle = P.sand[0]; c.fillRect(0, horizon, w, h - horizon);
+
+  const proj = (xr, zw, off) => {
+    const s = FOC / Math.max(zw, 1.4);
+    return { x: w / 2 + (xr - RC.camX + off) * s - RC.yaw * FOC + sx0, y: horizon + RC_CAMH * s + sy0, s };
+  };
+
+  // the road, far to near
+  const base = Math.floor(camZ / RC_SEG);
+  const offs = new Float64Array(RC_DRAW + 2);
+  const pts = [];
+  let dxAcc = 0, off = 0;
+  for (let n = 0; n <= RC_DRAW + 1; n++) {
+    const az = (base + n) * RC_SEG;
+    offs[n] = off;
+    const width = rcWidth(az);
+    const l = proj(0, az - camZ, off), r = proj(width, az - camZ, off);
+    pts.push({ az, l, r, width, s: l.s });
+    dxAcc += rcCurve(az) * RC_SEG; off += dxAcc * RC_SEG;
+  }
+
+  for (let n = RC_DRAW; n >= 0; n--) {
+    const a = pts[n], b = pts[n + 1];
+    if (b.l.y >= h && a.l.y >= h) continue;
+    const i = base + n, band = (i % 8) < 4;
+    const quad = (x1a, x1b, x2a, x2b, fill) => {
+      c.fillStyle = fill;
+      c.beginPath();
+      c.moveTo(a.l.x + x1a * a.s, a.l.y); c.lineTo(a.l.x + x1b * a.s, a.l.y);
+      c.lineTo(b.l.x + x2b * b.s, b.l.y); c.lineTo(b.l.x + x2a * b.s, b.l.y);
+      c.closePath(); c.fill();
+    };
+    // shoulder rumble, tarmac, edge lines
+    quad(-1.9, a.width + 1.9, -1.9, b.width + 1.9, band ? P.rumble[0] : P.rumble[1]);
+    quad(0, a.width, 0, b.width, band ? P.road[0] : P.road[1]);
+    quad(0.05, 0.22, 0.05, 0.22, P.edge);
+    quad(a.width - 0.22, a.width - 0.05, b.width - 0.22, b.width - 0.05, P.edge);
+    // lane separators, dashed, and the new lane fades in as the road widens
+    if (band) {
+      const lanes = a.width / RC_LANE;
+      for (let k = 1; k < Math.ceil(lanes); k++) {
+        const fade = Math.min(1, (lanes - k) * 2.2);
+        if (fade <= 0.05) continue;
+        c.globalAlpha = fade;
+        quad(k * RC_LANE - 0.09, k * RC_LANE + 0.09, k * RC_LANE - 0.09, k * RC_LANE + 0.09, P.dash);
+        c.globalAlpha = 1;
+      }
+    }
+    // lighting columns down the central reservation side
+    if (i % 6 === 0 && a.s > 0.02) rcPole(c, a, P, h);
+  }
+
+  // haze into the distance, so the horizon is not a hard seam
+  const haze = c.createLinearGradient(0, horizon - 4, 0, horizon + h * 0.16);
+  haze.addColorStop(0, P.haze); haze.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = haze; c.fillRect(0, horizon - 4, w, h * 0.17);
+
+  const atZ = z => {
+    const k = rcClamp(z / RC_SEG - base, 0, RC_DRAW);
+    const i = Math.floor(k), f = k - i;
+    return rcLerp(offs[i], offs[i + 1], f);
+  };
+
+  /* The headlights, under the traffic rather than painted over it, and as two
+     soft pools rather than a beam with edges: a polygon left two hard black
+     wedges either side of the lit part, which read as holes in the road. */
+  if (P === RC_NIGHT) {
+    const pool = (zw, rx, ry, alpha) => {
+      const p = proj(RC.x, zw, atZ(RC.z + zw - RC_CAMB));
+      const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx * p.s);
+      g.addColorStop(0, 'rgba(255,240,210,' + alpha + ')');
+      g.addColorStop(1, 'rgba(255,240,210,0)');
+      c.save(); c.translate(p.x, p.y); c.scale(1, (ry * p.s) / (rx * p.s)); c.translate(-p.x, -p.y);
+      c.fillStyle = g;
+      c.beginPath(); c.arc(p.x, p.y, rx * p.s, 0, 7); c.fill();
+      c.restore();
+    };
+    pool(RC_CAMB + 6, 9, 3.4, '.14');
+    pool(RC_CAMB + 28, 13, 4.0, '.10');
+  }
+
+  // everything standing on the road, furthest first
+  const things = [];
+  for (const t of RC.cars) if (t.z > camZ + 2) things.push(t);
+  for (const k of RC.cones) if (k.z > camZ + 2 && !k.hit) things.push(k);
+  things.sort((p, q) => q.z - p.z);
+  for (const t of things) {
+    const zw = t.z - camZ;
+    if (zw > RC_DRAW * RC_SEG) continue;
+    const p = proj(t.x !== undefined ? t.x : rcLaneX(t.lane), zw, atZ(t.z));
+    if (p.y > h + 40) continue;
+    if (t.shape) rcSprite(c, t.shape, p.x, p.y, p.s, t.paint, P, t.brake > 0, false);
+    else rcCone(c, p.x, p.y, p.s, P);
+  }
+
+  // the car you are in
+  const me = proj(RC.x, RC_CAMB, 0);
+  rcSprite(c, RC.car.shape, me.x, me.y, me.s, RC.car.paint, P, !!RC.keys.down, true, RC.car.trim);
+
+  if (RC.flash > 0) {
+    c.fillStyle = 'rgba(255,170,60,' + (RC.flash * 0.35).toFixed(3) + ')';
+    c.fillRect(0, 0, w, h);
+  }
+  rcHud(c, w, h, P);
+}
+
+function rcPole(c, a, P, h) {
+  const x = a.l.x + (a.width + 2.6) * a.s, y = a.l.y;
+  const ht = 9 * a.s;
+  if (y > h + 10 || ht < 1) return;
+  c.strokeStyle = P.pole; c.lineWidth = Math.max(1, 0.18 * a.s);
+  c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - ht); c.stroke();
+  c.beginPath(); c.moveTo(x, y - ht); c.lineTo(x - 2.2 * a.s, y - ht); c.stroke();
+  c.fillStyle = P.lamp;
+  c.fillRect(x - 3.0 * a.s, y - ht - 0.3 * a.s, 1.1 * a.s, 0.45 * a.s);
+  if (P === RC_NIGHT) {
+    const g = c.createRadialGradient(x - 2.4 * a.s, y - ht, 0, x - 2.4 * a.s, y - ht, 7 * a.s);
+    g.addColorStop(0, 'rgba(255,214,150,.20)'); g.addColorStop(1, 'rgba(255,214,150,0)');
+    c.fillStyle = g;
+    c.beginPath(); c.arc(x - 2.4 * a.s, y - ht, 7 * a.s, 0, 7); c.fill();
+  }
+}
+
+function rcCone(c, x, y, s, P) {
+  const hh = 0.75 * s, ww = 0.38 * s;
+  c.fillStyle = '#e07b2a';
+  c.beginPath(); c.moveTo(x, y - hh); c.lineTo(x + ww, y); c.lineTo(x - ww, y); c.closePath(); c.fill();
+  c.fillStyle = P === RC_NIGHT ? '#f6f1e6' : '#ffffff';
+  c.fillRect(x - ww * 0.62, y - hh * 0.62, ww * 1.24, Math.max(1, hh * 0.16));
+}
+
+/* A car from behind, drawn from its proportions rather than from a sprite, so
+   the same code draws a lorry and a wedge and they stay recognisable at any
+   distance. Shading is two flat tones and a glass band: enough to read the
+   shape, cheap enough to draw forty of them a frame. */
+function rcSprite(c, shape, x, ground, s, paint, P, braking, mine, trim) {
+  const m = RC_SHAPES[shape];
+  const W = m.w * s, H = m.h * s;
+  if (W < 1.2) return;
+  const bodyH = H * (1 - m.roofH), roofH = H * m.roofH, roofW = W * m.roofW;
+  const top = ground - H;
+
+  c.globalAlpha = 0.28;
+  c.fillStyle = '#000';
+  c.beginPath(); c.ellipse(x, ground, W * 0.56, H * 0.10, 0, 0, 7); c.fill();
+  c.globalAlpha = 1;
+
+  // wheels, just proud of the body
+  c.fillStyle = '#15181c';
+  c.fillRect(x - W / 2 - W * 0.03, ground - H * 0.20, W * 0.14, H * 0.20);
+  c.fillRect(x + W / 2 - W * 0.11, ground - H * 0.20, W * 0.14, H * 0.20);
+
+  // cabin
+  c.fillStyle = paint;
+  c.beginPath();
+  c.moveTo(x - roofW / 2, top); c.lineTo(x + roofW / 2, top);
+  c.lineTo(x + W / 2, top + roofH); c.lineTo(x - W / 2, top + roofH);
+  c.closePath(); c.fill();
+  // glass
+  c.fillStyle = P === RC_NIGHT ? 'rgba(20,26,34,.92)' : 'rgba(40,52,66,.75)';
+  const gW = roofW * 0.86, gH = H * m.glass;
+  c.fillRect(x - gW / 2, top + roofH * 0.16, gW, gH);
+
+  // body
+  c.fillStyle = paint;
+  c.fillRect(x - W / 2, top + roofH, W, bodyH);
+  c.fillStyle = 'rgba(0,0,0,' + P.shade.toFixed(2) + ')';
+  c.fillRect(x - W / 2, ground - bodyH * 0.34, W, bodyH * 0.34);
+  if (trim) { c.fillStyle = trim; c.fillRect(x - W / 2, ground - bodyH * 0.16, W, bodyH * 0.10); }
+
+  // lights
+  const lit = P === RC_NIGHT || braking;
+  const lw = W * (m.light === 'low' ? 0.16 : 0.22), lh = H * 0.07;
+  const ly = top + roofH + bodyH * (m.light === 'low' ? 0.62 : 0.30);
+  c.fillStyle = braking ? '#ff3b2f' : lit ? '#d4332b' : '#7a2b26';
+  if (m.light === 'strip' || m.light === 'bar') {
+    c.fillRect(x - W / 2 + W * 0.06, ly, lw, lh);
+    c.fillRect(x + W / 2 - W * 0.06 - lw, ly, lw, lh);
+    if (m.light === 'bar' && W > 22) c.fillRect(x - W * 0.3, ly + lh * 0.25, W * 0.6, lh * 0.5);
+  } else if (m.light === 'vee') {
+    c.fillRect(x - W / 2 + W * 0.08, ly, lw * 0.8, lh * 1.5);
+    c.fillRect(x + W / 2 - W * 0.08 - lw * 0.8, ly, lw * 0.8, lh * 1.5);
+  } else if (m.light === 'triple') {
+    for (let k = 0; k < 3; k++) {
+      c.fillRect(x - W / 2 + W * 0.06 + k * lw * 0.42, ly, lw * 0.32, lh);
+      c.fillRect(x + W / 2 - W * 0.06 - lw * 0.32 - k * lw * 0.42, ly, lw * 0.32, lh);
+    }
+  } else {
+    c.fillRect(x - W / 2 + W * 0.05, ly, lw * 0.8, lh * 2.2);
+    c.fillRect(x + W / 2 - W * 0.05 - lw * 0.8, ly, lw * 0.8, lh * 2.2);
+  }
+  if (lit && W > 14) {
+    c.globalAlpha = braking ? 0.5 : 0.28;
+    c.fillStyle = '#ff4436';
+    c.fillRect(x - W / 2 + W * 0.02, ly - lh * 0.5, W * 0.30, lh * 2.2);
+    c.fillRect(x + W / 2 - W * 0.32, ly - lh * 0.5, W * 0.30, lh * 2.2);
+    c.globalAlpha = 1;
+  }
+}
+
+/* The instruments. Everything a driver would actually look at while the car is
+   moving sits in one place at the bottom left, rather than spread across four
+   corners of the screen. */
+function rcHud(c, w, h, P) {
+  /* The binnacle keeps its own colours rather than the page's. It is a dark
+     panel over the road, so the page's text colour turned it into black on
+     black the moment the theme went light. Everything is scaled from the
+     canvas width: at fixed sizes the speed covered a third of a phone. */
+  const fg = '#f3f5f8', muted = 'rgba(243,245,248,.72)', num = '#7ad48f', bad = '#ff5b4a';
+  const k = rcClamp(w / 640, 0.58, 1.12);
+  const car = RC.car;
+  const rpm = rcClamp(rcRpmOf(RC.v, car.gears[RC.gear]), 900, car.redline);
+  const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round(54 * k);
+  const bx = pad, by = h - pad - bh;
+
+  c.fillStyle = 'rgba(0,0,0,.45)';
+  c.fillRect(bx, by, bw, bh);
+  c.fillStyle = fg;
+  c.font = '600 ' + (26 * k).toFixed(1) + 'px ' + DISPLAY;
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
+  const kph = String(Math.round(RC.v * 3.6));
+  c.fillText(kph, bx + 9 * k, by + 31 * k);
+  const kphW = c.measureText(kph).width;
+  c.font = (10 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
+  c.fillText('km/h', bx + 14 * k + kphW, by + 31 * k);
+
+  // gear and gearbox
+  c.font = '600 ' + (17 * k).toFixed(1) + 'px ' + DISPLAY; c.fillStyle = fg;
+  c.textAlign = 'right';
+  c.fillText(RC.shiftFor > 0 ? '-' : String(RC.gear + 1), bx + bw - 9 * k, by + 24 * k);
+  c.font = (9 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
+  c.fillText(RC.mode === 'auto' ? 'AUTO' : 'MANUAL', bx + bw - 9 * k, by + 38 * k);
+
+  // the rev counter, with the last tenth in red
+  const rx = bx + 9 * k, ry = by + bh - 13 * k, rw = bw - 58 * k, rh = Math.max(3, 5 * k);
+  c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(rx, ry, rw, rh);
+  const frac = (rpm - 900) / (car.redline - 900);
+  c.fillStyle = frac > 0.88 ? bad : num;
+  c.fillRect(rx, ry, rw * rcClamp(frac, 0, 1), rh);
+  c.fillStyle = 'rgba(255,255,255,.35)';
+  c.fillRect(rx + rw * 0.88, ry - 1, 1, rh + 2);
+
+  /* Distance, top right, on its own panel for the same reason as the speed:
+     it sits over the sky, which is nearly white in the daytime. */
+  c.textAlign = 'right';
+  const sub = ['best ' + rcKm(rcBest)];
+  if (RC.hits) sub.push(RC.hits + ' cone' + (RC.hits > 1 ? 's' : ''));
+  c.font = '600 ' + (15 * k).toFixed(1) + 'px ' + DISPLAY;
+  let dw = c.measureText(rcKm(RC.z)).width;
+  c.font = (9.5 * k).toFixed(1) + 'px ' + MONO;
+  for (const l of sub) dw = Math.max(dw, c.measureText(l).width);
+  c.fillStyle = 'rgba(0,0,0,.45)';
+  c.fillRect(w - pad - dw - 10 * k, pad - 4 * k, dw + 14 * k, 18 * k + sub.length * 13 * k);
+  c.font = '600 ' + (15 * k).toFixed(1) + 'px ' + DISPLAY; c.fillStyle = fg;
+  c.fillText(rcKm(RC.z), w - pad - 3 * k, pad + 12 * k);
+  c.font = (9.5 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
+  sub.forEach((l, i) => c.fillText(l, w - pad - 3 * k, pad + 25 * k + i * 12 * k));
+
+  if (RC.state === 'ready') rcCard(c, w, h, [
+    car.name, car.tag,
+    Math.round(car.kw * 1.341) + ' hp, ' + car.mass + ' kg, ' + car.ng + ' gears',
+    rcTouchUI ? 'tap drive, then drag to steer' : 'enter to pull out'
+  ], k);
+  if (RC.state === 'pause') rcCard(c, w, h, ['paused', '', '', 'P to carry on'], k);
+  if (RC.state === 'crash') rcCard(c, w, h, [
+    rcKm(RC.z), RC.msg,
+    'top speed ' + Math.round(RC.top * 3.6) + ' km/h, ' + RC.hits + ' cones',
+    rcTouchUI ? 'tap drive to go again' : 'R to go again, C for another car'
+  ], k);
+}
+
+function rcCard(c, w, h, lines, k) {
+  c.fillStyle = 'rgba(0,0,0,.55)';
+  c.fillRect(0, h * 0.30, w, h * 0.40);
+  c.textAlign = 'center';
+  c.fillStyle = '#fff'; c.font = '600 ' + (22 * k).toFixed(1) + 'px ' + DISPLAY;
+  c.fillText(lines[0], w / 2, h * 0.42);
+  c.font = (11 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = 'rgba(255,255,255,.74)';
+  c.fillText(lines[1], w / 2, h * 0.49);
+  c.fillText(lines[2], w / 2, h * 0.56);
+  c.fillStyle = '#7ad48f';
+  c.fillText(lines[3], w / 2, h * 0.64);
+}
+
+/* ---- the highway: controls and wiring ---- */
+const rcTouchUI = matchMedia('(pointer: coarse)').matches;
+let rcDragSteer = 0;
+
+// the drive is at night when the page is, which is the one place the theme
+// reaches into the game
+function rcNight() {
+  const t = document.documentElement.getAttribute('data-theme');
+  return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+const RC_HELD = {
+  ArrowUp: 'up', w: 'up', ArrowDown: 'down', s: 'down',
+  ArrowLeft: 'left', a: 'left', ArrowRight: 'right', d: 'right'
+};
+const RC_UPSHIFT = { e: 1, x: 1, ']': 1, '+': 1, '=': 1 };
+const RC_DOWNSHIFT = { q: 1, z: 1, '[': 1, '-': 1, _: 1 };
+
+function rcStart() {
+  if (RC.state === 'crash') rcReset(true);
+  RC.state = 'run'; RC.msg = ''; rcHudText();
+}
+
+function rcShift(dir) {
+  if (RC.mode !== 'manual' || RC.state !== 'run' || RC.shiftFor > 0) return;
+  const g = rcClamp(RC.gear + dir, 0, RC.car.gears.length - 1);
+  if (g === RC.gear) return;
+  RC.gear = g; RC.shiftFor = RC.car.shift;
+}
+
+function rcSetMode(m) {
+  RC.mode = m;
+  rcModeBtn.textContent = m === 'auto' ? 'Automatic' : 'Manual';
+  rcModeBtn.setAttribute('aria-label', 'Gearbox: ' + (m === 'auto' ? 'automatic' : 'manual') + '. Press T to change.');
+  document.getElementById('rcTouch').classList.toggle('man', m === 'manual');
+}
+
+function rcPickCar(car) {
+  RC.car = car;
+  rcCarsEl.querySelectorAll('button').forEach(b =>
+    b.setAttribute('aria-pressed', String(b.dataset.car === car.id)));
+  rcReset(true);
+}
+
+function rcBuildCars() {
+  if (rcCarsEl.childElementCount) return;
+  for (const car of RC_CARS) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.dataset.car = car.id;
+    b.setAttribute('aria-pressed', String(car === RC.car));
+    b.innerHTML = '<i style="background:' + car.paint + '"></i>' + car.name;
+    b.addEventListener('click', () => rcPickCar(car));
+    rcCarsEl.appendChild(b);
+  }
+}
+
+let rcLast = null;
+function rcFrame(t) {
+  RC.raf = requestAnimationFrame(rcFrame);
+  const dt = Math.min(1 / 30, rcLast === null ? 1 / 60 : (t - rcLast) / 1000);
+  rcLast = t;
+  if (RC.state !== 'pause') rcStep(dt);
+  rcDraw();
+}
+
+function rcOpen() {
+  if (!raceEl.hidden) return;
+  rcGoBack = document.activeElement;
+  raceEl.hidden = false;
+  rcBuildCars();
+  rcSize();
+  rcReset(true);
+  rcSetMode(RC.mode);
+  rcLast = null;
+  cancelAnimationFrame(RC.raf);
+  RC.raf = requestAnimationFrame(rcFrame);
+  document.getElementById('rcClose').focus();
+}
+
+function rcClose() {
+  raceEl.hidden = true;
+  cancelAnimationFrame(RC.raf); RC.raf = 0;
+  RC.keys = Object.create(null); rcDragSteer = 0;
+  // Back where it came from, which is the badge: what was focused when the
+  // badge was tapped is usually the body, and focusing that leaves the focus
+  // ring on a button inside a dialog that is no longer there.
+  const back = rcGoBack && rcGoBack.isConnected && rcGoBack.tabIndex >= 0 ? rcGoBack : idCv;
+  back.focus?.();
+}
+let rcGoBack = null;
+
+document.getElementById('rcClose').addEventListener('click', rcClose);
+document.getElementById('rcAgain').addEventListener('click', () => { rcReset(true); rcStart(); });
+rcModeBtn.addEventListener('click', () => rcSetMode(RC.mode === 'auto' ? 'manual' : 'auto'));
+raceEl.addEventListener('click', e => { if (e.target === raceEl) rcClose(); });
+
+addEventListener('keydown', e => {
+  if (raceEl.hidden) return;
+  if (e.key === 'Escape') { e.preventDefault(); rcClose(); return; }
+  // Enter and space belong to whichever button has focus, not to the car.
+  // e.target is not always an element, so it is asked rather than assumed.
+  const onBtn = e.target instanceof Element && e.target.closest('button');
+  if (onBtn && (e.key === 'Enter' || e.key === ' ')) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (RC_HELD[k]) {
+    RC.keys[RC_HELD[k]] = 1;
+    if (RC.state === 'ready') rcStart();
+    e.preventDefault(); return;
+  }
+  if (k === 'Enter' || k === ' ') {
+    if (RC.state !== 'run') { rcStart(); e.preventDefault(); }
+    return;
+  }
+  if (RC_UPSHIFT[k]) { rcShift(1); e.preventDefault(); return; }
+  if (RC_DOWNSHIFT[k]) { rcShift(-1); e.preventDefault(); return; }
+  if (k === 't') { rcSetMode(RC.mode === 'auto' ? 'manual' : 'auto'); e.preventDefault(); return; }
+  if (k === 'r') { rcReset(true); rcStart(); e.preventDefault(); return; }
+  if (k === 'c') { rcReset(true); e.preventDefault(); return; }
+  if (k === 'p') {
+    RC.state = RC.state === 'pause' ? 'run' : RC.state === 'run' ? 'pause' : RC.state;
+    RC.msg = RC.state === 'pause' ? 'paused' : '';
+    rcHudText(); e.preventDefault();
+  }
+}, true);
+
+addEventListener('keyup', e => {
+  if (raceEl.hidden) return;
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  if (RC_HELD[k]) { RC.keys[RC_HELD[k]] = 0; e.preventDefault(); }
+}, true);
+
+// a finger steers by dragging anywhere on the road, relative to where it landed
+let rcTouchId = null, rcTouchX = 0;
+raceCv.addEventListener('pointerdown', e => {
+  if (RC.state === 'ready' || RC.state === 'crash') { rcStart(); return; }
+  rcTouchId = e.pointerId; rcTouchX = e.clientX;
+  raceCv.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+raceCv.addEventListener('pointermove', e => {
+  if (e.pointerId !== rcTouchId) return;
+  rcDragSteer = rcClamp((e.clientX - rcTouchX) / 55, -1, 1);
+});
+const rcLetGo = e => {
+  if (e.pointerId !== rcTouchId) return;
+  rcTouchId = null; rcDragSteer = 0;
+};
+raceCv.addEventListener('pointerup', rcLetGo);
+raceCv.addEventListener('pointercancel', rcLetGo);
+
+// the on screen controls, for a car being driven with a thumb
+document.getElementById('rcTouch').addEventListener('pointerdown', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const a = b.dataset.rc;
+  if (a === 'drive') { rcStart(); return; }
+  if (a === 'gup') { rcShift(1); return; }
+  if (a === 'gdn') { rcShift(-1); return; }
+  RC.keys[a] = 1;
+  e.preventDefault();
+});
+const rcRelease = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  RC.keys[b.dataset.rc] = 0;
+};
+document.getElementById('rcTouch').addEventListener('pointerup', rcRelease);
+document.getElementById('rcTouch').addEventListener('pointercancel', rcRelease);
+document.getElementById('rcTouch').addEventListener('pointerleave', rcRelease);
+
+addEventListener('resize', () => { if (!raceEl.hidden) rcSize(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && RC.state === 'run') { RC.state = 'pause'; RC.msg = 'paused'; rcHudText(); }
+});
+
+/* ---- finding it ----
+   Three taps on the badge itself, not on the canvas around it, and close
+   enough together to be deliberate. Dragging it is the thing the badge is
+   for, so a tap that moved is not a tap. */
+let rcTapAt = 0, rcTaps = 0, rcTapDown = null;
+idCv.addEventListener('pointerdown', e => {
+  const p = idPt(e);
+  rcTapDown = idHit(p.x, p.y) ? { x: e.clientX, y: e.clientY, t: performance.now() } : null;
+});
+idCv.addEventListener('pointerup', e => {
+  const d = rcTapDown; rcTapDown = null;
+  if (!d) return;
+  if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 9 || performance.now() - d.t > 500) {
+    rcTaps = 0; return;
+  }
+  const now = performance.now();
+  rcTaps = now - rcTapAt < 900 ? rcTaps + 1 : 1;
+  rcTapAt = now;
+  if (rcTaps >= 3) { rcTaps = 0; rcOpen(); }
+});
 
 // ================= boot =================
 document.body.classList.remove('nojs');
