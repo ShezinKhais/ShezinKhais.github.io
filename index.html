@@ -794,7 +794,7 @@
   .rstage { border:1px solid var(--line); background:var(--bg); line-height:0; }
   #raceCv { display:block; width:100%; height:auto; touch-action:none; }
   .rcars { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
-  /* on a phone the six of them are three rows of chooser above a small road,
+  /* on a phone the eight of them are several rows of chooser above a small road,
      so they become one row you push sideways instead */
   @media (max-width: 560px) {
     .rcars { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
@@ -5958,19 +5958,34 @@ const RC_CARS = [
     kw: 242, peak: 6500, redline: 7000, mass: 1429, vmax: 275, ng: 6, mu: 1.08,
     drive: 0.62, shift: 0.45,
     aero: 0.10, agile: 1.20, damp: 2.1,
-    cyl: 4, turbo: true, crackle: 0.6,
+    cyl: 4, turbo: true, crackle: 0.6, spool: 2.2, bov: 'valve',
     paint: '#e2574c', trim: '#7d241d', shape: 'hatch' },
   { id: 'r34', name: 'Nissan Skyline GT-R R34', tag: 'straight six, all wheel drive',
     kw: 246, peak: 6800, redline: 7600, mass: 1560, vmax: 265, ng: 6, mu: 1.18,
     drive: 0.95, shift: 0.45,
     aero: 0.08, agile: 1.10, damp: 1.9,
-    cyl: 6, turbo: true, crackle: 0.5,
+    cyl: 6, turbo: true, crackle: 0.5, spool: 1.5, bov: 'flutter',
     paint: '#5aa9e6', trim: '#1f5d8c', shape: 'coupe' },
+  { id: 'supra', name: 'Toyota Supra RZ', tag: '2JZ, sequential twin turbo',
+    kw: 239, peak: 5200, redline: 6800, mass: 1570, vmax: 285, ng: 6, mu: 1.04,
+    drive: 0.72, shift: 0.40,
+    aero: 0.06, agile: 1.05, damp: 1.8,
+    cyl: 6, turbo: true, crackle: 0.55, spool: 1.0, bov: 'valve',
+    paint: '#e8772e', trim: '#7a3a12', shape: 'coupe' },
+  /* peak sits below the S54's 7,900: one torque curve fits every car here,
+     and at 7,900 it gave the M3 too little in the middle to make its 5.1
+     seconds. At 7,000 it does, at the cost of about 10% too much power at the top. */
+  { id: 'm3', name: 'BMW M3 E46', tag: 'straight six to 8,000 rpm',
+    kw: 252, peak: 7000, redline: 8000, mass: 1570, vmax: 250, ng: 6, mu: 1.08,
+    drive: 0.70, shift: 0.25,
+    aero: 0.05, agile: 1.15, damp: 2.0,
+    cyl: 6, turbo: false, crackle: 0.3,
+    paint: '#e8c63a', trim: '#7a6214', shape: 'coupe' },
   { id: 'carrera', name: 'Porsche 911 Carrera S', tag: 'flat six, rear engine',
     kw: 331, peak: 6500, redline: 7500, mass: 1515, vmax: 308, ng: 8, mu: 1.25,
     drive: 0.82, shift: 0.10,
     aero: 0.16, agile: 1.30, damp: 2.3,
-    cyl: 6, turbo: true, crackle: 0.45,
+    cyl: 6, turbo: true, crackle: 0.45, spool: 2.6, bov: 'valve', bovLevel: 0.45,
     paint: '#f0e6d2', trim: '#8a7a5c', shape: 'porsche' },
   { id: 'cruiser', name: 'Toyota Land Cruiser', tag: 'heavy, and it shows',
     kw: 305, peak: 5600, redline: 6000, mass: 2600, vmax: 210, ng: 8, mu: 0.92,
@@ -6422,13 +6437,19 @@ function rcDrive(dt) {
     if (g !== RC.gear) {
       // an upshift under power is what lights the exhaust; rolling down
       // through the box on the overrun does not
-      if (g > RC.gear && throttle) rcFire(car.crackle);
+      if (g > RC.gear && throttle) rcShiftPop(car);
       RC.gear = g; RC.shiftFor = car.shift;
     }
   }
-  // and lifting off at high revs, for the cars that crackle on the overrun
-  if (RC.lastThrottle && !throttle && rcRpmOf(RC.v, rcRatio(car, RC.gear)) > car.redline * 0.6)
-    rcFire(car.crackle * 0.55);
+  /* And the odd bang on a lift, but only after the car has been worked, high
+     in the revs, and not every time: it was firing on every lift before,
+     which is a car with something wrong with it. */
+  RC.onFor = throttle ? (RC.onFor || 0) + dt : RC.onFor;
+  if (RC.lastThrottle && !throttle) {
+    if (RC.onFor > 0.6 && rcRpmOf(RC.v, rcRatio(car, RC.gear)) > car.redline * 0.72 && Math.random() < car.crackle * 0.5)
+      rcFire(car.crackle * 0.55);
+    RC.onFor = 0;
+  }
   RC.lastThrottle = throttle;
 
   /* Downforce, and everything that leans on it. One number, used three times:
@@ -6626,6 +6647,7 @@ class RcEngine extends AudioWorkletProcessor {
     this.px = 0; this.py = 0; this.t1 = 0; this.t2 = 0; this.rpm = 900;
     // up to eight pulses in flight: [age, width, amplitude, bank, noise]
     this.P = []; for (let i = 0; i < 8; i++) this.P.push([1, 1, 0, 0, 0]);
+    this.lastThr = 0; this.loaded = 0; this.liftT = 9; this.budget = 0;
     this.port.onmessage = e => { this.cfg = e.data; this.idx = 0; this.phase = 0; };
   }
   rnd() {
@@ -6638,9 +6660,15 @@ class RcEngine extends AudioWorkletProcessor {
     let amp = (0.26 + 0.74 * thr) * ev[2] * (1 + (this.rnd() - 0.5) * 0.3);
     let width = c.pw / 1000, nz = c.noise * (0.4 + 0.6 * thr);
     const interval = (720 / c.fire.length) / (rpm * 6);
-    // the overrun: now and then a charge lights late, in the pipe
-    if (thr < 0.05 && rpm > c.redline * 0.5 && this.rnd() < c.crackle * 0.05) {
-      amp = 1.7; width *= 2.5; nz = 1.2;
+    /* The overrun. It used to be a chance on every firing whenever the
+       throttle was shut, which at six thousand in a V10 is five hundred
+       chances a second: a constant crackle. Now a lift after real work earns a
+       handful at most, spread over the first second, and then it is quiet. */
+    const perSec = rpm / 120 * c.fire.length;           // firings a second, to spread them
+    if (thr < 0.05 && this.budget > 0 && this.liftT < 1.1 && rpm > c.redline * 0.45 && this.rnd() < 3 / perSec) {
+      this.budget--;
+      // a bang of its own size, not a fatter firing: the same on a V10 as a four
+      amp = 2.1; width = 0.0035 + this.rnd() * 0.002; nz = 1.4;
     } else width = Math.min(width, interval * 0.8);
     for (const p of this.P) if (p[0] >= p[1]) {
       p[0] = 0; p[1] = width; p[2] = amp; p[3] = ev[1]; p[4] = nz; return;
@@ -6657,6 +6685,15 @@ class RcEngine extends AudioWorkletProcessor {
     const toneHz = c.tone * (0.5 + 0.5 * thr);
     const a1 = 1 - Math.exp(-2 * Math.PI * toneHz / sr);
     const r0 = this.rpm;
+    // how long the throttle has been open, and whether it has just been shut
+    if (thr > 0.5) { this.loaded += n / sr; this.liftT = 9; }
+    else if (this.lastThr > 0.5) {
+      this.liftT = 0;
+      this.budget = this.loaded > 0.4 && target > c.redline * 0.55 && this.rnd() < c.crackle
+        ? 1 + Math.floor(this.rnd() * 4 * c.crackle) : 0;
+      this.loaded = 0;
+    } else this.liftT += n / sr;
+    this.lastThr = thr;
     for (let i = 0; i < n; i++) {
       const rpm = r0 + (target - r0) * (i / n);      // no steps between blocks
       this.phase += rpm * 6 / sr;
@@ -6714,6 +6751,10 @@ const RC_ENGINE = {
   r34: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.0, pipeB: 3.1, fb: 0.5, damp: 0.5, tone: 2600, pw: 1.2, noise: 0.3, gain: 0.95 },
   // flat six: the rasp is the two banks in pipes of different lengths
   carrera: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.8, pipeB: 3.4, fb: 0.58, damp: 0.55, tone: 2600, pw: 1.1, noise: 0.28, gain: 0.9 },
+  // 2JZ: the six breathing through one big pipe, deep for a six
+  supra: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.5, pipeB: 3.6, fb: 0.52, damp: 0.45, tone: 2200, pw: 1.4, noise: 0.32, gain: 0.95 },
+  // S54: short pipes, a hard metallic edge, and it keeps going to eight thousand
+  m3: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.6, pipeB: 2.9, fb: 0.56, damp: 0.6, tone: 4200, pw: 0.9, noise: 0.26, gain: 0.9 },
   // crossplane V8: 1-8-4-3-6-5-7-2, left right right left right left left right
   cruiser: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 5.6, pipeB: 6.2, fb: 0.62, damp: 0.35, tone: 1200, pw: 2.4, noise: 0.18, gain: 0.7 }
 };
@@ -6762,8 +6803,15 @@ function rcAudioInit() {
   const turbo = ac.createOscillator(); turbo.type = 'sine'; turbo.frequency.value = 2000;
   const tg = ac.createGain(); tg.gain.value = 0;
   turbo.connect(tg); tg.connect(master); turbo.start();
+  // the compressor's own rush of air, under the whistle
+  const hiss = ac.createBufferSource(); hiss.buffer = noise.buffer; hiss.loop = true;
+  hiss.playbackRate.value = 0.93;          // not in step with the induction noise
+  const hf = ac.createBiquadFilter(); hf.type = 'bandpass'; hf.frequency.value = 4000; hf.Q.value = 1.6;
+  const hg = ac.createGain(); hg.gain.value = 0;
+  hiss.connect(hf); hf.connect(hg); hg.connect(master); hiss.start();
 
-  rcSnd = { ac, master, tone, lp, o1, o2, o3, ng, nf, tg, turbo, buf: noise.buffer, lastPop: 0, eng: null, engId: null };
+  rcSnd = { ac, master, tone, lp, o1, o2, o3, ng, nf, tg, turbo, hf, hg, buf: noise.buffer, lastPop: 0,
+    eng: null, engId: null, boost: 0, at: ac.currentTime, lastOn: 0, lastBov: 0 };
 
   /* The real engine loads a moment later, from a module made out of the
      string above. Until it arrives, and on any browser without worklets, the
@@ -6827,13 +6875,70 @@ function rcAudioUpdate() {
   s.nf.frequency.setTargetAtTime(400 + f * 1.6, t, 0.06);
   s.ng.gain.setTargetAtTime((s.eng ? 0.5 : 1) * (0.02 + throttle * 0.05) + Math.min(0.05, RC.v / 2400), t, 0.08);
 
-  // the turbo spools with revs and load, and only on the cars that have one
-  const boost = car.turbo ? Math.min(1, (rpm / car.redline) * (0.35 + throttle * 0.8)) : 0;
-  s.turbo.frequency.setTargetAtTime(1400 + rpm * 0.55, t, 0.1);
-  s.tg.gain.setTargetAtTime(boost * 0.035, t, 0.12);
+  /* The turbo. It was a whistle whose pitch followed the revs and whose
+     volume barely moved, so it sat there all the time. Boost is a state now:
+     it builds with throttle and revs at the rate that turbo spools, the
+     whistle rises with the turbine rather than the crank, and when the
+     throttle shuts the pressure goes out through the valve all at once. */
+  const dt = Math.min(0.1, Math.max(0, t - s.at)); s.at = t;
+  const on = throttle && RC.shiftFor <= 0 ? 1 : 0;
+  if (car.turbo) {
+    const want = on ? rcClamp((rpm / car.redline - 0.28) / 0.45, 0, 1) : 0;
+    const was = s.boost;
+    s.boost = want > was ? was + (want - was) * Math.min(1, dt * (car.spool || 1.5))
+                         : Math.max(want, was - dt * 6);
+    if (s.lastOn && !on && was > 0.3 && t - s.lastBov > 0.25) { rcBlowOff(car, was); s.lastBov = t; }
+    const spooling = Math.max(0, s.boost - was) / Math.max(dt, 1e-3);   // rising fast is loudest
+    s.turbo.frequency.setTargetAtTime(1800 + s.boost * 7200, t, 0.06);
+    s.tg.gain.setTargetAtTime(s.boost * s.boost * 0.018 + Math.min(0.012, spooling * 0.01), t, 0.05);
+    s.hf.frequency.setTargetAtTime(2500 + s.boost * 3500, t, 0.08);
+    s.hg.gain.setTargetAtTime(s.boost * on * 0.05, t, 0.06);
+  } else {
+    s.boost = 0;
+    s.tg.gain.setTargetAtTime(0, t, 0.05);
+    s.hg.gain.setTargetAtTime(0, t, 0.05);
+  }
+  s.lastOn = on;
 }
 
-// a burst of unburnt fuel going off in the exhaust, and the valve dumping boost
+/* Where the boost goes when the throttle shuts. A valve lets it out to the
+   air in one long hiss that falls away; a car without one pushes it back
+   through the compressor, which stalls and stutters: the flutter. */
+function rcBlowOff(car, boost) {
+  if (!rcSnd || !rcSoundOn) return;
+  const s = rcSnd, ac = s.ac, at = ac.currentTime;
+  const lvl = boost * (car.bovLevel || 1);
+  const src = ac.createBufferSource(); src.buffer = s.buf; src.loop = true;
+  src.playbackRate.value = 0.8 + Math.random() * 0.4;
+  const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1;
+  const g = ac.createGain();
+  src.connect(f); f.connect(g); g.connect(s.master);
+  if (car.bov === 'flutter') {
+    const len = 0.30 + boost * 0.25;
+    f.frequency.setValueAtTime(1900, at);
+    f.frequency.exponentialRampToValueAtTime(700, at + len);
+    g.gain.setValueAtTime(0.0001, at);
+    // the compressor surging, twenty odd times a second, dying away
+    const rate = 17 + Math.random() * 6;
+    for (let k = 0; k * (1 / rate) < len; k++) {
+      const tk = at + k / rate, a = 0.34 * lvl * (1 - k / (rate * len));
+      g.gain.setValueAtTime(0.0001, tk);
+      g.gain.exponentialRampToValueAtTime(Math.max(0.001, a), tk + 0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001, tk + 0.8 / rate);
+    }
+    src.start(at); src.stop(at + len + 0.1);
+  } else {
+    const len = 0.28 + boost * 0.35;
+    f.frequency.setValueAtTime(5200, at);
+    f.frequency.exponentialRampToValueAtTime(1300, at + len);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(0.30 * lvl, at + 0.012);
+    g.gain.setTargetAtTime(0.0001, at + 0.05, len / 3.2);
+    src.start(at); src.stop(at + len + 0.3);
+  }
+}
+
+// a burst of unburnt fuel going off in the exhaust
 function rcPop(strength) {
   if (!rcSnd || !rcSoundOn) return;
   const s = rcSnd, ac = s.ac, car = RC.car;
@@ -6861,20 +6966,12 @@ function rcPop(strength) {
     thump.connect(tgain); tgain.connect(s.master);
     thump.start(at); thump.stop(at + 0.2);
   }
-  if (car.turbo) {                       // the valve, a short breath of noise
-    const at = ac.currentTime;
-    const src = ac.createBufferSource(); src.buffer = s.buf; src.loop = true;
-    const hp = ac.createBiquadFilter(); hp.type = 'bandpass';
-    hp.frequency.setValueAtTime(2600, at);
-    hp.frequency.exponentialRampToValueAtTime(900, at + 0.22);
-    hp.Q.value = 0.9;
-    const g = ac.createGain();
-    g.gain.setValueAtTime(0.0001, at);
-    g.gain.exponentialRampToValueAtTime(0.12, at + 0.02);
-    g.gain.exponentialRampToValueAtTime(0.0001, at + 0.25);
-    src.connect(hp); hp.connect(g); g.connect(s.master);
-    src.start(at); src.stop(at + 0.3);
-  }
+}
+
+// an upshift near the top of the revs may light the exhaust; short shifting does not
+function rcShiftPop(car) {
+  const high = rcRpmOf(RC.v, rcRatio(car, RC.gear)) > car.redline * 0.75;
+  if (high && Math.random() < 0.25 + 0.7 * car.crackle) rcFire(car.crackle);
 }
 
 // the same event, seen rather than heard
@@ -8100,6 +8197,121 @@ const RC_HERO = {
     for (const sx of [-1, 1]) rcPipe(c, sx * 0.20, -0.15, 0.08, 0.075);
   } },
 
+  /* Supra RZ: round everywhere, with the hoop wing standing clear of the boot
+     on its two uprights and the high brake light in the middle of it. The
+     lamps are three rounds a side under one smoked band that runs the width of
+     the car, and there is one big pipe, out on the right. */
+  supra: { w: 1.81, len: 4.52, h: 1.275, pipes: [[0.55, -0.22]],
+    prof: [[0, 1, .66, 'roof'], [.10, .96, .74, 'roof'], [.28, 1, .68, 'roof'], [.48, .97, .64, 'glass'], [.64, .70, .96, 'bonnet'], [.93, .65, .90, 'nose'], [1, .53, .72]],
+    body: rcSym([[0.52, -1.275, 0.14], [0.78, -1.12, 0.30], [0.905, -0.78, 0.22], [0.90, -0.44, 0.08], [0.86, -0.22, 0.08], [0.40, -0.20, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.88, -0.58, 0.24);
+    rcShell(c, this.body, car.paint, -1.275, 1.81);
+    c.fillStyle = on ? '#0e131a' : '#26323f';            // the rear screen, curved
+    rcPath(c, rcSym([[0.46, -1.25, 0.10], [0.66, -1.06, 0.06]])); c.fill();
+    c.save(); c.clip();
+    c.fillStyle = on ? 'rgba(120,100,150,.16)' : 'rgba(190,210,230,.26)'; c.fillRect(-0.7, -1.25, 1.4, 0.07);
+    c.restore();
+    if (fine) {
+      c.strokeStyle = 'rgba(0,0,0,.30)'; c.lineWidth = 0.014;   // the boot lid
+      c.beginPath(); c.moveTo(-0.70, -0.66); c.quadraticCurveTo(-0.74, -0.98, -0.62, -1.02);
+      c.lineTo(0.62, -1.02); c.quadraticCurveTo(0.74, -0.98, 0.70, -0.66); c.stroke();
+    }
+    // the smoked band with the three rounds a side in it
+    c.fillStyle = on ? '#1a0c0c' : '#2b1414';
+    c.beginPath(); c.roundRect(-0.87, -0.93, 1.74, 0.20, 0.09); c.fill();
+    for (const sx of [-1, 1]) for (const dx of [0.30, 0.52, 0.74]) {
+      const x = sx * dx, y = -0.83, r = 0.085;
+      c.fillStyle = dx < 0.3 ? (on ? '#cfc9c0' : '#8c8780') : rcLensTone(on, braking);   // reversing lamps innermost
+      c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+      if (fine) {
+        c.strokeStyle = 'rgba(0,0,0,.4)'; c.lineWidth = 0.012;
+        c.beginPath(); c.arc(x, y, r * 0.55, 0, 7); c.stroke();
+        c.fillStyle = 'rgba(255,255,255,.28)';
+        c.beginPath(); c.ellipse(x - r * 0.3, y - r * 0.4, r * 0.35, r * 0.18, -0.5, 0, 7); c.fill();
+      }
+    }
+    for (const sx of [-1, 1]) rcGlow(c, sx * 0.62, -0.83, 0.5, on || braking);
+    if (fine) {
+      c.strokeStyle = 'rgba(235,238,242,.85)'; c.lineWidth = 0.016;   // the emblem
+      c.beginPath(); c.ellipse(0, -0.83, 0.08, 0.05, 0, 0, 7); c.stroke();
+      c.beginPath(); c.ellipse(0, -0.83, 0.03, 0.05, 0, 0, 7); c.stroke();
+      rcPlateAt(c, -0.64, 0.36);
+      c.fillStyle = '#b3342b';
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.80 - (sx < 0 ? 0 : 0.10), -0.44, 0.10, 0.035);
+    }
+    // the hoop: two uprights off the boot, the wing across them, the brake light in it
+    c.fillStyle = rcMix(car.paint, 0, 0.12);
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(sx * 0.62, -1.02); c.lineTo(sx * 0.76, -1.02);
+      c.quadraticCurveTo(sx * 0.76, -1.30, sx * 0.72, -1.40);
+      c.lineTo(sx * 0.64, -1.40); c.quadraticCurveTo(sx * 0.66, -1.20, sx * 0.62, -1.02);
+      c.fill();
+    }
+    rcPath(c, rcSym([[0.70, -1.47, 0.05], [0.76, -1.37, 0.03], [0.30, -1.36, 0]]));
+    c.fillStyle = rcPaint(c, car.paint, -1.48); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.22)'; c.fillRect(-0.68, -1.46, 1.36, 0.02);
+    c.fillStyle = rcLensTone(false, braking); c.fillRect(-0.16, -1.42, 0.32, 0.03);
+    // underneath: the valance and the one big pipe
+    c.fillStyle = '#1c1f24';
+    rcPath(c, rcSym([[0.82, -0.32, 0.06], [0.84, -0.20, 0.05], [0.30, -0.19, 0]])); c.fill();
+    rcPipe(c, 0.55, -0.22, 0.10, 0.08);
+  } },
+
+  /* M3 E46: a square saloon shape with the arches pushed out, L shaped lamps
+     split between the wing and the boot lid, a small lip on the boot, the
+     roundel in the middle, the badge in its three colours, and four pipes in
+     two pairs. */
+  m3: { w: 1.78, len: 4.49, h: 1.37, pipes: [[-0.50, -0.17], [-0.36, -0.17], [0.36, -0.17], [0.50, -0.17]],
+    prof: [[0, 1, .70, 'roof'], [.14, 1, .76, 'roof'], [.42, .99, .74, 'glass'], [.58, .72, .97, 'bonnet'], [.92, .69, .93, 'nose'], [1, .57, .76]],
+    body: rcSym([[0.62, -1.37, 0.10], [0.80, -1.14, 0.20], [0.89, -0.78, 0.10], [0.89, -0.40, 0.06], [0.86, -0.22, 0.06], [0.40, -0.20, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.87, -0.56, 0.25);
+    rcShell(c, this.body, car.paint, -1.37, 1.78);
+    c.fillStyle = on ? '#0e131a' : '#26323f';
+    rcPath(c, rcSym([[0.52, -1.33, 0.06], [0.62, -1.08, 0.04]])); c.fill();
+    c.save(); c.clip();
+    c.fillStyle = on ? 'rgba(120,100,150,.16)' : 'rgba(190,210,230,.26)'; c.fillRect(-0.7, -1.33, 1.4, 0.08);
+    c.restore();
+    c.fillStyle = rcMix(car.paint, 0, 0.28);             // the lip on the boot
+    c.beginPath(); c.roundRect(-0.64, -1.045, 1.28, 0.03, 0.01); c.fill();
+    if (fine) {
+      c.strokeStyle = 'rgba(0,0,0,.32)'; c.lineWidth = 0.014;   // the boot lid, between the lamps
+      c.beginPath(); c.moveTo(-0.66, -0.66); c.lineTo(-0.66, -1.00); c.lineTo(0.66, -1.00); c.lineTo(0.66, -0.66); c.stroke();
+    }
+    // the L lamps: the outer part on the wing, the inner on the lid
+    for (const sx of [-1, 1]) {
+      rcLens(c, rcSide([[0.46, -0.98, 0.02], [0.87, -0.99, 0.05], [0.89, -0.82, 0.04], [0.86, -0.74, 0.03], [0.70, -0.74, 0.02], [0.68, -0.88, 0.02], [0.46, -0.88, 0.02]], sx), on, braking, fine);
+      if (fine) {
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(sx * 0.66 - 0.006, -0.99, 0.012, 0.12);   // the split
+        c.fillStyle = 'rgba(255,255,255,.35)'; c.fillRect(sx * 0.78 - 0.04, -0.84, 0.08, 0.05);
+      }
+      rcGlow(c, sx * 0.72, -0.88, 0.45, on || braking);
+    }
+    if (fine) {
+      c.fillStyle = '#eceef0';                            // the roundel
+      c.beginPath(); c.arc(0, -0.93, 0.045, 0, 7); c.fill();
+      c.fillStyle = '#3f7fc0';
+      c.beginPath(); c.moveTo(0, -0.93); c.arc(0, -0.93, 0.032, -Math.PI / 2, 0); c.fill();
+      c.beginPath(); c.moveTo(0, -0.93); c.arc(0, -0.93, 0.032, Math.PI / 2, Math.PI); c.fill();
+      c.strokeStyle = '#1b1e23'; c.lineWidth = 0.008; c.beginPath(); c.arc(0, -0.93, 0.045, 0, 7); c.stroke();
+      for (const [k, col] of [[0, '#5aa9e6'], [1, '#2a3b8f'], [2, '#d8352c']]) {   // the badge
+        c.fillStyle = col; c.fillRect(0.46 + k * 0.022, -0.84, 0.018, 0.05);
+      }
+      c.fillStyle = 'rgba(235,238,242,.85)'; c.fillRect(0.54, -0.84, 0.06, 0.05);
+      rcPlateAt(c, -0.66, 0.36);
+      c.fillStyle = '#b3342b';
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.80 - (sx < 0 ? 0 : 0.09), -0.42, 0.09, 0.03);
+    }
+    // the valance, cut away for the pipes, and the four of them
+    c.fillStyle = '#1c1f24';
+    rcPath(c, rcSym([[0.80, -0.30, 0.06], [0.82, -0.12, 0.05], [0.30, -0.12, 0]])); c.fill();
+    for (const x of [-0.50, -0.36, 0.36, 0.50]) rcPipe(c, x, -0.17, 0.058, 0.058);
+  } },
+
   /* 911: hips wider than the cabin and not a straight line on it. A small rear
      screen, the engine lid with its vertical slats and the brake light between
      them, the spoiler's shut line, and the light bar across the whole car
@@ -8375,7 +8587,7 @@ function rcShift(dir) {
   if (RC.mode !== 'manual' || RC.state !== 'run' || RC.shiftFor > 0) return;
   const g = rcClamp(RC.gear + dir, 0, RC.car.gears.length - 1);
   if (g === RC.gear) return;
-  if (dir > 0 && RC.keys.up) rcFire(RC.car.crackle);
+  if (dir > 0 && RC.keys.up) rcShiftPop(RC.car);
   RC.gear = g; RC.shiftFor = RC.car.shift;
 }
 
