@@ -7000,13 +7000,15 @@ const RC_DAY = {
   sky: ['#7fb0db', '#cfdce8'], glow: '#e4ecf2', haze: '#cfdce8',
   sand: ['#d9cfb6', '#d3c8ad'], dune: '#c7bda4',
   road: ['#5b6066', '#565b61'], edge: '#eef0f2', dash: '#eef0f2',
-  rumble: ['#b8bcc1', '#8d9298'], pole: '#9aa0a7', lamp: '#c9ced4', shade: 0.30
+  rumble: ['#b8bcc1', '#8d9298'], pole: '#9aa0a7', lamp: '#c9ced4', shade: 0.30,
+  verge: '#c6ba9b', joint: 'rgba(0,0,0,.10)', rail: ['#c3c8ce', '#8e949b'], post: '#6f757c', refl: '#e8eaec'
 };
 const RC_NIGHT = {
   sky: ['#0a1020', '#3b2b4e'], glow: '#c4623a', haze: '#4a3340',
   sand: ['#141a20', '#11161c'], dune: '#182029',
   road: ['#23282f', '#1f242b'], edge: '#9aa3ad', dash: '#8b949e',
-  rumble: ['#2e343c', '#1c2128'], pole: '#2b3139', lamp: '#ffd9a0', shade: 0.55
+  rumble: ['#2e343c', '#1c2128'], pole: '#2b3139', lamp: '#ffd9a0', shade: 0.55,
+  verge: '#0d1116', joint: 'rgba(0,0,0,.22)', rail: ['#3a414a', '#262b32'], post: '#20252b', refl: '#ffb347'
 };
 
 let rcW = 640, rcH = 360, rcDpr = 1;
@@ -7176,59 +7178,146 @@ function rcSky(c, w, h, horizon, P) {
   c.fillStyle = P.sand[0]; c.fillRect(0, horizon, w, h - horizon);
 }
 
-/* The road, as a handful of long strips rather than six quads a segment. The
-   old way was about nine hundred fills a frame for a surface that is mostly
-   one colour; this is four paths plus the markings that actually change. */
-function rcRoad(c, pts, base, P, w, h, near) {
-  const strip = (inset, outset, fill) => {
+/* The road, as a handful of long strips rather than six quads a segment, plus
+   the things along it that tell you how fast you are going.
+
+   Speed is read from what streams past close to you, so everything here is at
+   the spacing it has on a real motorway rather than the length of a segment.
+   The lane lines were 20 m dashes with 20 m gaps, which pass so rarely that
+   200 km/h looked like a crawl; they are 3 m dashes every 12 m now. There is a
+   crash barrier with a post every 4 m, the concrete has a joint every 5 m and
+   patches of an uneven length, and the ground either side is in bands too, so
+   the whole lower half of the view moves rather than two white lines.
+
+   at(z, x) projects a point on the road: z in world metres, x across it. */
+const RC_DASH = 12, RC_DASHL = 3, RC_POST = 4, RC_RAIL = 2.2;
+
+function rcRoad(c, pts, base, P, w, h, near, at, camZ) {
+  const strip = (inset, outset, fill, lift0, lift1, last) => {
+    const top = last === undefined ? RC_DRAW : last;
     c.fillStyle = fill;
     c.beginPath();
-    for (let n = 0; n <= RC_DRAW; n++) {
+    for (let n = 0; n <= top; n++) {
       const p = pts[n];
-      c.lineTo(p.l.x + (typeof inset === 'function' ? inset(p) : inset) * p.s, p.l.y);
+      c.lineTo(p.l.x + (typeof inset === 'function' ? inset(p) : inset) * p.s, p.l.y - (lift0 || 0) * p.s);
     }
-    for (let n = RC_DRAW; n >= 0; n--) {
+    for (let n = top; n >= 0; n--) {
       const p = pts[n];
-      c.lineTo(p.l.x + (typeof outset === 'function' ? outset(p) : outset) * p.s, p.l.y);
+      c.lineTo(p.l.x + (typeof outset === 'function' ? outset(p) : outset) * p.s, p.l.y - (lift1 || 0) * p.s);
     }
     c.closePath(); c.fill();
   };
+  const reach = Math.min(near, RC_DRAW - 1);
+  /* On a slow device at 30 frames a second, 300 km/h moves the road 2.8 m a
+     frame, more than half the spacing of the posts, and they would seem to
+     roll backwards like a wagon wheel. Anything that close to that point
+     fades back rather than strobing. */
+  const step = RC.v * (RC.dt || 1 / 60);
+  const steady = gap => 1 - 0.65 * rcClamp((step / gap - 0.3) / 0.15, 0, 1);
+
+  // the ground either side, in bands of an uneven length
+  c.fillStyle = P.verge;
+  for (let n = reach; n >= 0; n--) {
+    if (rcHash((base + n) * 0.71 + 9) < 0.5) continue;
+    const a = pts[n], b = pts[n + 1];
+    if (a.l.y - b.l.y < 0.4) continue;
+    c.fillRect(0, b.l.y, w, a.l.y - b.l.y + 0.6);
+  }
 
   strip(-2.8, p => p.width + 2.8, P.rumble[1]);          // the shoulders
   strip(0, p => p.width, P.road[1]);                     // tarmac
-  // the bands that give the road its speed, near enough to be worth drawing
+  // patches of newer surface, each a segment or a few long
   c.fillStyle = P.road[0];
-  for (let n = near; n >= 0; n--) {
-    const i = base + n;
-    if ((i % 8) >= 4) continue;
+  for (let n = reach; n >= 0; n--) {
+    if (rcHash((base + n) * 1.37 + 3) < 0.55) continue;
     const a = pts[n], b = pts[n + 1];
     c.beginPath();
     c.moveTo(a.l.x, a.l.y); c.lineTo(a.l.x + a.width * a.s, a.l.y);
     c.lineTo(b.l.x + b.width * b.s, b.l.y); c.lineTo(b.l.x, b.l.y);
     c.closePath(); c.fill();
   }
+  // and a joint across the slab every segment, where it is close enough to see
+  c.fillStyle = P.joint;
+  c.globalAlpha = steady(RC_SEG);
+  for (let n = reach; n >= 1; n--) {
+    const a = pts[n];
+    if (a.s < 10) continue;
+    c.fillRect(a.l.x, a.l.y - Math.max(1, 0.05 * a.s), a.width * a.s, Math.max(1, 0.05 * a.s));
+  }
+  c.globalAlpha = 1;
   strip(0.06, 0.26, P.edge);                             // edge lines
   strip(p => p.width - 0.26, p => p.width - 0.06, P.edge);
 
-  // lane separators, dashed, the new one fading in as the road widens
+  /* Lane lines. Past about 60 m a 3 m dash is under a pixel tall and would
+     only flicker, so out there it is drawn as what it looks like: a faint
+     continuous line. The dashes take over as they come close enough to be
+     told apart. */
+  const lanesAt = z => rcWidth(z) / RC_LANE;
+  const FAR = 70;
   c.fillStyle = P.dash;
-  for (let n = near; n >= 0; n--) {
-    const i = base + n;
-    if ((i % 8) >= 4) continue;
+  for (let n = reach; n >= 0; n--) {
     const a = pts[n], b = pts[n + 1];
+    if (a.az - camZ < FAR - 10) break;
     const lanes = a.width / RC_LANE;
     for (let k = 1; k < Math.ceil(lanes); k++) {
-      const fade = Math.min(1, (lanes - k) * 2.2);
-      if (fade <= 0.05) continue;
+      const fade = Math.min(1, (lanes - k) * 2.2) * 0.35 * rcClamp((a.az - camZ - FAR + 10) / 10, 0, 1);
+      if (fade <= 0.03) continue;
       c.globalAlpha = fade;
       c.beginPath();
-      c.moveTo(a.l.x + (k * RC_LANE - 0.09) * a.s, a.l.y);
-      c.lineTo(a.l.x + (k * RC_LANE + 0.09) * a.s, a.l.y);
-      c.lineTo(b.l.x + (k * RC_LANE + 0.09) * b.s, b.l.y);
-      c.lineTo(b.l.x + (k * RC_LANE - 0.09) * b.s, b.l.y);
+      c.moveTo(a.l.x + (k * RC_LANE - 0.08) * a.s, a.l.y);
+      c.lineTo(a.l.x + (k * RC_LANE + 0.08) * a.s, a.l.y);
+      c.lineTo(b.l.x + (k * RC_LANE + 0.08) * b.s, b.l.y);
+      c.lineTo(b.l.x + (k * RC_LANE - 0.08) * b.s, b.l.y);
       c.closePath(); c.fill();
-      c.globalAlpha = 1;
     }
+  }
+  const z0 = camZ + 2;
+  for (let d = Math.floor((camZ + FAR) / RC_DASH) * RC_DASH; d + RC_DASHL > z0; d -= RC_DASH) {
+    const za = Math.max(d, z0), zb = d + RC_DASHL;
+    const lanes = lanesAt(d);
+    const dist = rcClamp((camZ + FAR - d) / 10, 0, 1);
+    for (let k = 1; k < Math.ceil(lanes); k++) {
+      const fade = Math.min(1, (lanes - k) * 2.2) * dist;
+      if (fade <= 0.03) continue;
+      const x = k * RC_LANE;
+      const p = at(za, x - 0.08), q = at(za, x + 0.08), r = at(zb, x + 0.08), t = at(zb, x - 0.08);
+      c.globalAlpha = fade;
+      c.beginPath(); c.moveTo(p.x, p.y); c.lineTo(q.x, q.y); c.lineTo(r.x, r.y); c.lineTo(t.x, t.y);
+      c.closePath(); c.fill();
+    }
+  }
+  c.globalAlpha = 1;
+
+  /* The crash barrier, where the game has always put the wall. The posts go
+     by every 4 m, which is the thing that says 200 km/h more than anything:
+     fourteen of them a second. Every fifth carries a reflector, which is all
+     you see of them at night until the lights reach them. */
+  const railIn = p => -RC_RAIL, railOut = p => p.width + RC_RAIL;
+  const zMax = camZ + 140, lit = [];
+  c.fillStyle = P.post;
+  c.globalAlpha = steady(RC_POST);
+  for (let d = Math.floor(zMax / RC_POST) * RC_POST; d > camZ + 1.5; d -= RC_POST) {
+    const wd = rcWidth(d);
+    for (const x of [-RC_RAIL - 0.05, wd + RC_RAIL + 0.05]) {
+      const g = at(d, x);
+      if (g.y > h + 40) continue;
+      const pw = Math.max(1, 0.12 * g.s);
+      c.fillRect(g.x - pw / 2, g.y - 0.72 * g.s, pw, 0.72 * g.s);
+      if (Math.round(d / RC_POST) % 5 === 0) lit.push(g);
+    }
+  }
+  c.globalAlpha = 1;
+  // the rail itself, a pressed steel band with the shadow of its lower fold
+  let last = 0;
+  for (let n = 0; n <= RC_DRAW; n++) if (pts[n].s > 1.2) last = n;
+  for (const rx of [railIn, railOut]) {
+    strip(rx, rx, P.rail[0], 0.78, 0.52, last);
+    strip(rx, rx, P.rail[1], 0.60, 0.52, last);
+  }
+  c.fillStyle = P.refl;
+  for (const g of lit) {
+    const rs = Math.max(1, 0.09 * g.s);
+    c.fillRect(g.x - rs / 2, g.y - 0.70 * g.s, rs, rs);
   }
 }
 
@@ -7411,12 +7500,19 @@ function rcVolume(c, prof, mw, mh, len, at, paint, P, vx) {
 function rcDraw() {
   const c = rcC, w = rcW, h = rcH;
   const P = rcNight() ? RC_NIGHT : RC_DAY;
-  const FOC = w * 0.92;
+  /* The lens widens a little as the speed builds, which stretches everything
+     near the edges and makes it stream past faster, and the camera picks up
+     the road through its mount. The buzz is tied to distance travelled, not
+     to time, so it quickens with the speed the way the real thing does. */
+  const fast = rcClamp((RC.v - 15) / 60, 0, 1);
+  const FOC = w * 0.92 * (1 - 0.13 * rcSmooth(fast));
   const camH = rcCamH();
   const camZ = RC.z - RC_CAMB;
   const shake = RC.shake * (RC.state === 'crash' ? 9 : 1.6);
+  const buzz = RC.state === 'crash' ? 0 : fast * fast * 0.9 * (h / 360);
   const sx0 = shake ? (Math.random() - 0.5) * shake : 0;
-  const sy0 = shake ? (Math.random() - 0.5) * shake : 0;
+  const sy0 = (shake ? (Math.random() - 0.5) * shake : 0)
+    + buzz * (0.6 * Math.sin(RC.z * 2.3) + 0.4 * Math.sin(RC.z * 5.3 + 1));
   const horizon = Math.round(h * 0.42) + sy0;
 
   c.setTransform(rcDpr, 0, 0, rcDpr, 0, 0);
@@ -7456,7 +7552,12 @@ function rcDraw() {
     if (l.s > 2.4) near = n;                      // markings stop being visible past here
   }
 
-  rcRoad(c, pts, base, P, w, h, Math.min(near, RC_DRAW - 1));
+  const atZ = z => {
+    const k = rcClamp(z / RC_SEG - base, 0, RC_DRAW);
+    const i = Math.floor(k), f = k - i;
+    return rcLerp(offs[i], offs[i + 1], f);
+  };
+  rcRoad(c, pts, base, P, w, h, near, (z, x) => proj(x, z - camZ, atZ(z)), camZ);
   for (let n = Math.min(near + 14, RC_DRAW); n >= 0; n--) {
     if ((base + n) % 6 === 0) rcPole(c, pts[n], P, h);
   }
@@ -7465,12 +7566,6 @@ function rcDraw() {
   const haze = c.createLinearGradient(0, horizon - 5, 0, horizon + h * 0.14);
   haze.addColorStop(0, P.haze); haze.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = haze; c.fillRect(0, horizon - 5, w, h * 0.15);
-
-  const atZ = z => {
-    const k = rcClamp(z / RC_SEG - base, 0, RC_DRAW);
-    const i = Math.floor(k), f = k - i;
-    return rcLerp(offs[i], offs[i + 1], f);
-  };
 
   /* The headlights, under the traffic rather than painted over it, and as two
      soft pools rather than a beam with edges: a polygon left two hard black
@@ -7516,18 +7611,28 @@ function rcDraw() {
     P === RC_NIGHT ? rcMix(RC.car.paint, 0, 0.42) : RC.car.paint, P, vx);
   rcHero(c, RC.car, me.x, me.y, me.s, P, !!RC.keys.down, RC.flame);
 
-  // how fast it feels: streaks down the edges, which only arrive at speed
-  if (RC.v > 52) {
-    const k = Math.min(1, (RC.v - 52) / 40);
-    c.strokeStyle = 'rgba(255,255,255,' + (0.05 * k).toFixed(3) + ')';
-    c.lineWidth = 1.5;
-    for (let i = 0; i < 7; i++) {
-      // clear of the instruments in the bottom corners
-      const y = horizon + h * (0.10 + rcHash(i * 3 + ((RC.z * 0.3) | 0)) * 0.55);
-      const len = 30 + rcHash(i * 5) * 90;
-      c.beginPath(); c.moveTo(0, y); c.lineTo(len * k, y - 4); c.stroke();
-      c.beginPath(); c.moveTo(w, y + 12); c.lineTo(w - len * k, y + 8); c.stroke();
+  /* Wind streaks, flying outwards from where the road meets the sky, from
+     about 110 km/h. They were seven faint dashes pinned to the edges that only
+     appeared near 190, and nobody saw them. Each one rides its own lane of the
+     view and is placed by distance travelled, so they run faster as you do. */
+  if (RC.v > 30 && RC.state !== 'crash') {
+    const k = rcClamp((RC.v - 30) / 45, 0, 1);
+    const cx = vx, cy = horizon, R = Math.hypot(w, h) * 0.62;
+    c.strokeStyle = P === RC_NIGHT ? 'rgb(210,220,235)' : 'rgb(255,255,255)';
+    c.lineCap = 'round';
+    for (let i = 0; i < 16; i++) {
+      const left = i % 2 === 0;
+      const ang = left ? Math.PI - 0.05 + rcHash(i * 7 + 2) * 0.8 : 0.05 - rcHash(i * 7 + 2) * 0.8;
+      const u = (RC.z * 0.011 * (0.8 + rcHash(i * 3 + 1) * 0.5) + rcHash(i * 11)) % 1;
+      const r0 = R * (0.18 + u * u * 0.9), len = R * (0.04 + u * 0.16) * k;
+      const x0 = cx + Math.cos(ang) * r0, y0 = cy - Math.sin(ang) * r0 * 0.7;
+      if (y0 > h * 0.80 || y0 < horizon - h * 0.04) continue;   // off the instruments, out of the sky
+      c.globalAlpha = k * 0.22 * Math.sin(u * Math.PI);
+      c.lineWidth = 1 + u * 1.5;
+      c.beginPath(); c.moveTo(x0, y0);
+      c.lineTo(x0 + Math.cos(ang) * len, y0 - Math.sin(ang) * len * 0.7); c.stroke();
     }
+    c.globalAlpha = 1; c.lineCap = 'butt';
   }
 
   if (RC.flash > 0) {
@@ -8625,7 +8730,7 @@ let rcLast = null;
 function rcFrame(t) {
   RC.raf = requestAnimationFrame(rcFrame);
   const dt = Math.min(1 / 30, rcLast === null ? 1 / 60 : (t - rcLast) / 1000);
-  rcLast = t;
+  rcLast = t; RC.dt = dt;
   if (RC.state !== 'pause') rcStep(dt);
   rcDraw();
 }
