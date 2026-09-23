@@ -6216,13 +6216,16 @@ const rcMsgEl = document.getElementById('rcMsg');
 const rcModeBtn = document.getElementById('rcMode');
 const rcCarsEl = document.getElementById('rcCars');
 
-let rcBest = 0;
+let rcBest = 0, rcBestScore = 0;
 const rcBestKey = () => 'raceBest_' + RC.level;
+const rcScoreKey = () => 'raceScore_' + RC.level;
 function rcLoadBest() {
-  rcBest = 0;
+  rcBest = 0; rcBestScore = 0;
   // the old single figure, from before there were difficulties, counts as busy
   try { rcBest = +(localStorage.getItem(rcBestKey()) || (RC.level === 'busy' ? localStorage.getItem('raceBest') : 0) || 0) || 0; } catch {}
+  try { rcBestScore = +(localStorage.getItem(rcScoreKey()) || 0) || 0; } catch {}
 }
+const rcNum = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 
 /* Difficulty, as the two things that actually make a motorway hard: how much
    of it is occupied, and how well the people on it are driving. Quiet is an
@@ -6242,6 +6245,7 @@ const RC = {
   z: 0, x: 0, v: 0, yaw: 0, gear: 0, shiftFor: 0, steer: 0, camX: 0, spin: 0, boost: 0, blip: 0,
   cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
   keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
+  score: 0, mult: 1, multAt: -9, slowFor: 0, draft: 0, pops: [],
   lamp: 0, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
   flame: 0, lastThrottle: 0
 };
@@ -6262,6 +6266,7 @@ function rcReset(keepCar) {
   RC.state = 'ready';
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
   RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
+  RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
@@ -6473,7 +6478,21 @@ function rcDrive(dt) {
   const cutting = RC.shiftFor > 0;
   let F = cutting ? 0 : rcWheelForce(car, RC.gear, RC.v, throttle);
   F = Math.min(F, car.mu * car.drive * load);
-  const drag = RC_AIR * car.cda * RC.v * RC.v;
+  /* Slipstream. Anything ahead of you in the same line is dragging a hole in
+     the air behind it, and a lorry is dragging a very big one: tuck in and the
+     car runs faster than it has any right to, which is why everyone on a
+     traffic server does it. It builds as you close up and is gone by about
+     sixty metres back. */
+  RC.draft = 0;
+  for (const c of RC.cars) {
+    const dz = c.z - RC.z;
+    if (dz < 3 || dz > 62) continue;
+    const sh = RC_SHAPES[c.shape];
+    if (Math.abs(rcLaneX(c.lane) - RC.x) > (sh.w + RC_HERO[car.id].w) / 2 * 0.95) continue;
+    const size = rcClamp(sh.w * sh.h / (1.80 * 1.46), 0.7, 2.4);
+    RC.draft = Math.max(RC.draft, rcClamp(1 - (dz - 3) / 56, 0, 1) * 0.26 * size);
+  }
+  const drag = RC_AIR * car.cda * (1 - RC.draft) * RC.v * RC.v;
   const width = rcWidth(RC.z);
   const off = RC.x < 0.25 || RC.x > width - 0.25;      // a wheel on the shoulder
   const roll = car.roll * (off ? 7 : 1);
@@ -6511,12 +6530,17 @@ function rcDrive(dt) {
       return rcCrash(c.shape === 'truck' || c.shape === 'bus'
         ? 'into the back of a lorry' : 'into traffic');
   }
+  rcScore(dt);
+
   // cones scatter, they do not end a run
   for (const k of RC.cones) {
     if (k.hit || Math.abs(k.z - RC.z) > 3) continue;
     if (Math.abs(k.x - RC.x) < mine.w / 2 + 0.3) {
       k.hit = true; RC.hits++; RC.v *= 0.86; RC.flash = 0.5;
-      rcSay('cone');
+      // anything that counts as damage costs you the run, as on the servers
+      if (RC.score > 0) rcSay('a cone, and the ' + rcNum(RC.score) + ' you had');
+      else rcSay('cone');
+      RC.score = 0; RC.mult = 1;
     }
   }
 }
@@ -6527,6 +6551,50 @@ function rcDrive(dt) {
    answers the same way twice and leaning on the button does not reroll the
    dice. What repeated flashing does do is talk some of the deaf ones into
    being stroppy, which is also what happens on a real motorway. */
+/* The game the traffic servers actually play. You are not racing anyone: you
+   are scored on how you get through the traffic, and the multiplier is what
+   turns a tally into a run. A car you were behind ending up behind you is a
+   pass; going by inside the width of a lane is a close one, and worth three
+   times as much towards the multiplier. The multiplier bleeds away the moment
+   you stop passing things, dropping under 80 for three seconds ends the run,
+   and touching anything wipes what you had going.
+
+   The distances are the ones the real plugin uses: seven metres for a pass and
+   four for a close one, measured between the cars rather than their centres. */
+function rcScore(dt) {
+  const mine = RC_HERO[RC.car.id];
+  for (const c of RC.cars) {
+    if (c.z > RC.z) { c.behind = false; continue; }
+    if (c.behind) continue;
+    c.behind = true;
+    if (RC.v <= c.v) continue;                   // they dropped back, you did not go past
+    const clear = Math.abs(rcLaneX(c.lane) - RC.x) - (RC_SHAPES[c.shape].w + mine.w) / 2;
+    if (clear > 6) continue;                     // two lanes away is a coincidence, not a pass
+    const close = clear < 2.2;
+    RC.mult = Math.min(50, RC.mult + (close ? 3 : 1));
+    RC.multAt = RC.t;
+    const pts = Math.round(RC.v * 3.6 * (close ? 0.10 : 0.04) * RC.mult);
+    RC.score += pts;
+    RC.pops.push({ at: RC.t, z: c.z, lane: c.lane, pts, close });
+    if (close) rcWhoosh(rcClamp(RC.v / 70, 0.3, 1.4));
+  }
+  if (RC.pops.length > 8) RC.pops.splice(0, RC.pops.length - 8);
+
+  // the multiplier goes off the boil as soon as you stop working for it
+  if (RC.t - RC.multAt > 0.8) RC.mult = Math.max(1, RC.mult - dt * 0.9);
+  if (RC.score > rcBestScore) {
+    rcBestScore = RC.score;
+    try { localStorage.setItem(rcScoreKey(), String(Math.round(rcBestScore))); } catch {}
+  }
+
+  // under the minimum speed for three seconds and the run is over
+  RC.slowFor = RC.v * 3.6 < 80 ? RC.slowFor + dt : 0;
+  if (RC.slowFor > 3 && RC.score > 0) {
+    rcSay('run over at ' + rcNum(RC.score) + ', under 80 for too long');
+    RC.score = 0; RC.mult = 1; RC.slowFor = 0;
+  }
+}
+
 function rcSay(msg) { RC.msg = msg; RC.msgUntil = RC.t + 2.6; rcHudText(); }
 
 function rcFlash() {
@@ -6990,6 +7058,25 @@ function rcBlowOff(car, boost, size) {
     g.gain.setTargetAtTime(0.0001, at + 0.05, len / 3.2);
     src.start(at); src.stop(at + len + 0.3);
   }
+}
+
+/* A car going by within a lane's width, heard from inside: a band of noise
+   that sweeps down as it passes and is gone in a quarter of a second. */
+function rcWhoosh(level) {
+  if (!rcSnd || !rcSoundOn) return;
+  const s = rcSnd, ac = s.ac, at = ac.currentTime;
+  const src = ac.createBufferSource(); src.buffer = s.buf; src.loop = true;
+  src.playbackRate.value = 0.7 + Math.random() * 0.3;
+  const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.8;
+  const g = ac.createGain();
+  src.connect(f); f.connect(g); g.connect(s.master);
+  const len = 0.26;
+  f.frequency.setValueAtTime(900, at);
+  f.frequency.exponentialRampToValueAtTime(260, at + len);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(0.09 * level, at + 0.06);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + len);
+  src.start(at); src.stop(at + len + 0.05);
 }
 
 // a burst of unburnt fuel going off in the exhaust
@@ -7664,6 +7751,26 @@ function rcDraw() {
   rcVolume(c, f.prof, f.w, f.h, f.len, d => proj(RC.x, RC_CAMB + d, atZ(RC.z + d)),
     P === RC_NIGHT ? rcMix(RC.car.paint, 0, 0.42) : RC.car.paint, P, vx);
   rcHero(c, RC.car, me.x, me.y, me.s, P, !!RC.keys.down, RC.flame);
+
+  /* What each pass was worth, left where the car you passed was, rising and
+     fading. It is the only readout that tells you a close one is worth having
+     while you are busy looking at the road. */
+  if (RC.pops.length) {
+    c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+    for (const q of RC.pops) {
+      const age = (RC.t - q.at) / 1.1;
+      if (age < 0 || age > 1) continue;
+      /* Beside you rather than at the spot it happened: at 55 m/s that spot
+         is behind the camera before the number has finished fading. */
+      const p = proj(rcLaneX(q.lane), RC_CAMB + 3, atZ(RC.z + 3));
+      if (p.y > h + 40) continue;
+      c.globalAlpha = 1 - age * age;
+      c.font = '600 ' + Math.max(10, (q.close ? 15 : 12) * rcClamp(p.s / 20, 0.5, 1.6)).toFixed(1) + 'px ' + DISPLAY;
+      c.fillStyle = q.close ? '#ffd27a' : '#dfe4ea';
+      c.fillText('+' + rcNum(q.pts), p.x, p.y - 1.7 * p.s - age * h * 0.10);
+      c.globalAlpha = 1;
+    }
+  }
 
   /* Wind streaks, flying outwards from where the road meets the sky, from
      about 110 km/h. They were seven faint dashes pinned to the edges that only
@@ -8675,10 +8782,17 @@ function rcHud(c, w, h, P) {
     c.textAlign = 'left'; c.fillText('BOOST', rx + rw + 6 * k, yb + hb);
   }
 
-  /* Distance, top right, on its own panel for the same reason as the speed:
-     it sits over the sky, which is nearly white in the daytime. */
+  // tucked in behind something, where the air is doing some of the work
+  if (RC.draft > 0.04) {
+    c.font = (9 * k).toFixed(1) + 'px ' + MONO;
+    c.textAlign = 'left'; c.fillStyle = 'rgba(122,212,143,' + Math.min(1, RC.draft * 4).toFixed(2) + ')';
+    c.fillText('DRAFT', bx + 9 * k, by - 5 * k);
+  }
+
+  /* Distance and score, top right, on their own panel for the same reason as
+     the speed: it sits over the sky, which is nearly white in the daytime. */
   c.textAlign = 'right';
-  const sub = ['best ' + rcKm(rcBest)];
+  const sub = ['best ' + rcKm(rcBest), rcNum(RC.score) + ' pts', 'best ' + rcNum(rcBestScore)];
   if (RC.hits) sub.push(RC.hits + ' cone' + (RC.hits > 1 ? 's' : ''));
   c.font = '600 ' + (15 * k).toFixed(1) + 'px ' + DISPLAY;
   let dw = c.measureText(rcKm(RC.z)).width;
@@ -8689,7 +8803,26 @@ function rcHud(c, w, h, P) {
   c.font = '600 ' + (15 * k).toFixed(1) + 'px ' + DISPLAY; c.fillStyle = fg;
   c.fillText(rcKm(RC.z), w - pad - 3 * k, pad + 12 * k);
   c.font = (9.5 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
-  sub.forEach((l, i) => c.fillText(l, w - pad - 3 * k, pad + 25 * k + i * 12 * k));
+  sub.forEach((l, i) => {
+    c.fillStyle = i === 1 && RC.score > 0 ? '#ffd27a' : muted;
+    c.fillText(l, w - pad - 3 * k, pad + 25 * k + i * 12 * k);
+  });
+
+  /* The multiplier, which is the thing you are actually playing for: it sits
+     under the score, big, and it is visibly draining whenever you are not
+     passing anything. */
+  if (RC.mult > 1.05 && RC.state === 'run') {
+    const my = pad + 30 * k + sub.length * 12 * k;
+    const hot = Math.min(1, (RC.mult - 1) / 24);
+    c.textAlign = 'right';
+    c.font = '600 ' + ((17 + hot * 9) * k).toFixed(1) + 'px ' + DISPLAY;
+    c.fillStyle = 'rgb(255,' + Math.round(210 - hot * 90) + ',' + Math.round(120 - hot * 90) + ')';
+    c.fillText('x' + RC.mult.toFixed(1), w - pad - 3 * k, my + 14 * k);
+    const bwid = 46 * k, bxx = w - pad - 3 * k - bwid;
+    c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(bxx, my + 19 * k, bwid, Math.max(2, 3 * k));
+    c.fillStyle = 'rgba(255,190,90,.85)';
+    c.fillRect(bxx, my + 19 * k, bwid * rcClamp((RC.mult - 1) / 24, 0, 1), Math.max(2, 3 * k));
+  }
 
   if (RC.state === 'ready') rcCard(c, w, h, [
     car.name, car.tag,
@@ -8701,6 +8834,7 @@ function rcHud(c, w, h, P) {
   if (RC.state === 'crash') rcCard(c, w, h, [
     rcKm(RC.z), RC.msg,
     'top speed ' + Math.round(RC.top * 3.6) + ' km/h, ' + RC.hits + ' cones',
+    'best score ' + rcNum(rcBestScore),
     rcTouchUI ? 'tap drive to go again' : 'R to go again, C for another car'
   ], k);
 }
