@@ -6137,15 +6137,22 @@ const RC_SHAPES = {
   bus:     { w: 2.55, h: 3.20, len: 12.0, roofW: .96, roofH: .82, glass: .46, light: 'low' }
 };
 
-// the everyday traffic, and how fast each kind is willing to go
+/* The everyday traffic. Nobody on this road picks a speed out of the air:
+   there is a limit, and each driver sits at some fraction of it, from the one
+   who will not pass it to the one who is doing twenty over. Lorries and buses
+   are held to their own limiter whatever the signs say, which is why they are
+   the slow lane. The band this puts everyone in is roughly 80 to 140, so a
+   car doing 200 goes past them at a proper closing speed rather than reeling
+   them in over half a kilometre. */
+const RC_LIMIT = 115;          // posted, km/h
 const RC_TRAFFIC = [
-  { shape: 'sedan', w: 34, vmin: 88, vmax: 128 },
-  { shape: 'hatch', w: 24, vmin: 84, vmax: 120 },
-  { shape: 'suv', w: 18, vmin: 90, vmax: 130 },
-  { shape: 'van', w: 10, vmin: 80, vmax: 104 },
-  { shape: 'pickup', w: 8, vmin: 82, vmax: 110 },
-  { shape: 'truck', w: 4, vmin: 68, vmax: 88 },
-  { shape: 'bus', w: 2, vmin: 72, vmax: 92 }
+  { shape: 'sedan', w: 34, cap: 150 },
+  { shape: 'hatch', w: 24, cap: 132 },
+  { shape: 'suv', w: 18, cap: 140 },
+  { shape: 'van', w: 10, cap: 112 },
+  { shape: 'pickup', w: 8, cap: 122 },
+  { shape: 'truck', w: 4, cap: 90 },
+  { shape: 'bus', w: 2, cap: 100 }
 ];
 const RC_PAINT = ['#b9bec6', '#8f959e', '#6f757e', '#e7e9ec', '#4e5560',
                   '#7c8ba0', '#9aa39b', '#c2b8a8', '#5f6b78'];
@@ -6232,7 +6239,7 @@ const RC_LEVELS = {
 
 const RC = {
   on: false, state: 'ready', car: RC_CARS[0], mode: 'auto',
-  z: 0, x: 0, v: 0, yaw: 0, gear: 0, shiftFor: 0, steer: 0, camX: 0,
+  z: 0, x: 0, v: 0, yaw: 0, gear: 0, shiftFor: 0, steer: 0, camX: 0, spin: 0, boost: 0, blip: 0,
   cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
   keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
   lamp: 0, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
@@ -6254,6 +6261,7 @@ function rcReset(keepCar) {
   const lanes = rcLanes(0);
   RC.state = 'ready';
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
+  RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
@@ -6297,7 +6305,9 @@ function rcSpawn(z) {
     : Math.floor(Math.random() * lanes);
   lane = rcClamp(lane, 0, lanes - 1);
   const fast = 1 - lane / Math.max(1, lanes - 1);       // 1 in the left lane
-  const v0 = (rcLerp(m.vmin, m.vmax, fast * 0.85 + Math.random() * 0.15)) / 3.6;
+  // what this driver reckons the limit is worth, and what the vehicle allows
+  const pace = rcLerp(0.72, 1.21, rcClamp(fast * 0.78 + Math.random() * 0.34 - 0.06, 0, 1));
+  const v0 = Math.min(RC_LIMIT * pace, m.cap) / 3.6;
   RC.cars.push({
     z, lane, target: lane, v: v0 * (0.92 + Math.random() * 0.08), v0,
     shape: m.shape, paint: RC_PAINT[Math.floor(Math.random() * RC_PAINT.length)],
@@ -6438,6 +6448,7 @@ function rcDrive(dt) {
       // an upshift under power is what lights the exhaust; rolling down
       // through the box on the overrun does not
       if (g > RC.gear && throttle) rcShiftPop(car);
+      if (g < RC.gear) RC.blip = 0.20;      // the revs matched on the way down
       RC.gear = g; RC.shiftFor = car.shift;
     }
   }
@@ -6451,6 +6462,8 @@ function rcDrive(dt) {
     RC.onFor = 0;
   }
   RC.lastThrottle = throttle;
+  RC.blip = Math.max(0, RC.blip - dt);
+  rcTurbo(car, dt, throttle, rcRpmOf(RC.v, rcRatio(car, RC.gear)));
 
   /* Downforce, and everything that leans on it. One number, used three times:
      what the tyres can put down, what they can stop with, and how hard the car
@@ -6811,7 +6824,7 @@ function rcAudioInit() {
   hiss.connect(hf); hf.connect(hg); hg.connect(master); hiss.start();
 
   rcSnd = { ac, master, tone, lp, o1, o2, o3, ng, nf, tg, turbo, hf, hg, buf: noise.buffer, lastPop: 0,
-    eng: null, engId: null, boost: 0, at: ac.currentTime, lastOn: 0, lastBov: 0 };
+    eng: null, engId: null, spin: 0, at: ac.currentTime };
 
   /* The real engine loads a moment later, from a module made out of the
      string above. Until it arrives, and on any browser without worklets, the
@@ -6861,13 +6874,13 @@ function rcAudioUpdate() {
     }
     const EP = s.eng.parameters;
     EP.get('rpm').setTargetAtTime(rcClamp(rpmRaw, 850, car.redline * 1.02), t, 0.03);
-    EP.get('throttle').setTargetAtTime(RC.shiftFor > 0 ? 0 : throttle, t, 0.02);
+    EP.get('throttle').setTargetAtTime(RC.shiftFor > 0 ? (RC.blip > 0 ? 1 : 0) : throttle, t, 0.02);
     EP.get('cut').setValueAtTime(onLimiter ? 1 : 0, t);
   } else {
     // the stand in: the note, and the limiter stuttering on top of it
     const chop = onLimiter ? (Math.sin(t * 150) > 0 ? 0.25 : 1) : 1;
     for (const o of [s.o1, s.o2, s.o3]) o.frequency.setTargetAtTime(f * (o === s.o3 ? 0.5 : 1), t, 0.02);
-    s.tone.gain.setTargetAtTime((RC.shiftFor > 0 ? 0.12 : 0.34) * load * chop, t, 0.03);
+    s.tone.gain.setTargetAtTime((RC.shiftFor > 0 ? (RC.blip > 0 ? 0.34 : 0.12) : 0.34) * load * chop, t, 0.03);
     s.lp.frequency.setTargetAtTime(500 + f * (throttle ? 7 : 3.2), t, 0.05);
   }
 
@@ -6883,38 +6896,79 @@ function rcAudioUpdate() {
   const dt = Math.min(0.1, Math.max(0, t - s.at)); s.at = t;
   const on = throttle && RC.shiftFor <= 0 ? 1 : 0;
   if (car.turbo) {
-    const want = on ? rcClamp((rpm / car.redline - 0.28) / 0.45, 0, 1) : 0;
-    const was = s.boost;
-    s.boost = want > was ? was + (want - was) * Math.min(1, dt * (car.spool || 1.5))
-                         : Math.max(want, was - dt * 6);
-    if (s.lastOn && !on && was > 0.3 && t - s.lastBov > 0.25) { rcBlowOff(car, was); s.lastBov = t; }
-    const spooling = Math.max(0, s.boost - was) / Math.max(dt, 1e-3);   // rising fast is loudest
-    s.turbo.frequency.setTargetAtTime(1800 + s.boost * 7200, t, 0.06);
-    s.tg.gain.setTargetAtTime(s.boost * s.boost * 0.018 + Math.min(0.012, spooling * 0.01), t, 0.05);
-    s.hf.frequency.setTargetAtTime(2500 + s.boost * 3500, t, 0.08);
-    s.hg.gain.setTargetAtTime(s.boost * on * 0.05, t, 0.06);
+    /* The whistle is the shaft, not the pressure, so it is still there for a
+       moment after a lift, falling away as the turbo winds down. The rush of
+       air behind it only happens while the throttle is open. */
+    const spooling = Math.max(0, RC.spin - (s.spin || 0)) / Math.max(dt, 1e-3);
+    s.spin = RC.spin;
+    s.turbo.frequency.setTargetAtTime(1800 + RC.spin * 7200, t, 0.06);
+    s.tg.gain.setTargetAtTime(RC.spin * RC.spin * 0.017 + Math.min(0.012, spooling * 0.01), t, 0.05);
+    s.hf.frequency.setTargetAtTime(2500 + RC.boost * 3500, t, 0.08);
+    s.hg.gain.setTargetAtTime(RC.boost * on * 0.05, t, 0.06);
   } else {
-    s.boost = 0;
+    s.spin = 0;
     s.tg.gain.setTargetAtTime(0, t, 0.05);
     s.hg.gain.setTargetAtTime(0, t, 0.05);
   }
-  s.lastOn = on;
+}
+
+/* The turbo, as the two things it really is. The shaft is spinning at eighty
+   thousand rpm with the whole exhaust still going through it: shutting the
+   throttle does not stop it, it just stops feeding it, so it winds down over
+   about a second. Manifold pressure is the other thing, and that does go at
+   once, out through the valve.
+
+   Which is why a lift and a gear change are not the same event. Lift off and
+   the pressure is gone and the shaft is winding down, so coming back on from
+   low revs there is nothing there and it has to spool again. Change gear and
+   the throttle is shut for a quarter of a second: a short chuff out of the
+   valve, the shaft barely slows, and it is still half up when the clutch comes
+   back, which is why the next gear pulls straight away. */
+function rcTurbo(car, dt, throttle, rpmRaw) {
+  if (!car.turbo) { RC.spin = 0; RC.boost = 0; RC.onBoost = 0; return; }
+  const shifting = RC.shiftFor > 0;
+  const on = throttle && !shifting ? 1 : 0;
+  // between gears with your foot still in it is not the same as lifting off
+  const between = shifting && throttle;
+  const want = rcClamp((rcClamp(rpmRaw / car.redline, 0, 1) - 0.28) / 0.45, 0, 1);
+  const was = RC.boost;
+
+  // the shaft: fed by the throttle, coasting on its own inertia when it is not
+  if (on) RC.spin += (want - RC.spin) * Math.min(1, dt * (car.spool || 1.5));
+  else RC.spin = Math.max(want * (between ? 0.55 : 0.22), RC.spin - dt * (between ? 0.35 : 1.2));
+
+  // the pressure: what the shaft is making, half of it while the throttle is
+  // shut for a gear, none of it once you are properly off it
+  const target = on ? RC.spin : between ? RC.spin * 0.5 : 0;
+  RC.boost = target > RC.boost ? RC.boost + (target - RC.boost) * Math.min(1, dt * 10)
+                               : Math.max(target, RC.boost - dt * (between ? 4 : 9));
+
+  /* And what comes out of the valve: a chuff between gears, the full hiss on
+     a lift. Lifting halfway through a gear change counts as the lift, once the
+     clutch is back and the throttle is still shut: the pressure that was being
+     held for the next gear has nowhere to go either. */
+  const shut = RC.onBoost && !on, out = RC.wasShift && !between && !throttle;
+  if ((shut || out) && RC.t - RC.bovAt > 0.2) {
+    if (shut && between && was > 0.25) { rcBlowOff(car, was * 0.7, 0.5); RC.bovAt = RC.t; }
+    else if (was > 0.3) { rcBlowOff(car, was, 1); RC.bovAt = RC.t; }
+  }
+  RC.onBoost = on; RC.wasShift = between;
 }
 
 /* Where the boost goes when the throttle shuts. A valve lets it out to the
    air in one long hiss that falls away; a car without one pushes it back
    through the compressor, which stalls and stutters: the flutter. */
-function rcBlowOff(car, boost) {
+function rcBlowOff(car, boost, size) {
   if (!rcSnd || !rcSoundOn) return;
   const s = rcSnd, ac = s.ac, at = ac.currentTime;
-  const lvl = boost * (car.bovLevel || 1);
+  const lvl = boost * (car.bovLevel || 1) * (size === undefined ? 1 : size);
   const src = ac.createBufferSource(); src.buffer = s.buf; src.loop = true;
   src.playbackRate.value = 0.8 + Math.random() * 0.4;
   const f = ac.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.1;
   const g = ac.createGain();
   src.connect(f); f.connect(g); g.connect(s.master);
   if (car.bov === 'flutter') {
-    const len = 0.30 + boost * 0.25;
+    const len = (0.30 + boost * 0.25) * (size === undefined ? 1 : 0.4 + size * 0.6);
     f.frequency.setValueAtTime(1900, at);
     f.frequency.exponentialRampToValueAtTime(700, at + len);
     g.gain.setValueAtTime(0.0001, at);
@@ -6928,7 +6982,7 @@ function rcBlowOff(car, boost) {
     }
     src.start(at); src.stop(at + len + 0.1);
   } else {
-    const len = 0.28 + boost * 0.35;
+    const len = (0.28 + boost * 0.35) * (size === undefined ? 1 : 0.4 + size * 0.6);
     f.frequency.setValueAtTime(5200, at);
     f.frequency.exponentialRampToValueAtTime(1300, at + len);
     g.gain.setValueAtTime(0.0001, at);
@@ -8575,7 +8629,8 @@ function rcHud(c, w, h, P) {
   const k = rcClamp(w / 640, 0.58, 1.12);
   const car = RC.car;
   const rpm = rcClamp(rcRpmOf(RC.v, rcRatio(car, RC.gear)), 900, car.redline);
-  const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round(54 * k);
+  const turbo = !!car.turbo;
+  const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round((turbo ? 66 : 54) * k);
   const bx = pad, by = h - pad - bh;
 
   c.fillStyle = 'rgba(0,0,0,.45)';
@@ -8597,13 +8652,28 @@ function rcHud(c, w, h, P) {
   c.fillText(RC.mode === 'auto' ? 'AUTO' : 'MANUAL', bx + bw - 9 * k, by + 38 * k);
 
   // the rev counter, with the last tenth in red
-  const rx = bx + 9 * k, ry = by + bh - 13 * k, rw = bw - 58 * k, rh = Math.max(3, 5 * k);
+  const rx = bx + 9 * k, ry = by + bh - (turbo ? 25 : 13) * k, rw = bw - 58 * k, rh = Math.max(3, 5 * k);
   c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(rx, ry, rw, rh);
   const frac = (rpm - 900) / (car.redline - 900);
   c.fillStyle = frac > 0.88 ? bad : num;
   c.fillRect(rx, ry, rw * rcClamp(frac, 0, 1), rh);
   c.fillStyle = 'rgba(255,255,255,.35)';
   c.fillRect(rx + rw * 0.88, ry - 1, 1, rh + 2);
+
+  /* Boost, under the revs, on the cars that have a turbo. Two readings in one
+     bar: the pressure in the manifold, which is what you are driving on, and
+     behind it the speed the turbo is still doing, which is what says whether
+     the next squeeze of the throttle answers at once or has to wait. */
+  if (turbo) {
+    const yb = ry + rh + 5 * k, hb = Math.max(3, 4 * k);
+    c.fillStyle = 'rgba(255,255,255,.14)'; c.fillRect(rx, yb, rw, hb);
+    c.fillStyle = 'rgba(255,190,90,.35)';
+    c.fillRect(rx, yb, rw * rcClamp(RC.spin, 0, 1), hb);
+    c.fillStyle = '#ffb03a';
+    c.fillRect(rx, yb, rw * rcClamp(RC.boost, 0, 1), hb);
+    c.font = (8 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
+    c.textAlign = 'left'; c.fillText('BOOST', rx + rw + 6 * k, yb + hb);
+  }
 
   /* Distance, top right, on its own panel for the same reason as the speed:
      it sits over the sky, which is nearly white in the daytime. */
@@ -8693,6 +8763,7 @@ function rcShift(dir) {
   const g = rcClamp(RC.gear + dir, 0, RC.car.gears.length - 1);
   if (g === RC.gear) return;
   if (dir > 0 && RC.keys.up) rcShiftPop(RC.car);
+  if (dir < 0) RC.blip = 0.20;
   RC.gear = g; RC.shiftFor = RC.car.shift;
 }
 
