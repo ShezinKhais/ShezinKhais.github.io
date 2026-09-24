@@ -6131,6 +6131,7 @@ const RC_SHAPES = {
   porsche: { w: 1.85, h: 1.30, len: 4.5, roofW: .58, roofH: .40, glass: .30, light: 'bar' },
   suv:     { w: 1.98, h: 1.95, len: 5.0, roofW: .80, roofH: .52, glass: .34, light: 'tall' },
   sedan:   { w: 1.80, h: 1.47, len: 4.6, roofW: .66, roofH: .44, glass: .32, light: 'strip' },
+  police:  { w: 1.82, h: 1.52, len: 4.8, roofW: .66, roofH: .44, glass: .32, light: 'strip' },
   van:     { w: 1.95, h: 2.10, len: 5.3, roofW: .86, roofH: .60, glass: .30, light: 'tall' },
   pickup:  { w: 1.95, h: 1.88, len: 5.6, roofW: .74, roofH: .48, glass: .30, light: 'tall' },
   truck:   { w: 2.50, h: 3.60, len: 14.0, roofW: .94, roofH: .74, glass: .18, light: 'low' },
@@ -6162,8 +6163,11 @@ const RC_B = 2.2;            // comfortable braking
 const RC_S0 = 6;             // standstill gap, metres
 const RC_T = 1.3;            // headway, seconds
 
-function rcIdm(v, v0, gap, dv) {
-  const s = RC_S0 + Math.max(0, v * RC_T + v * dv / (2 * Math.sqrt(RC_A * RC_B)));
+// `tight` is for a patrol car sitting on somebody: the same model, with the
+// gap it insists on cut to what a driver doing that would accept
+function rcIdm(v, v0, gap, dv, tight) {
+  const k = tight || 1;
+  const s = RC_S0 * k + Math.max(0, v * RC_T * k + v * dv / (2 * Math.sqrt(RC_A * RC_B)));
   const free = 1 - Math.pow(v / v0, 4);
   return RC_A * (free - (gap > 0 ? (s / gap) * (s / gap) : 9));
 }
@@ -6246,6 +6250,7 @@ const RC = {
   cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
   keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
   score: 0, mult: 1, multAt: -9, slowFor: 0, draft: 0, pops: [],
+  heat: 0, cop: null, chaseFor: 0, awayFor: 0, nearFor: 0,
   lamp: 0, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
   flame: 0, lastThrottle: 0
 };
@@ -6267,6 +6272,7 @@ function rcReset(keepCar) {
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
   RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
+  RC.heat = 0; RC.cop = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
@@ -6342,12 +6348,16 @@ function rcTrafficStep(dt) {
     const lanes = rcLanes(c.z);
     const [lead] = rcNeighbours(all, c.z, c.lane, c);
     const gap = lead ? lead.z - c.z - RC_SHAPES[c.shape].len : 1e4;
-    let a = rcIdm(c.v, c.v0, gap, lead ? c.v - lead.v : 0);
+    let a = rcIdm(c.v, c.v0, gap, lead ? c.v - lead.v : 0, c.cop && lead && lead.player ? 0.18 : 1);
 
     // lane changes: only while settled in a lane, and never into a gap that
     // would make the car behind brake hard
     c.wait -= dt;
-    if (Math.abs(c.lane - c.target) < 0.02 && c.wait <= 0) {
+    if (c.cop) {
+      // they go where you are, and they take the lane as soon as they are settled
+      if (Math.abs(c.lane - c.target) < 0.04)
+        c.target = rcClamp(Math.round(RC.x / RC_LANE - 0.5), 0, Math.round(lanes - 1));
+    } else if (Math.abs(c.lane - c.target) < 0.02 && c.wait <= 0) {
       c.lane = c.target;
       const edge = lanes - 1;
       const shut = rcWorksAt(c.z + 60);
@@ -6384,14 +6394,14 @@ function rcTrafficStep(dt) {
       }
     }
     if (c.lane !== c.target) {
-      const step = 1.1 * dt;                        // about a second a lane
+      const step = (c.cop ? 1.9 : 1.1) * dt;        // about a second a lane
       c.lane += rcClamp(c.target - c.lane, -step, step);
     }
 
     /* Phantom braking, and the reply to a flash: both are a car deciding to
        slow down hard for reasons of its own, and both are what makes the
        traffic behind concertina. */
-    if (c.check <= 0 && Math.random() < dt * D.spook) c.check = 0.4 + Math.random() * 0.4;
+    if (!c.cop && c.check <= 0 && Math.random() < dt * D.spook) c.check = 0.4 + Math.random() * 0.4;
     if (c.check > 0) { c.check -= dt; a = -5.5; }
     a = rcClamp(a, -6, RC_A);
     c.brake = a < -0.6 || c.check > 0 ? 1 : Math.max(0, c.brake - dt * 3);
@@ -6399,7 +6409,9 @@ function rcTrafficStep(dt) {
     c.z += c.v * dt;
   }
 
-  RC.cars = RC.cars.filter(c => c.z > behind && c.z < ahead + 260);
+  RC.cars = RC.cars.filter(c => c.cop
+    ? (c.z > RC.z - 900 && c.z < RC.z + 900)      // far enough out to count as lost
+    : (c.z > behind && c.z < ahead + 260));
 
   // keep the road populated, and busier the further you get
   const want = D.cars + Math.min(D.cars, RC.z / 2600);
@@ -6527,10 +6539,11 @@ function rcDrive(dt) {
     const s = RC_SHAPES[c.shape];
     if (Math.abs(c.z - RC.z) > (s.len + mine.len) / 2) continue;
     if (Math.abs(rcLaneX(c.lane) - RC.x) < (s.w + mine.w) / 2 * 0.88)
-      return rcCrash(c.shape === 'truck' || c.shape === 'bus'
-        ? 'into the back of a lorry' : 'into traffic');
+      return rcCrash(c.cop ? 'into the back of a patrol car'
+        : c.shape === 'truck' || c.shape === 'bus' ? 'into the back of a lorry' : 'into traffic');
   }
   rcScore(dt);
+  rcCopStep(dt);
 
   // cones scatter, they do not end a run
   for (const k of RC.cones) {
@@ -6551,6 +6564,80 @@ function rcDrive(dt) {
    answers the same way twice and leaning on the button does not reroll the
    dice. What repeated flashing does do is talk some of the deaf ones into
    being stroppy, which is also what happens on a real motorway. */
+/* ---- the police ----
+   Drive at a hundred and fifty for long enough and somebody notices. Heat is
+   how much attention you are drawing: it climbs with the speed over that and
+   falls off when you are behaving. Past a point a car joins, either out of the
+   traffic behind you or off the hard shoulder in front, and then it is a
+   question of whether you can get far enough ahead for long enough.
+
+   A patrol car is a traffic car with a flag on it, so it queues, changes lane
+   and brakes for lorries like everything else out there. The only difference
+   is what it wants: the lane you are in, and your speed plus a bit. */
+const RC_COP_AT = 150;        // km/h they take an interest in
+const RC_COP_GONE = 420;      // metres of clear air that counts as lost
+const RC_COP_HAD = 18;        // and how close they have to sit to have you
+
+function rcCopStep(dt) {
+  const kph = RC.v * 3.6;
+  RC.heat = rcClamp(RC.heat + dt * (kph > RC_COP_AT ? (kph - RC_COP_AT) / 500 : -0.18), 0, 2.2);
+
+  const cop = RC.cop;
+  if (!cop) {
+    // one comes along sooner the hotter you are running
+    if (RC.heat > 1 && Math.random() < dt * (0.05 + RC.heat * 0.06)) rcCopJoin();
+    return;
+  }
+  if (RC.cars.indexOf(cop) < 0) { RC.cop = null; return; }   // dropped off the back of the road
+
+  const dist = Math.abs(cop.z - RC.z);
+  /* Your speed and a bit, up to about 270. Once they are on you they sit
+     there rather than driving into the back of you: they want you stopped,
+     not wrapped round a lorry, and a patrol car that rams is a different
+     game. */
+  cop.v0 = Math.min(75, Math.max(RC.v + 4, 33));
+  RC.chaseFor += dt;
+
+  if (dist > RC_COP_GONE) {
+    RC.awayFor += dt;
+    if (RC.awayFor > 4) {
+      const pts = Math.round((700 + RC.chaseFor * 110) * (1 + RC.mult * 0.04));
+      RC.score += pts;
+      RC.mult = Math.min(50, RC.mult + 5);
+      RC.multAt = RC.t;
+      RC.pops.push({ at: RC.t, z: RC.z, lane: RC.x / RC_LANE - 0.5, pts, close: true });
+      rcSay('lost them, ' + rcNum(pts));
+      rcCopDrop();
+    }
+  } else RC.awayFor = 0;
+
+  if (dist < RC_COP_HAD) {
+    RC.nearFor += dt;
+    if (RC.nearFor > 5) { RC.score = 0; RC.mult = 1; rcCrash('pulled over'); rcCopDrop(); }
+  } else RC.nearFor = Math.max(0, RC.nearFor - dt * 0.6);
+}
+
+function rcCopJoin() {
+  const lanes = Math.floor(rcLanes(RC.z));
+  const ahead = Math.random() < 0.45;
+  const lane = ahead ? lanes - 1 : rcClamp(Math.round(RC.x / RC_LANE - 0.5), 0, lanes - 1);
+  const cop = {
+    z: RC.z + (ahead ? 240 + Math.random() * 160 : -(120 + Math.random() * 90)),
+    lane, target: lane, v: ahead ? 22 : RC.v * 0.92, v0: RC.v + 4,
+    shape: 'police', paint: '#eef1f4', brake: 0, wait: 9e9,
+    mood: 'deaf', flashes: 0, check: 0, cop: true, behind: true
+  };
+  RC.cars.push(cop);
+  RC.cop = cop; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
+  rcSay(ahead ? 'a patrol car pulling out' : 'police, behind you');
+}
+
+function rcCopDrop() {
+  const i = RC.cars.indexOf(RC.cop);
+  if (i >= 0) RC.cars.splice(i, 1);
+  RC.cop = null; RC.heat = 0.35; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
+}
+
 /* The game the traffic servers actually play. You are not racing anyone: you
    are scored on how you get through the traffic, and the multiplier is what
    turns a tally into a run. A car you were behind ending up behind you is a
@@ -6861,6 +6948,17 @@ function rcAudioInit() {
   comp.threshold.value = -18; comp.ratio.value = 6;
   master.connect(comp); comp.connect(ac.destination);
 
+  /* Tunnel. Concrete forty feet away on both sides sends everything back at
+     you about a fifth of a second later, twice, which is the whole sound of
+     driving into one. It hangs off the master with its own level, at nothing
+     until you are in there. */
+  const ech = ac.createDelay(0.5); ech.delayTime.value = 0.11;
+  const efb = ac.createGain(); efb.gain.value = 0.42;
+  const elp = ac.createBiquadFilter(); elp.type = 'lowpass'; elp.frequency.value = 2200;
+  const eg2 = ac.createGain(); eg2.gain.value = 0;
+  master.connect(ech); ech.connect(elp); elp.connect(efb); efb.connect(ech);
+  elp.connect(eg2); eg2.connect(comp);
+
   // the engine: two saws and a square under a filter that opens with throttle
   const tone = ac.createGain(); tone.gain.value = 0.34;
   const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 3;
@@ -6880,6 +6978,14 @@ function rcAudioInit() {
   const ng = ac.createGain(); ng.gain.value = 0;
   noise.connect(nf); nf.connect(ng); ng.connect(master); noise.start();
 
+  /* The siren: two notes, a saw through a filter so it carries, at whatever
+     level the distance says. It runs the whole time and is silent unless
+     there is somebody behind you. */
+  const sir = ac.createOscillator(); sir.type = 'sawtooth'; sir.frequency.value = 700;
+  const sf = ac.createBiquadFilter(); sf.type = 'bandpass'; sf.frequency.value = 1100; sf.Q.value = 2.2;
+  const sg = ac.createGain(); sg.gain.value = 0;
+  sir.connect(sf); sf.connect(sg); sg.connect(master); sir.start();
+
   // the turbo, for the cars that have one
   const turbo = ac.createOscillator(); turbo.type = 'sine'; turbo.frequency.value = 2000;
   const tg = ac.createGain(); tg.gain.value = 0;
@@ -6891,7 +6997,7 @@ function rcAudioInit() {
   const hg = ac.createGain(); hg.gain.value = 0;
   hiss.connect(hf); hf.connect(hg); hg.connect(master); hiss.start();
 
-  rcSnd = { ac, master, tone, lp, o1, o2, o3, ng, nf, tg, turbo, hf, hg, buf: noise.buffer, lastPop: 0,
+  rcSnd = { ac, master, tone, lp, o1, o2, o3, ng, nf, tg, turbo, hf, hg, eg2, sir, sg, buf: noise.buffer, lastPop: 0,
     eng: null, engId: null, spin: 0, at: ac.currentTime };
 
   /* The real engine loads a moment later, from a module made out of the
@@ -6951,6 +7057,20 @@ function rcAudioUpdate() {
     s.tone.gain.setTargetAtTime((RC.shiftFor > 0 ? (RC.blip > 0 ? 0.34 : 0.12) : 0.34) * load * chop, t, 0.03);
     s.lp.frequency.setTargetAtTime(500 + f * (throttle ? 7 : 3.2), t, 0.05);
   }
+
+  /* The siren, if there is one. Two tones a second apart, and the pitch of
+     the pair bent by how fast they are closing on you, which is the only
+     doppler in the game and the only place it is worth having. */
+  if (RC.cop) {
+    const gap = RC.cop.z - RC.z;
+    const near = rcClamp(1 - Math.abs(gap) / 320, 0, 1);
+    const shift = 1 + rcClamp((RC.cop.v - RC.v) * (gap < 0 ? 1 : -1) / 340, -0.12, 0.12);
+    s.sir.frequency.setTargetAtTime((Math.floor(t * 2.2) % 2 ? 660 : 880) * shift, t, 0.02);
+    s.sg.gain.setTargetAtTime(near * near * 0.045, t, 0.10);
+  } else s.sg.gain.setTargetAtTime(0, t, 0.25);
+
+  // and the walls of a tunnel throwing it all back at you
+  s.eg2.gain.setTargetAtTime(rcInTunnel(RC.z) * 0.5, t, 0.25);
 
   // induction with the throttle open, wind with speed
   s.nf.frequency.setTargetAtTime(400 + f * 1.6, t, 0.06);
@@ -7175,14 +7295,48 @@ function rcCamH() {
 }
 
 /* ---- what is out there ----
-   Three kinds of country, a few kilometres of each, crossfading into one
+   Three kinds of country, a couple of kilometres of each, crossfading into one
    another so the horizon is not the same line for an entire run. Each one is
    drawn once into an offscreen strip twice the width of the canvas and then
    scrolled: a skyline of sixty buildings with lit windows is not worth
-   redrawing sixty times a second to move it two pixels. */
+   redrawing sixty times a second to move it two pixels.
+
+   Everything in a strip has to meet itself at the seam, because the strip is
+   drawn twice, side by side, and scrolled through. The old strips all started
+   and ended at the ground, so every time the seam came round the mountains
+   dropped to the horizon and climbed back out of it: the glitch. A range now
+   starts at the height it ends at, the dunes use wavelengths that divide into
+   the strip exactly, and the buildings are scaled to land on the join. */
 const RC_SCENES = ['dunes', 'mountains', 'city'];
-const RC_ZONE = 4200;                         // metres of each kind
-const rcSceneOf = b => RC_SCENES[Math.floor(rcHash(b * 5 + 41) * RC_SCENES.length) % RC_SCENES.length];
+const RC_ZONE = 2600;                         // metres of each kind
+
+/* Which one you are in. It used to be a hash per zone, which gave three zones
+   of mountains to open with: nobody drove far enough to see a city. Each zone
+   now steps one or two along the list, so it is never the same twice running
+   and all three come round inside a few kilometres. */
+const rcSceneIx = [1];
+function rcSceneOf(b) {
+  b = Math.max(0, b | 0);
+  while (rcSceneIx.length <= b) {
+    const k = rcSceneIx.length;
+    rcSceneIx.push((rcSceneIx[k - 1] + 1 + Math.floor(rcHash(k * 5 + 41) * 2)) % RC_SCENES.length);
+  }
+  return RC_SCENES[rcSceneIx[b]];
+}
+
+// a ridge line that closes on itself: widths scaled so the last one lands on W
+function rcRidge(rnd, seed, W, hb, scale) {
+  const p = [];
+  let total = 0, i = seed;
+  while (total < W) {
+    const wide = 40 + rnd(i + 1) * 90;
+    p.push({ wide, peak: hb * (0.18 + rnd(i) * 0.55) * scale, valley: hb * (0.05 + rnd(i + 2) * 0.16) * scale });
+    total += wide; i += 2;
+  }
+  const k = W / total;
+  for (const q of p) q.wide *= k;
+  return p;
+}
 
 const rcStrips = new Map();
 function rcStrip(kind, night, w, hb) {
@@ -7196,65 +7350,90 @@ function rcStrip(kind, night, w, hb) {
   const rnd = (n) => rcHash(n * 1.7 + (kind === 'city' ? 300 : kind === 'mountains' ? 60 : 9));
 
   if (kind === 'mountains') {
-    for (const [layer, col, scale] of [[0, night ? '#1a2230' : '#a9aab4', 1], [1, night ? '#131a26' : '#8e909c', 0.62]]) {
+    const ridges = [];
+    for (const [seed, col, scale] of [[0, night ? '#1a2230' : '#a9aab4', 1], [50, night ? '#131a26' : '#8e909c', 0.62]]) {
+      const p = rcRidge(rnd, seed, W, hb, scale);
+      ridges.push(p);
       c.fillStyle = col;
-      c.beginPath(); c.moveTo(0, hb);
-      let x = 0, i = layer * 50;
-      while (x < W + 40) {
-        const peak = hb * (0.18 + rnd(i) * 0.55) * scale;
-        const wide = 40 + rnd(i + 1) * 90;
-        c.lineTo(x + wide * 0.5, hb - peak);
-        x += wide; i += 2;
-        c.lineTo(x, hb - peak * (0.25 + rnd(i) * 0.3));
+      c.beginPath();
+      c.moveTo(0, hb - p[p.length - 1].valley);     // where the range comes back round
+      let x = 0;
+      for (const q of p) {
+        c.lineTo(x + q.wide * 0.5, hb - q.peak);
+        x += q.wide;
+        c.lineTo(x, hb - q.valley);
       }
-      c.lineTo(W, hb); c.closePath(); c.fill();
+      c.lineTo(W, hb); c.lineTo(0, hb); c.closePath(); c.fill();
     }
-    // snow, or moonlight, on the tops
+    // snow, or moonlight, on the tops of the near range
     c.globalAlpha = night ? 0.22 : 0.55;
     c.fillStyle = night ? '#9fb2cc' : '#f4f6f8';
-    let x = 0, i = 0;
-    while (x < W + 40) {
-      const peak = hb * (0.18 + rnd(i) * 0.55);
-      const wide = 40 + rnd(i + 1) * 90;
-      if (peak > hb * 0.42) {
+    let x = 0;
+    for (const q of ridges[0]) {
+      if (q.peak > hb * 0.42) {
         c.beginPath();
-        c.moveTo(x + wide * 0.5, hb - peak);
-        c.lineTo(x + wide * 0.5 + peak * 0.16, hb - peak * 0.8);
-        c.lineTo(x + wide * 0.5 - peak * 0.16, hb - peak * 0.8);
+        c.moveTo(x + q.wide * 0.5, hb - q.peak);
+        c.lineTo(x + q.wide * 0.5 + q.peak * 0.16, hb - q.peak * 0.8);
+        c.lineTo(x + q.wide * 0.5 - q.peak * 0.16, hb - q.peak * 0.8);
         c.closePath(); c.fill();
       }
-      x += wide; i += 2;
+      x += q.wide;
     }
     c.globalAlpha = 1;
   } else if (kind === 'city') {
-    c.fillStyle = night ? '#141c2a' : '#9aa3b0';
-    let x = 0, i = 0;
-    while (x < W + 30) {
-      const bw = 16 + rnd(i) * 44;
-      const bh = hb * (0.2 + rnd(i + 1) * 0.74);
-      c.fillRect(x, hb - bh, bw - 3, bh);
-      if (rnd(i + 2) > 0.82) {                       // a mast on the tall ones
-        c.fillRect(x + bw / 2 - 1, hb - bh - hb * 0.14, 2, hb * 0.14);
+    /* Two ranks of buildings, the far one hazier and shorter, so the skyline
+       has some depth to it rather than being one row of teeth. Widths are
+       scaled to fill the strip exactly, so the join falls between buildings.*/
+    for (const [rank, col, tall, seed] of [
+      [1, night ? '#101722' : '#b3bac4', 0.52, 7],
+      [0, night ? '#161f2e' : '#98a2b0', 0.94, 0]]) {
+      const b = [];
+      let total = 0, i = seed;
+      while (total < W) {
+        const bw = (rank ? 22 : 16) + rnd(i) * (rank ? 40 : 46);
+        b.push({ bw, bh: hb * (0.18 + rnd(i + 1) * tall), mast: rnd(i + 2) > 0.84, i });
+        total += bw; i += 3;
       }
-      if (night) {                                   // windows, a few of them lit
-        c.fillStyle = 'rgba(255,214,150,.75)';
-        for (let wy = hb - bh + 5; wy < hb - 6; wy += 7) {
-          for (let wx = x + 3; wx < x + bw - 6; wx += 6) {
-            if (rcHash(wx * 3.1 + wy * 7.7) > 0.62) c.fillRect(wx, wy, 2.5, 3);
+      const k = W / total;
+      let x = 0;
+      for (const q of b) {
+        const bw = q.bw * k;
+        c.fillStyle = col;
+        c.fillRect(x, hb - q.bh, bw - 2.5, q.bh);
+        if (q.mast) {
+          c.fillRect(x + bw / 2 - 1, hb - q.bh - hb * 0.13, 2, hb * 0.13);
+          if (night) {                                // the red light on top of it
+            c.fillStyle = 'rgba(255,90,74,.85)';
+            c.fillRect(x + bw / 2 - 1.5, hb - q.bh - hb * 0.14, 3, 3);
           }
         }
-        c.fillStyle = '#141c2a';
+        if (night && !rank) {                         // windows, a few of them lit
+          c.fillStyle = 'rgba(255,214,150,.75)';
+          for (let wy = hb - q.bh + 5; wy < hb - 6; wy += 7) {
+            for (let wx = x + 3; wx < x + bw - 6; wx += 6) {
+              if (rcHash(wx * 3.1 + wy * 7.7) > 0.62) c.fillRect(wx, wy, 2.5, 3);
+            }
+          }
+        } else if (night) {                           // the far rank, just a glow
+          c.fillStyle = 'rgba(255,200,140,.10)';
+          c.fillRect(x, hb - q.bh, bw - 2.5, q.bh);
+        }
+        x += bw;
       }
-      x += bw; i += 3;
     }
   } else {
-    for (const [amp, lift, col, step] of [
-      [hb * 0.22, hb * 0.30, night ? '#182029' : '#c7bda4', 26],
-      [hb * 0.16, hb * 0.12, night ? '#141a20' : '#d3c8ad', 18]]) {
+    /* Dunes, from two sines. The wavelengths are rounded to a whole number of
+       cycles across the strip, which is what makes the far end match the near
+       end instead of stepping. */
+    const cyc = (f) => Math.max(1, Math.round(f * W / (2 * Math.PI))) * 2 * Math.PI / W;
+    const f1 = cyc(0.0075), f2 = cyc(0.021);
+    for (const [amp, lift, col] of [
+      [hb * 0.22, hb * 0.30, night ? '#182029' : '#c7bda4'],
+      [hb * 0.16, hb * 0.12, night ? '#141a20' : '#d3c8ad']]) {
       c.fillStyle = col;
       c.beginPath(); c.moveTo(0, hb);
-      for (let x = 0; x <= W; x += step) {
-        c.lineTo(x, hb - lift - Math.sin(x * 0.0075) * amp - Math.sin(x * 0.021 + 1.3) * amp * 0.4);
+      for (let x = 0; x <= W; x += 14) {
+        c.lineTo(x, hb - lift - Math.sin(x * f1) * amp - Math.sin(x * f2 + 1.3) * amp * 0.4);
       }
       c.lineTo(W, hb); c.closePath(); c.fill();
     }
@@ -7317,6 +7496,191 @@ function rcSky(c, w, h, horizon, P) {
 
   rcBackdrop(c, w, horizon, night, Math.round(h * 0.30));
   c.fillStyle = P.sand[0]; c.fillRect(0, horizon, w, h - horizon);
+}
+
+/* ---- tunnels ----
+   One every few kilometres, a few hundred metres long. They are the one place
+   on the road where the scenery is close enough to touch, which is why every
+   game with a highway in it has them: the walls go past at arm's length and
+   the lights strobe overhead, and a hundred looks like two hundred.
+
+   A tunnel is a span of z, worked out from its number, so the road is the same
+   every time you drive it and nothing has to be stored. */
+const RC_TUN = 3100;                 // metres from one tunnel to the next
+const RC_TWALL = 3.6;                // how far out the wall stands, metres
+const RC_TROOF = 6.4;                // and how high the ceiling is
+const RC_TLAMP = 18;                 // a light every this many metres
+
+function rcTunnel(k) {
+  if (k < 0) return null;
+  const s = k * RC_TUN + 800 + rcHash(k * 9 + 5) * 1400;
+  return { s, e: s + 220 + rcHash(k * 9 + 6) * 430, k };
+}
+// the tunnel you are in, coming up to, or have just left
+function rcTunnelAt(z) {
+  const k = Math.floor(z / RC_TUN);
+  for (const kk of [k + 1, k, k - 1]) {
+    const t = rcTunnel(kk);
+    if (t && z > t.s - 800 && z < t.e + 120) return t;
+  }
+  return null;
+}
+// 0 outside, 1 well inside: what the light and the sound follow
+function rcInTunnel(z) {
+  const t = rcTunnelAt(z);
+  if (!t || z < t.s || z > t.e) return 0;
+  return rcClamp(Math.min(z - t.s, t.e - z) / 30, 0, 1);
+}
+
+/* The shell: the two walls, the ceiling, and the block of dark above it that
+   takes the sky away. Drawn from the far end back, over the road and under
+   the traffic, because everything in a tunnel is inside it. */
+function rcTunnelShell(c, pts, base, P, w, h, camZ, at) {
+  const t = rcTunnelAt(camZ + RC_CAMB);
+  if (!t) return null;
+  const night = P === RC_NIGHT;
+  const far = Math.min(t.e, camZ + RC_DRAW * RC_SEG);
+  if (far <= camZ + 1) return null;
+
+  // the stretch of segments the tunnel covers, in the units the road is in
+  const n0 = Math.max(0, Math.ceil((t.s - base * RC_SEG) / RC_SEG));
+  const n1 = Math.min(RC_DRAW, Math.floor((far - base * RC_SEG) / RC_SEG));
+  if (n1 <= n0 && camZ + RC_CAMB < t.s) { rcPortal(c, t, P, w, h, at); return t; }
+
+
+  const band = (inset, outset, y0, y1, fill) => {
+    c.fillStyle = fill;
+    c.beginPath();
+    for (let n = n0; n <= n1; n++) {
+      const p = pts[n];
+      c.lineTo(p.l.x + (typeof inset === 'function' ? inset(p) : inset) * p.s, p.l.y - y0 * p.s);
+    }
+    for (let n = n1; n >= n0; n--) {
+      const p = pts[n];
+      c.lineTo(p.l.x + (typeof outset === 'function' ? outset(p) : outset) * p.s, p.l.y - y1 * p.s);
+    }
+    c.closePath(); c.fill();
+  };
+  const L = () => -RC_TWALL, R = p => p.width + RC_TWALL;
+  const outside = camZ + RC_CAMB < t.s;
+  if (outside) { c.save(); rcMouthPath(c, t, at); c.clip(); }
+
+  // the roof, and enough dark above it to cover the sky out to the far end
+  band(L, R, RC_TROOF, 46, night ? '#0a0d12' : '#14181e');
+  band(L, R, RC_TROOF - 0.55, RC_TROOF, night ? '#161b22' : '#222831');
+  // the walls: grimy below the waist, tiled above it
+  for (const [x, lit] of [[L, 0.06], [R, 0]]) {
+    band(x, x, 0, RC_TROOF - 0.5, night ? '#242b34' : '#3b434e');
+    band(x, x, 1.5, RC_TROOF - 0.5, night ? '#39434f' : '#7d8794');
+    band(x, x, RC_TROOF - 1.1, RC_TROOF - 0.5, 'rgba(255,255,255,' + (0.10 + lit).toFixed(2) + ')');
+    band(x, x, 0, 0.35, night ? '#11151a' : '#1b2027');      // the kerb along the bottom
+  }
+
+  /* The joints between the sections, every five metres, on both walls. This is
+     the thing you actually read the speed off inside a tunnel. */
+  c.fillStyle = 'rgba(0,0,0,.30)';
+  const step = RC.v * (RC.dt || 1 / 60);
+  c.globalAlpha = 1 - 0.7 * rcClamp((step / RC_SEG - 0.3) / 0.15, 0, 1);
+  for (let d = Math.floor(Math.min(far, camZ + 120) / RC_SEG) * RC_SEG; d > Math.max(t.s, camZ + 1.5); d -= RC_SEG) {
+    const wd = rcWidth(d);
+    for (const x of [-RC_TWALL, wd + RC_TWALL]) {
+      const g = at(d, x);
+      if (g.y > h + 60 || g.s < 1.5) continue;
+      c.fillRect(g.x - Math.max(1, 0.06 * g.s) / 2, g.y - (RC_TROOF - 0.5) * g.s, Math.max(1, 0.06 * g.s), (RC_TROOF - 0.85) * g.s);
+    }
+  }
+  c.globalAlpha = 1;
+  if (outside) { c.restore(); rcPortal(c, t, P, w, h, at); }
+  return t;
+}
+
+/* The opening, as a path. From outside a tunnel this is the only part of the
+   inside you can see, so everything in there is clipped to it: without that,
+   the block of dark that stands in for the sky over the tunnel hangs above the
+   hill the tunnel goes through, which is what the sail shaped shadow was. */
+function rcMouthPath(c, t, at) {
+  const wd = rcWidth(t.s);
+  const g0 = at(t.s, -RC_TWALL), g1 = at(t.s, wd + RC_TWALL);
+  const s = g0.s, y = g0.y;
+  c.beginPath();
+  c.moveTo(g0.x, y + 4 * s);
+  c.lineTo(g0.x, y - (RC_TROOF - 1.4) * s);
+  c.quadraticCurveTo((g0.x + g1.x) / 2, y - (RC_TROOF + 1.5) * s, g1.x, y - (RC_TROOF - 1.4) * s);
+  c.lineTo(g1.x, y + 4 * s);
+  c.closePath();
+  return { s, y, g0, g1 };
+}
+
+/* The face: a slab of concrete with that hole in it, drawn as one path with
+   the hole wound the other way. */
+function rcPortal(c, t, P, w, h, at) {
+  const night = P === RC_NIGHT;
+  const g0 = at(t.s, -RC_TWALL);
+  if (g0.s < 0.4) return;
+  const m = rcMouthPath(c, t, at);          // leaves the hole as the current path
+  const s = m.s, y = m.y;
+  c.save();
+  c.beginPath();
+  c.moveTo(m.g0.x - 70 * s, y + 8 * s); c.lineTo(m.g0.x - 70 * s, y - 30 * s);
+  c.lineTo(m.g1.x + 70 * s, y - 30 * s); c.lineTo(m.g1.x + 70 * s, y + 8 * s);
+  c.closePath();
+  c.moveTo(m.g0.x, y + 4 * s);
+  c.lineTo(m.g0.x, y - (RC_TROOF - 1.4) * s);
+  c.quadraticCurveTo((m.g0.x + m.g1.x) / 2, y - (RC_TROOF + 1.5) * s, m.g1.x, y - (RC_TROOF - 1.4) * s);
+  c.lineTo(m.g1.x, y + 4 * s);
+  c.closePath();
+  c.fillStyle = night ? '#1b212a' : '#626974';
+  c.fill('evenodd');
+  // the lip around the opening, a shade lighter than the face
+  c.lineWidth = Math.max(1, 0.3 * s);
+  c.strokeStyle = night ? '#2b323c' : '#7e858f';
+  rcMouthPath(c, t, at); c.stroke();
+  c.restore();
+}
+
+/* What it looks like in there: the dark, the lights going over, and the hole
+   of daylight at the far end. Drawn after the cars, so they are in the dark
+   with you and the lights fall on them. */
+function rcTunnelLight(c, t, P, w, h, camZ, at, horizon) {
+  if (!t) return;
+  const deep = rcInTunnel(camZ + RC_CAMB);
+  const night = P === RC_NIGHT;
+  if (deep > 0) {
+    c.fillStyle = 'rgba(2,4,9,' + (deep * (night ? 0.38 : 0.62)).toFixed(3) + ')';
+    c.fillRect(0, 0, w, h);
+  }
+  // the lights: a bar on the ceiling every eighteen metres, and its pool
+  const end = Math.min(t.e, camZ + 240);
+  for (let d = Math.floor(end / RC_TLAMP) * RC_TLAMP; d > Math.max(t.s, camZ + 1); d -= RC_TLAMP) {
+    const wd = rcWidth(d), g = at(d, wd / 2);
+    if (g.y > h + 40 || g.s < 1.2) continue;
+    const bw = 2.6 * g.s, by = g.y - (RC_TROOF - 0.35) * g.s;
+    const gl = c.createRadialGradient(g.x, by, 0, g.x, by, 7 * g.s);
+    gl.addColorStop(0, 'rgba(255,228,170,.42)'); gl.addColorStop(1, 'rgba(255,228,170,0)');
+    c.fillStyle = gl;
+    c.beginPath(); c.arc(g.x, by, 7 * g.s, 0, 7); c.fill();
+    c.fillStyle = 'rgba(255,240,205,.92)';
+    c.fillRect(g.x - bw / 2, by - 0.12 * g.s, bw, Math.max(1, 0.24 * g.s));
+    // what it throws on the road below
+    const p = at(d, wd / 2);
+    const pool = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, 9 * p.s);
+    pool.addColorStop(0, 'rgba(255,225,170,.16)'); pool.addColorStop(1, 'rgba(255,225,170,0)');
+    c.save(); c.translate(p.x, p.y); c.scale(1, 0.34); c.translate(-p.x, -p.y);
+    c.fillStyle = pool; c.beginPath(); c.arc(p.x, p.y, 9 * p.s, 0, 7); c.fill();
+    c.restore();
+  }
+  // daylight at the far end, which is what you aim at
+  const out = t.e - (camZ + RC_CAMB);
+  if (out > 20 && out < 520 && deep > 0.2) {
+    const wd = rcWidth(t.e), g = at(t.e, wd / 2);
+    const r = Math.max(6, 5 * g.s);
+    const gl = c.createRadialGradient(g.x, g.y - RC_TROOF * 0.5 * g.s, 0, g.x, g.y - RC_TROOF * 0.5 * g.s, r);
+    const tint = night ? 'rgba(150,120,170,' : 'rgba(235,240,248,';
+    gl.addColorStop(0, tint + (0.55 * deep).toFixed(2) + ')');
+    gl.addColorStop(1, tint + '0)');
+    c.fillStyle = gl;
+    c.beginPath(); c.arc(g.x, g.y - RC_TROOF * 0.5 * g.s, r, 0, 7); c.fill();
+  }
 }
 
 /* The road, as a handful of long strips rather than six quads a segment, plus
@@ -7476,6 +7840,7 @@ const RC_SALOON = [[0, 1, .72, 'roof'], [.16, 1, .78, 'roof'], [.46, .99, .76, '
   [.62, .73, .97, 'bonnet'], [.93, .70, .93, 'nose'], [1, .58, .76]];
 const RC_PROF = {
   sedan: RC_SALOON,
+  police: RC_SALOON,
   coupe: [[0, 1, .70, 'roof'], [.13, 1, .76, 'roof'], [.40, .99, .74, 'glass'],
     [.58, .73, .97, 'bonnet'], [.92, .70, .93, 'nose'], [1, .58, .76]],
   wedge: [[0, .95, .56, 'roof'], [.10, .91, .70, 'roof'], [.26, 1, .64, 'roof'], [.44, .98, .60, 'glass'],
@@ -7698,20 +8063,30 @@ function rcDraw() {
     const i = Math.floor(k), f = k - i;
     return rcLerp(offs[i], offs[i + 1], f);
   };
-  rcRoad(c, pts, base, P, w, h, near, (z, x) => proj(x, z - camZ, atZ(z)), camZ);
+  const atW = (z, x) => proj(x, z - camZ, atZ(z));
+  rcRoad(c, pts, base, P, w, h, near, atW, camZ);
+  const tun = rcTunnelAt(camZ + RC_CAMB);
+  const deep = rcInTunnel(camZ + RC_CAMB);
   for (let n = Math.min(near + 14, RC_DRAW); n >= 0; n--) {
-    if ((base + n) % 6 === 0) rcPole(c, pts[n], P, h);
+    if ((base + n) % 6 === 0 && !(tun && pts[n].az > tun.s && pts[n].az < tun.e)) rcPole(c, pts[n], P, h);
   }
 
-  // haze into the distance, so the horizon is not a hard seam
-  const haze = c.createLinearGradient(0, horizon - 5, 0, horizon + h * 0.14);
-  haze.addColorStop(0, P.haze); haze.addColorStop(1, 'rgba(0,0,0,0)');
-  c.fillStyle = haze; c.fillRect(0, horizon - 5, w, h * 0.15);
+  // haze into the distance, so the horizon is not a hard seam. There is no
+  // horizon inside a tunnel, and a band of sky colour across the wall is the
+  // one thing that would give the whole trick away.
+  if (deep < 1) {
+    const haze = c.createLinearGradient(0, horizon - 5, 0, horizon + h * 0.14);
+    haze.addColorStop(0, P.haze); haze.addColorStop(1, 'rgba(0,0,0,0)');
+    c.globalAlpha = 1 - deep;
+    c.fillStyle = haze; c.fillRect(0, horizon - 5, w, h * 0.15);
+    c.globalAlpha = 1;
+  }
+  rcTunnelShell(c, pts, base, P, w, h, camZ, atW);
 
   /* The headlights, under the traffic rather than painted over it, and as two
      soft pools rather than a beam with edges: a polygon left two hard black
      wedges either side of the lit part, which read as holes in the road. */
-  if (P === RC_NIGHT) {
+  if (P === RC_NIGHT || deep > 0.05) {
     const pool = (zw, rx, ry, alpha) => {
       const p = proj(RC.x, zw, atZ(RC.z + zw - RC_CAMB));
       const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx * p.s);
@@ -7722,8 +8097,9 @@ function rcDraw() {
       c.beginPath(); c.arc(p.x, p.y, rx * p.s, 0, 7); c.fill();
       c.restore();
     };
-    pool(RC_CAMB + 6, 9, 3.4, 0.14 + RC.lamp * 0.40);
-    pool(RC_CAMB + 28, 13, 4.0, 0.10 + RC.lamp * 0.40);
+    const dim = P === RC_NIGHT ? 1 : deep * 0.8;
+    pool(RC_CAMB + 6, 9, 3.4, (0.14 + RC.lamp * 0.40) * dim);
+    pool(RC_CAMB + 28, 13, 4.0, (0.10 + RC.lamp * 0.40) * dim);
     if (RC.lamp > 0) pool(RC_CAMB + 60, 10, 3.0, RC.lamp * 0.32);   // main beam reaches further
   }
 
@@ -7751,6 +8127,19 @@ function rcDraw() {
   rcVolume(c, f.prof, f.w, f.h, f.len, d => proj(RC.x, RC_CAMB + d, atZ(RC.z + d)),
     P === RC_NIGHT ? rcMix(RC.car.paint, 0, 0.42) : RC.car.paint, P, vx);
   rcHero(c, RC.car, me.x, me.y, me.s, P, !!RC.keys.down, RC.flame);
+  rcTunnelLight(c, tun, P, w, h, camZ, atW, horizon);
+
+  /* Their lights, on the inside of your own car. Only worth anything when
+     they are close, and it alternates with the bar on their roof. */
+  if (RC.cop) {
+    const gap = Math.abs(RC.cop.z - RC.z);
+    if (gap < 90) {
+      const beat = Math.floor(RC.t * 5.5) % 2;
+      c.fillStyle = (beat ? 'rgba(255,60,60,' : 'rgba(60,120,255,')
+        + (0.13 * (1 - gap / 90) * (P === RC_NIGHT ? 1.5 : 1)).toFixed(3) + ')';
+      c.fillRect(0, 0, w, h);
+    }
+  }
 
   /* What each pass was worth, left where the car you passed was, rising and
      fading. It is the only readout that tells you a close one is worth having
@@ -7892,6 +8281,39 @@ const RC_MODELS = {
     c.fillStyle = '#23272d';
     rcPath(c, rcSym([[0.86, -0.34, 0.05], [0.84, -0.22, 0.04], [0.30, -0.22, 0]])); c.fill();
     rcPipe(c, -0.44, -0.20, 0.06, 0.04);
+  } },
+
+  /* A patrol car. The body is the saloon, because it is one; what makes it
+     read at two hundred metres in a mirror is the bar on the roof, so that is
+     what gets the detail: two lenses alternating about five times a second,
+     each throwing its own colour onto the road when it is lit. */
+  police: {
+    draw(c, paint, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    RC_MODELS.sedan.draw(c, '#edf0f3', P, braking, fine);
+    if (fine) {                                       // the battenburg, half height
+      for (let i = 0; i < 6; i++) {
+        c.fillStyle = i % 2 ? '#2f63c4' : '#f2d94a';
+        c.fillRect(-0.87 + i * 0.29, -0.62, 0.29, 0.13);
+      }
+      c.fillStyle = 'rgba(30,40,60,.85)';
+      c.font = '0.16px sans-serif'; c.textAlign = 'center';
+      c.fillText('POLICE', 0, -0.98);
+    }
+    // the bar: a dark spine with a lens each side of it
+    const beat = Math.floor(RC.t * 5.5) % 2;
+    c.fillStyle = '#20242b';
+    c.beginPath(); c.roundRect(-0.56, -1.63, 1.12, 0.11, 0.04); c.fill();
+    for (const [sx, col, lit] of [[-1, '#3b78ff', beat === 0], [1, '#ff3b3b', beat === 1]]) {
+      c.fillStyle = lit ? col : rcMix(col, 0, 0.62);
+      c.beginPath(); c.roundRect(sx * 0.52 - (sx < 0 ? 0 : 0.36), -1.615, 0.36, 0.08, 0.03); c.fill();
+      if (lit) {
+        const g = c.createRadialGradient(sx * 0.34, -1.57, 0, sx * 0.34, -1.57, 1.5);
+        g.addColorStop(0, col + 'cc'); g.addColorStop(1, col + '00');
+        c.fillStyle = g;
+        c.beginPath(); c.ellipse(sx * 0.34, -1.57, 1.5, 0.75, 0, 0, 7); c.fill();
+      }
+    }
   } },
 
   hatch: {
@@ -8822,6 +9244,34 @@ function rcHud(c, w, h, P) {
     c.fillStyle = 'rgba(255,255,255,.16)'; c.fillRect(bxx, my + 19 * k, bwid, Math.max(2, 3 * k));
     c.fillStyle = 'rgba(255,190,90,.85)';
     c.fillRect(bxx, my + 19 * k, bwid * rcClamp((RC.mult - 1) / 24, 0, 1), Math.max(2, 3 * k));
+  }
+
+  /* The chase, across the top: how far back they are, and the four seconds of
+     clear road that ends it. Nothing at all when there is nobody there. */
+  if (RC.cop && RC.state === 'run') {
+    const back = RC.cop.z < RC.z;
+    const gap = Math.round(Math.abs(RC.cop.z - RC.z));
+    const beat = Math.floor(RC.t * 5.5) % 2;
+    const pw = Math.round(136 * k), px = Math.round((w - pw) / 2), py = pad;
+    c.fillStyle = 'rgba(0,0,0,.5)'; c.fillRect(px, py, pw, Math.round(30 * k));
+    c.textAlign = 'center'; c.textBaseline = 'alphabetic';
+    c.font = '600 ' + (12 * k).toFixed(1) + 'px ' + DISPLAY;
+    c.fillStyle = beat ? '#ff6b6b' : '#6ba8ff';
+    c.fillText('POLICE', px + pw / 2, py + 13 * k);
+    c.font = (9.5 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
+    c.fillText(gap > RC_COP_GONE ? 'losing them' : gap + (back ? ' m back' : ' m ahead'), px + pw / 2, py + 25 * k);
+    if (RC.awayFor > 0) {
+      c.fillStyle = 'rgba(122,212,143,.9)';
+      c.fillRect(px, py + Math.round(28 * k), pw * rcClamp(RC.awayFor / 4, 0, 1), Math.max(2, 2 * k));
+    } else if (RC.nearFor > 0) {
+      c.fillStyle = 'rgba(255,91,74,.9)';
+      c.fillRect(px, py + Math.round(28 * k), pw * rcClamp(RC.nearFor / 5, 0, 1), Math.max(2, 2 * k));
+    }
+  } else if (RC.heat > 0.55 && RC.state === 'run') {
+    // before they turn up: the speed you are doing has been noticed
+    c.textAlign = 'center'; c.font = (9 * k).toFixed(1) + 'px ' + MONO;
+    c.fillStyle = 'rgba(255,190,90,' + Math.min(0.85, (RC.heat - 0.55) * 1.6).toFixed(2) + ')';
+    c.fillText('SPEEDING', w / 2, pad + 11 * k);
   }
 
   if (RC.state === 'ready') rcCard(c, w, h, [
