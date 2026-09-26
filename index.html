@@ -793,11 +793,14 @@
   }
   .rstage { border:1px solid var(--line); background:var(--bg); line-height:0; }
   #raceCv { display:block; width:100%; height:auto; touch-action:none; }
-  .rcars { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .rcars { display:flex; flex-wrap:wrap; gap:6px; padding:12px; border:1px solid var(--line); border-top:0; }
+  /* an author display beats the UA's rule for the hidden attribute, so the
+     panel that is not the selected tab needs to be told twice */
+  .rcars[hidden], .rshop[hidden], .rpaint[hidden] { display:none; }
   /* on a phone the eight of them are several rows of chooser above a small road,
      so they become one row you push sideways instead */
   @media (max-width: 560px) {
-    .rcars { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; padding-bottom:2px; }
+    .rcars { flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; }
     .rcars::-webkit-scrollbar { display:none; }
     .rcars button { flex:0 0 auto; }
   }
@@ -822,12 +825,40 @@
   }
   .rlevel select:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   @media (pointer: coarse) { .rlevel select { min-height:44px; } }
+  /* the chooser and the garage are two tabs of the same panel, so the dialog
+     is the same height whichever one is up */
+  .rtabs { display:flex; align-items:center; gap:2px; margin-top:12px; border-bottom:1px solid var(--line); }
+  .rtabs button {
+    font:inherit; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); background:none; border:1px solid transparent; border-bottom:0;
+    border-radius:0; padding:7px 13px; cursor:pointer; margin-bottom:-1px;
+    transition:color .2s, border-color .2s;
+  }
+  .rtabs button:hover { color:var(--fg); }
+  .rtabs button[aria-selected="true"] {
+    color:var(--fg); border-color:var(--line); background:var(--bg);
+    border-bottom:1px solid var(--bg);
+  }
+  .rtabs button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .rtabbank {
+    margin-left:auto; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+  }
+  .rtabbank i { font-style:normal; color:var(--accent); }
   /* the garage: one panel per car, the same flat bordered boxes as the rest of
      the dialog rather than a shop front */
-  .rshop { margin-top:12px; border:1px solid var(--line); background:var(--bg); padding:12px; }
-  .rbank { margin:0 0 10px; font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); }
-  .rbank i { font-style:normal; color:var(--accent); }
-  .rbank span { display:block; margin-top:4px; text-transform:none; letter-spacing:0; font-size:11px; color:var(--dim); }
+  .rshop { border:1px solid var(--line); border-top:0; background:var(--bg); padding:12px; }
+  .rbank {
+    display:flex; align-items:flex-start; gap:10px; margin:0 0 10px;
+    font-size:11px; color:var(--dim);
+  }
+  .rbank span { flex:1; }
+  .rbank .rx {
+    font:inherit; font-size:16px; line-height:1; color:var(--muted);
+    background:none; border:1px solid var(--line); border-radius:0;
+    padding:2px 8px 4px; cursor:pointer; flex:0 0 auto;
+  }
+  .rbank .rx:hover { color:var(--fg); border-color:var(--sn-mid); }
+  .rbank .rx:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .rmods { display:grid; grid-template-columns:repeat(auto-fit,minmax(196px,1fr)); gap:8px; }
   .rmod { border:1px solid var(--line); padding:8px 9px; display:flex; flex-direction:column; gap:5px; }
   .rmod b { font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--fg); font-weight:600; }
@@ -999,14 +1030,20 @@
       <button type="button" data-rc="gdn" class="g" aria-label="Change down">Gear &minus;</button>
       <button type="button" data-rc="gup" class="g" aria-label="Change up">Gear +</button>
     </div>
-    <div class="rcars" id="rcCars" role="group" aria-label="Choose a car"></div>
-    <div class="rshop" id="rcShop" hidden role="group" aria-label="Garage">
+    <div class="rtabs" role="tablist" aria-label="Cars and garage">
+      <button type="button" role="tab" id="rcTabCars" data-tab="cars" aria-selected="true" aria-controls="rcCars">Cars</button>
+      <button type="button" role="tab" id="rcTabShop" data-tab="shop" aria-selected="false" aria-controls="rcShop">Garage</button>
+      <span class="rtabbank">bank <i id="rcBankN">0</i> pts</span>
+    </div>
+    <div class="rcars" id="rcCars" role="tabpanel" aria-labelledby="rcTabCars" aria-label="Choose a car"></div>
+    <div class="rshop" id="rcShop" hidden role="tabpanel" aria-labelledby="rcTabShop">
       <p class="rbank">
-        Bank <i id="rcBankN">0</i> pts
         <span id="rcShopCar"></span>
+        <button type="button" class="rx" id="rcShopX" aria-label="Close the garage">&times;</button>
       </p>
       <div class="rmods" id="rcMods"></div>
       <p class="rpaint" id="rcPaint"></p>
+      <p class="rpaint" id="rcNeon" hidden></p>
     </div>
     <p class="rlevel">
       <label for="rcLevel">Traffic</label>
@@ -1020,12 +1057,11 @@
       <kbd>&larr;</kbd><kbd>&rarr;</kbd> or <kbd>A</kbd><kbd>D</kbd> steer &middot;
       <kbd>&uarr;</kbd><kbd>W</kbd> throttle &middot; <kbd>&darr;</kbd><kbd>S</kbd> brake &middot;
       <kbd>Shift</kbd><kbd>Ctrl</kbd> gears in manual &middot; <kbd>F</kbd> flash the car ahead &middot;
-      <kbd>T</kbd> gearbox &middot; <kbd>G</kbd> garage &middot; <kbd>M</kbd> sound &middot;
+      <kbd>T</kbd> gearbox &middot; <kbd>G</kbd> garage &middot; <kbd>F</kbd> flash &middot; <kbd>M</kbd> sound &middot;
       <kbd>R</kbd> bank the score and go again &middot; <kbd>P</kbd> pause
     </p>
     <p class="gfoot">
       <span id="rcMsg">press enter, or any arrow, to start</span>
-      <button id="rcShopBtn" type="button" aria-expanded="false" aria-controls="rcShop">Garage</button>
       <button id="rcSound" type="button" aria-pressed="true">Sound on</button>
       <button id="rcMode" type="button">Automatic</button>
       <button id="rcAgain" type="button">Restart</button>
@@ -6026,6 +6062,18 @@ const RC_CARS = [
     aero: 0.16, agile: 1.30, damp: 2.3,
     cyl: 6, turbo: true, crackle: 0.45, spool: 2.6, bov: 'valve', bovLevel: 0.45,
     paint: '#f0e6d2', trim: '#8a7a5c', shape: 'porsche' },
+  { id: 'stang', name: 'Ford Mustang GT', tag: 'five litre V8, rear drive',
+    kw: 331, peak: 7000, redline: 7500, mass: 1745, vmax: 250, ng: 6, mu: 1.02,
+    drive: 0.76, shift: 0.30,
+    aero: 0.04, agile: 0.92, damp: 1.4,
+    cyl: 8, turbo: false, crackle: 0.75,
+    paint: '#1f4fd0', trim: '#e9ecf0', shape: 'coupe' },
+  { id: 'rs6', name: 'Audi RS6 Avant', tag: 'twin turbo V8, and it is an estate',
+    kw: 441, peak: 6000, redline: 6800, mass: 2075, vmax: 305, ng: 8, mu: 1.14,
+    drive: 0.98, shift: 0.10,
+    aero: 0.10, agile: 1.00, damp: 2.1,
+    cyl: 8, turbo: true, crackle: 0.45, spool: 2.4, bov: 'valve', bovLevel: 0.5,
+    paint: '#3e4348', trim: '#1b1e22', shape: 'suv' },
   { id: 'cruiser', name: 'Toyota Land Cruiser', tag: 'heavy, and it shows',
     kw: 305, peak: 5600, redline: 6000, mass: 2600, vmax: 210, ng: 8, mu: 0.92,
     drive: 0.95, shift: 0.30,
@@ -6335,6 +6383,10 @@ const RC_MODS = [
 // what a body shop will do it in, which is not what the traffic comes in
 const RC_COLOURS = ['#d8dde3', '#1f242b', '#c8241d', '#1f6fd0', '#f2c027', '#2f9e63', '#8a2be0', '#ff7a18'];
 const RC_COLOUR_COST = 600;
+/* And what the tubes come in, which is a different list: underglow is a neon
+   colour whether or not the car is. Matching the paint is the first option
+   rather than the only one it was. */
+const RC_NEON = ['#19e6ff', '#ff2bd6', '#39ff6a', '#3b6bff', '#ff2f2f', '#ff9a1f', '#b13bff', '#f4f7ff'];
 
 let rcBank = 0, rcMods = {};
 try { rcBank = Math.max(0, +(localStorage.getItem('raceBank') || 0) || 0); } catch {}
@@ -6355,7 +6407,8 @@ const rcStageOf = (id, k) => rcClamp(rcModsOf(id)[k.id] | 0, 0, k.cost.length);
 const rcTuneCache = new Map();
 function rcTuned(stock) {
   const m = rcModsOf(stock.id);
-  const sig = stock.id + ':' + RC_MODS.map(k => rcStageOf(stock.id, k)).join('') + ':' + (m.paint || '');
+  const sig = stock.id + ':' + RC_MODS.map(k => rcStageOf(stock.id, k)).join('')
+    + ':' + (m.paint || '') + ':' + (m.glowC || '');
   let t = rcTuneCache.get(sig);
   if (t) return t;
   t = Object.assign({}, stock, { gears: stock.gears.slice(), sig, stage: {}, glow: 0 });
@@ -6366,6 +6419,7 @@ function rcTuned(stock) {
   }
   t.roll = 0.012 * t.mass * RC_G;                  // a lighter car rolls easier too
   if (m.paint) { t.paint = m.paint; t.trim = rcMix(m.paint, 0, 0.52); }
+  t.glowCol = m.glowC || t.paint;
   rcTuneCache.set(sig, t);
   return t;
 }
@@ -6384,7 +6438,7 @@ function rcApplyCar(stock) { RC.stock = stock; RC.car = rcTuned(stock); }
 function rcCredit(share) {
   const got = Math.max(0, Math.round(RC.score * share));
   RC.score = 0; RC.mult = 1; RC.multAt = -9;
-  if (got > 0) { rcBank += got; rcSaveShop(); rcShopSync(); }
+  if (got > 0) { rcBank += got; rcSaveShop(); rcShopSync(); rcBankSync(); }
   return got;
 }
 // coming off the motorway because you chose to, rather than because of a lorry
@@ -6393,23 +6447,29 @@ function rcPullOff() {
 }
 
 const rcShopEl = document.getElementById('rcShop');
-const rcShopBtn = document.getElementById('rcShopBtn');
+const rcTabCars = document.getElementById('rcTabCars');
+const rcTabShop = document.getElementById('rcTabShop');
 const rcBankEl = document.getElementById('rcBankN');
 const rcShopCarEl = document.getElementById('rcShopCar');
 const rcModsEl = document.getElementById('rcMods');
 const rcPaintEl = document.getElementById('rcPaint');
+const rcNeonEl = document.getElementById('rcNeon');
 
 function rcShopShow(on) {
   rcShopEl.hidden = !on;
-  rcShopBtn.setAttribute('aria-expanded', String(!!on));
-  rcShopBtn.textContent = on ? 'Close garage' : 'Garage';
+  rcCarsEl.hidden = !!on;
+  rcTabCars.setAttribute('aria-selected', String(!on));
+  rcTabShop.setAttribute('aria-selected', String(!!on));
   if (on) rcShopSync();
 }
 
+// the bank is on the tab strip, so it is worth keeping right whichever tab is up
+function rcBankSync() { if (rcBankEl) rcBankEl.textContent = rcNum(rcBank); }
+
 function rcShopSync() {
+  rcBankSync();
   if (!rcShopEl || rcShopEl.hidden) return;
   const stock = RC.stock, t = RC.car, m = rcModsOf(stock.id);
-  rcBankEl.textContent = rcNum(rcBank);
   rcShopCarEl.textContent = stock.name + ' \u00b7 ' + Math.round(t.kw * 1.341) + ' hp \u00b7 '
     + t.mass + ' kg \u00b7 ' + t.mu.toFixed(2) + 'g \u00b7 ' + (t.shift * 1000).toFixed(0) + ' ms a shift';
 
@@ -6435,6 +6495,19 @@ function rcShopSync() {
       + ' aria-label="' + (has(p) ? 'paint it this' : 'buy this colour, ' + rcNum(RC_COLOUR_COST) + ' points')
       + '"></button>').join('')
     + '<span>' + rcNum(RC_COLOUR_COST) + ' a colour, and then it is yours</span>';
+
+  /* The tubes are their own colour. Matching the paint is the first swatch
+     rather than the only thing they can do, and once the kit is in, changing
+     it is a matter of pulling a plug. */
+  rcNeonEl.hidden = !t.stage.glow;
+  if (t.stage.glow) {
+    const nowG = m.glowC || stock.paint;
+    rcNeonEl.innerHTML = '<b>Underglow</b>'
+      + [stock.paint].concat(RC_NEON).map(p =>
+        '<button type="button" class="sw' + (p === nowG ? ' on' : '') + '" data-neon="' + p + '"'
+        + ' style="background:' + p + '" aria-label="glow this colour"></button>').join('')
+      + '<span>free to change once the kit is in</span>';
+  }
 }
 
 // after anything is bought: the car, its thumbnail and the panel all move on
@@ -6446,7 +6519,15 @@ function rcFitted(stock) {
   rcShopSync();
 }
 
-rcShopBtn.addEventListener('click', () => rcShopShow(rcShopEl.hidden));
+rcTabCars.addEventListener('click', () => rcShopShow(false));
+rcTabShop.addEventListener('click', () => rcShopShow(true));
+document.getElementById('rcShopX').addEventListener('click', () => { rcShopShow(false); rcTabCars.focus(); });
+rcNeonEl.addEventListener('click', e => {
+  const b = e.target instanceof Element && e.target.closest('button[data-neon]');
+  if (!b) return;
+  rcModsOf(RC.stock.id).glowC = b.dataset.neon;
+  rcSaveShop(); rcFitted(RC.stock);
+});
 rcModsEl.addEventListener('click', e => {
   const b = e.target instanceof Element && e.target.closest('button[data-mod]');
   if (!b) return;
@@ -6492,7 +6573,7 @@ const RC = {
   keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
   score: 0, mult: 1, multAt: -9, slowFor: 0, draft: 0, pops: [],
   heat: 0, cop: null, chaseFor: 0, awayFor: 0, nearFor: 0,
-  lamp: 0, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
+  lamp: 0, flashT: 9, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
   flame: 0, flameK: 1, lastThrottle: 0
 };
 try { RC.level = localStorage.getItem('raceLevel') || 'busy'; } catch {}
@@ -6519,7 +6600,7 @@ function rcReset(keepCar) {
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
-  RC.lamp = 0; RC.lampAt = null; RC.keys.flash = 0; RC.msgUntil = 0;
+  RC.lamp = 0; RC.flashT = 9; RC.lampAt = null; RC.keys.flash = 0; RC.msgUntil = 0;
   RC.flame = 0; RC.flameK = 1; RC.lastThrottle = 0;
   RC.msg = (banked ? 'banked ' + rcNum(banked) + '. ' : '')
     + (rcTouchUI ? 'tap drive to start' : 'press enter, or any arrow, to start');
@@ -6932,7 +7013,7 @@ function rcSay(msg) { RC.msg = msg; RC.msgUntil = RC.t + 2.6; rcHudText(); }
 
 function rcFlash() {
   if (RC.state !== 'run') return;
-  RC.lamp = 1;
+  RC.lamp = 1; RC.flashT = 0;
   const lane = RC.x / RC_LANE - 0.5;
   let t = null;
   for (const c of RC.cars) {
@@ -7001,7 +7082,15 @@ function rcStep(dt) {
     RC.t += dt;
     if (RC.flash > 0) RC.flash = Math.max(0, RC.flash - dt);
     // main beam for as long as it is held, off within a tenth of a second of letting go
-    RC.lamp = RC.keys.flash ? 1 : Math.max(0, RC.lamp - dt * 10);
+    /* A flash is two quick pulses, not a lamp fading out. Holding the key
+       holds them on, which is the other thing headlights are for. */
+    if (RC.keys.flash) { RC.lamp = 1; RC.flashT = 0; }
+    else if (RC.flashT < 0.46) {
+      RC.flashT += dt;
+      const u = RC.flashT;
+      RC.lamp = u < 0.11 ? 1 : u < 0.19 ? 0.12 : u < 0.32 ? 1
+        : Math.max(0, 1 - (u - 0.32) / 0.11);
+    } else RC.lamp = 0;
     if (RC.flame > 0) { RC.flame = Math.max(0, RC.flame - dt); if (!RC.flame) RC.flameK = 1; }
     /* The state is checked as well as the clock: a crash happens part way
        through this same step, and without it the line saying what you hit was
@@ -7177,7 +7266,14 @@ const RC_ENGINE = {
   // S54: short pipes, a hard metallic edge, and it keeps going to eight thousand
   m3: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.6, pipeB: 2.9, fb: 0.56, damp: 0.6, tone: 4200, pw: 0.9, noise: 0.26, gain: 0.9 },
   // crossplane V8: 1-8-4-3-6-5-7-2, left right right left right left left right
-  cruiser: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 5.6, pipeB: 6.2, fb: 0.62, damp: 0.35, tone: 1200, pw: 2.4, noise: 0.18, gain: 0.7 }
+  cruiser: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 5.6, pipeB: 6.2, fb: 0.62, damp: 0.35, tone: 1200, pw: 2.4, noise: 0.18, gain: 0.7 },
+  /* The same crossplane order in a shorter, harder pipe. The lumpy off beat
+     of an American V8 is not the engine being rough, it is the two banks
+     firing unevenly into their own sides of the exhaust, which is what the
+     bank pattern is already doing. */
+  stang: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 4.3, pipeB: 4.8, fb: 0.60, damp: 0.42, tone: 1550, pw: 2.0, noise: 0.22, gain: 0.9 },
+  // hot vee, turbos in the middle of it: flatter, harder, and a lot less of it
+  rs6: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.6, pipeB: 4.0, fb: 0.48, damp: 0.52, tone: 1900, pw: 1.6, noise: 0.30, gain: 0.85 }
 };
 
 let rcAC = null, rcSnd = null;
@@ -8222,12 +8318,23 @@ function rcVolume(c, prof, mw, mh, len, at, paint, P, vx) {
        it there over the last third of the nose, where these profiles carry more
        width at the top than the plan allows at the waist, and the flank then
        folded back through itself: a notched dark box hanging off the front
-       corner, which is the thing that was being seen. */
-    const topH = top * mh, kk = Math.max(k, 0.99 * rcPlan(u));
+       corner.
+
+       And the back of the car is not this shape's job at all: it is the
+       sprite's, drawn flat and in full detail over the top of this. A profile
+       is a set of proportions and a sprite is a drawing of a particular car,
+       so the corner of the proportions stood outside the drawing and a slab of
+       roof or glasshouse appeared alongside the wing the moment the camera
+       came off the centreline. The extrusion starts inside the sprite and
+       opens out to its full size over the first eighty centimetres, where
+       there is a sprite in front of it to hide the difference. */
+    const out = Math.min(1, u / 0.14);
+    const wide = 0.87 + 0.13 * out, tall = 0.93 + 0.07 * out;
+    const topH = top * mh * tall, kk = Math.max(k, 0.99 * rcPlan(u)) * wide;
     st.push({ x: q.x, y: q.y, s: q.s, kind, topH,
       sh: Math.min(RC_SHOULDER * mh, topH * 0.8),
       t: q.y - topH * q.s,
-      l: q.x - hw * k * q.s, r: q.x + hw * k * q.s,
+      l: q.x - hw * k * wide * q.s, r: q.x + hw * k * wide * q.s,
       ml: q.x - hw * kk * q.s, mr: q.x + hw * kk * q.s,
       bl: q.x - hw * kk * 0.90 * q.s, br: q.x + hw * kk * 0.90 * q.s });
   }
@@ -8312,13 +8419,19 @@ function rcVolume(c, prof, mw, mh, len, at, paint, P, vx) {
       // roof down: the top of the door is the top of the body, and a run of
       // window glass along the side of it was the dark wedge on the Lexus
       const open = prof.some(q => q[3] === 'cabin');
-      for (let i = 0; !open && i <= n; i++) {
-        const q = i === 0 ? rcMid(st[0], st[1], 0.35) : st[i];
+      /* The glasshouse starts at the pillar behind the door, not at the back
+         panel. Running it all the way to the rear corner hung a pane of dark
+         glass in the air above the boot lid, which on a fastback is where the
+         body has already stopped. */
+      for (let i = 1; !open && i <= n; i++) {
+        const q = st[i];
         if (q.topH <= belt + 0.05) { tops.push(flankAt(q, belt)); continue; }
         tops.push(flankAt(q, q.topH - 0.07 * mh));
         bots.unshift(flankAt(q, belt + 0.02 * mh));
       }
       if (bots.length) {
+        // and it closes on the pillar, which rakes down to the beltline
+        tops.unshift(flankAt(rcMid(st[0], st[1], 0.72), belt + 0.03 * mh));
         c.beginPath();
         for (const p of tops) c.lineTo(p[0], p[1]);
         for (const p of bots) c.lineTo(p[0], p[1]);
@@ -8468,21 +8581,34 @@ function rcDraw() {
   /* The headlights, under the traffic rather than painted over it, and as two
      soft pools rather than a beam with edges: a polygon left two hard black
      wedges either side of the lit part, which read as holes in the road. */
-  if (P === RC_NIGHT || deep > 0.05) {
-    const pool = (zw, rx, ry, alpha) => {
-      const p = proj(RC.x, zw, atZ(RC.z + zw - RC_CAMB));
-      const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx * p.s);
-      g.addColorStop(0, 'rgba(255,240,210,' + Math.min(0.55, alpha).toFixed(3) + ')');
-      g.addColorStop(1, 'rgba(255,240,210,0)');
-      c.save(); c.translate(p.x, p.y); c.scale(1, ry / rx); c.translate(-p.x, -p.y);
-      c.fillStyle = g;
-      c.beginPath(); c.arc(p.x, p.y, rx * p.s, 0, 7); c.fill();
-      c.restore();
-    };
+  const pool = (zw, dx, rx, ry, alpha) => {
+    if (alpha < 0.004) return;
+    const p = proj(RC.x + dx, zw, atZ(RC.z + zw - RC_CAMB));
+    const g = c.createRadialGradient(p.x, p.y, 0, p.x, p.y, rx * p.s);
+    g.addColorStop(0, 'rgba(255,240,210,' + Math.min(0.55, alpha).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,240,210,0)');
+    c.save(); c.translate(p.x, p.y); c.scale(1, ry / rx); c.translate(-p.x, -p.y);
+    c.fillStyle = g;
+    c.beginPath(); c.arc(p.x, p.y, rx * p.s, 0, 7); c.fill();
+    c.restore();
+  };
+  if (P === RC_NIGHT || deep > 0.05) {          // the dipped beam, just sitting there
     const dim = P === RC_NIGHT ? 1 : deep * 0.8;
-    pool(RC_CAMB + 6, 9, 3.4, (0.14 + RC.lamp * 0.40) * dim);
-    pool(RC_CAMB + 28, 13, 4.0, (0.10 + RC.lamp * 0.40) * dim);
-    if (RC.lamp > 0) pool(RC_CAMB + 60, 10, 3.0, RC.lamp * 0.32);   // main beam reaches further
+    pool(RC_CAMB + 6, 0, 9, 3.4, 0.14 * dim);
+    pool(RC_CAMB + 28, 0, 13, 4.0, 0.10 * dim);
+  }
+  /* The flash. Headlights are two lamps a metre apart, so it is two beams
+     spreading as they go rather than one wash, and it is worth drawing in
+     daylight too: flashing somebody at two in the afternoon used to do nothing
+     you could see at all. */
+  if (RC.lamp > 0) {
+    const k = RC.lamp * (P === RC_NIGHT || deep > 0.3 ? 1 : 0.8);
+    for (const side of [-1, 1]) {
+      pool(RC_CAMB + 4, side * 0.6, 3.0, 1.2, 0.34 * k);   // the spill off the road in front
+      pool(RC_CAMB + 10, side * 1.0, 5.0, 1.9, 0.34 * k);
+      pool(RC_CAMB + 30, side * 2.6, 7.0, 2.4, 0.30 * k);
+      pool(RC_CAMB + 66, side * 5.2, 8.0, 2.4, 0.20 * k);
+    }
   }
 
   // everything standing on the road, furthest first
@@ -8505,16 +8631,22 @@ function rcDraw() {
 
   // the car you are in, drawn as itself rather than as a set of proportions
   const f = RC_HERO[RC.car.id];
-  const me = proj(RC.x, RC_CAMB, 0);
+  /* Eleven metres ahead of the camera, which on a bend is eleven metres of
+     road that has already started to turn. The body was projected with that
+     offset and the flat rear view of it with none, so the two were up to seven
+     pixels apart and the body stood out from behind the sprite on one side of
+     every corner: the box. */
+  const me = proj(RC.x, RC_CAMB, atZ(RC.z));
   /* Underglow, which does nothing for the lap time and is the first thing
      anybody buys. Added rather than painted on, so it lifts the tarmac it is
      lying on instead of covering it, and it is only there when it would be:
      after dark, or inside a tunnel. */
   if (RC.car.glow && (P === RC_NIGHT || deep > 0.3)) {
     const r = f.w * 1.1 * me.s, gy = me.y + 3;
+    const col = RC.car.glowCol || RC.car.paint;
     const gl = c.createRadialGradient(me.x, gy, 0, me.x, gy, r);
-    gl.addColorStop(0, rcMix(RC.car.paint, 255, 0.35));
-    gl.addColorStop(0.55, rcMix(RC.car.paint, 0, 0.55));
+    gl.addColorStop(0, rcMix(col, 255, 0.35));
+    gl.addColorStop(0.55, rcMix(col, 0, 0.45));
     gl.addColorStop(1, '#000');
     c.save();
     c.globalCompositeOperation = 'lighter';
@@ -8884,12 +9016,19 @@ function rcSprite(c, shape, x, ground, s, paint, P, braking, mine, trim, lamp) {
   c.beginPath(); c.ellipse(0, 0, m.w * 0.60, 0.16, 0, 0, 7); c.fill();
   c.globalAlpha = 1;
   model.draw(c, paint, P, braking, m.w * s > 26);
+  /* Two lamps on the back of them rather than one blob: it is the pair that
+     says headlights, and it is the difference between a car lighting up and a
+     car being under a street lamp. */
   if (lamp > 0) {
-    const g = c.createRadialGradient(0, -m.h * 0.5, 0, 0, -m.h * 0.5, m.w * 0.62);
-    g.addColorStop(0, 'rgba(255,248,225,' + Math.min(0.42, lamp * 0.42).toFixed(3) + ')');
-    g.addColorStop(1, 'rgba(255,248,225,0)');
-    c.fillStyle = g;
-    c.beginPath(); c.ellipse(0, -m.h * 0.5, m.w * 0.62, m.h * 0.62, 0, 0, 7); c.fill();
+    const a = Math.min(0.46, lamp * 0.46), hy = -m.h * 0.46;
+    for (const side of [-1, 1]) {
+      const hx = side * m.w * 0.24;
+      const g = c.createRadialGradient(hx, hy, 0, hx, hy, m.w * 0.44);
+      g.addColorStop(0, 'rgba(255,250,232,' + a.toFixed(3) + ')');
+      g.addColorStop(1, 'rgba(255,250,232,0)');
+      c.fillStyle = g;
+      c.beginPath(); c.ellipse(hx, hy, m.w * 0.44, m.h * 0.52, 0, 0, 7); c.fill();
+    }
   }
   c.restore();
 }
@@ -9448,6 +9587,126 @@ const RC_HERO = {
      with its heater lines and wiper, a spoiler with the high brake light, rails
      on the roof, lamps that run in from the corners, chrome across the
      tailgate, a plastic bumper with a step, and the towbar. */
+  /* Mustang: wide hips, a flat boot with a lip on it, and the one thing that
+     says Mustang from behind and nothing else does, three vertical bars a
+     side in a black recess. A pony in the middle and two oval pipes under a
+     black valance. */
+  stang: { w: 1.92, len: 4.79, h: 1.38, pipes: [[-0.34, -0.17], [0.34, -0.17]],
+    prof: [[0, .95, .72, 'roof'], [.16, .98, .78, 'roof'], [.44, .96, .76, 'glass'],
+      [.60, .74, .98, 'bonnet'], [.93, .71, .94, 'nose'], [1, .58, .78]],
+    body: rcSym([[0.58, -1.38, 0.12], [0.84, -1.20, 0.22], [0.955, -0.86, 0.14], [0.95, -0.44, 0.06], [0.90, -0.22, 0.08], [0.42, -0.20, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.93, -0.56, 0.28);
+    rcShell(c, this.body, car.paint, -1.38, 1.92);
+    c.fillStyle = on ? '#0d1218' : '#23303d';                  // the screen, well raked
+    rcPath(c, rcSym([[0.46, -1.35, 0.06], [0.60, -1.12, 0.05]])); c.fill();
+    c.save(); c.clip();
+    c.fillStyle = on ? 'rgba(120,100,150,.15)' : 'rgba(190,210,230,.24)';
+    c.fillRect(-0.7, -1.35, 1.4, 0.09);
+    c.restore();
+    c.fillStyle = rcMix(car.paint, 255, 0.12);                 // the ducktail
+    c.beginPath(); c.roundRect(-0.70, -1.09, 1.40, 0.055, 0.02); c.fill();
+    c.fillStyle = rcLensTone(false, braking);
+    c.fillRect(-0.16, -1.075, 0.32, 0.022);
+    // the recess the lamps sit in, right across the back
+    c.fillStyle = on ? '#0b0e12' : '#15181d';
+    c.beginPath(); c.roundRect(-0.90, -1.00, 1.80, 0.30, 0.035); c.fill();
+    for (const sx of [-1, 1]) {
+      for (let k = 0; k < 3; k++) {
+        const x = sx * (0.36 + k * 0.17);
+        rcLens(c, rcSide([[Math.abs(x) - 0.055, -0.975, 0.015], [Math.abs(x) + 0.055, -0.965, 0.015],
+          [Math.abs(x) + 0.062, -0.745, 0.015], [Math.abs(x) - 0.048, -0.755, 0.015]], x < 0 ? -1 : 1), on, braking, fine);
+      }
+      rcGlow(c, sx * 0.53, -0.86, 0.50, on || braking);
+    }
+    if (fine) {
+      // the pony, as the shape it is at this size: a body and a streaming tail
+      c.fillStyle = 'rgba(214,218,224,.92)';
+      c.beginPath();
+      c.moveTo(-0.075, -0.855); c.lineTo(0.015, -0.895); c.lineTo(0.075, -0.875);
+      c.lineTo(0.052, -0.845); c.lineTo(0.075, -0.815); c.lineTo(-0.02, -0.825);
+      c.closePath(); c.fill();
+      c.fillStyle = 'rgba(214,218,224,.55)';
+      c.fillRect(-0.115, -0.868, 0.05, 0.016);
+      rcPlateAt(c, -0.62, 0.38);
+      c.fillStyle = '#b3342b';
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.84 - (sx < 0 ? 0 : 0.09), -0.42, 0.09, 0.035);
+    }
+    // the valance, its diffuser and the two big ovals
+    c.fillStyle = '#16191d';
+    rcPath(c, rcSym([[0.88, -0.32, 0.07], [0.86, -0.11, 0.05], [0.30, -0.11, 0]])); c.fill();
+    if (fine) rcFins(c, 5, -0.30, 0.30, -0.24, -0.12);
+    for (const x of [-0.34, 0.34]) rcPipe(c, x, -0.17, 0.085, 0.05);
+  } },
+
+  /* RS6: an estate, so the back of it is nearly upright, with a roof spoiler
+     over a big screen and a wiper on it. Slim lamps a long way apart with a
+     dark strip between them, the four rings in the middle of it, and the two
+     ovals out at the corners where Audi puts them. */
+  rs6: { w: 1.95, len: 5.0, h: 1.46, pipes: [[-0.56, -0.18], [0.56, -0.18]],
+    prof: [[0, 1, .80, 'roof'], [.22, 1, .84, 'roof'], [.56, .99, .80, 'glass'],
+      [.72, .75, .98, 'bonnet'], [.94, .72, .94, 'nose'], [1, .60, .80]],
+    body: rcSym([[0.66, -1.46, 0.08], [0.885, -1.38, 0.13], [0.965, -0.90, 0.10], [0.965, -0.44, 0.06], [0.92, -0.22, 0.08], [0.44, -0.20, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.94, -0.58, 0.27);
+    // the roof spoiler stands proud of the tailgate, with a fin each side
+    c.fillStyle = rcMix(car.paint, 0, 0.18);
+    c.beginPath(); c.roundRect(-0.70, -1.565, 1.40, 0.075, 0.028); c.fill();
+    for (const sx of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(sx * 0.70, -1.49); c.lineTo(sx * 0.80, -1.49);
+      c.lineTo(sx * 0.72, -1.38); c.lineTo(sx * 0.66, -1.40);
+      c.closePath(); c.fill();
+    }
+    c.fillStyle = rcLensTone(false, braking);
+    c.fillRect(-0.20, -1.565, 0.40, 0.026);
+    rcShell(c, this.body, car.paint, -1.46, 1.95);
+    c.fillStyle = on ? '#0c1016' : '#202c38';                  // the tailgate glass
+    rcPath(c, rcSym([[0.74, -1.43, 0.06], [0.755, -1.02, 0.05]])); c.fill();
+    c.save(); c.clip();
+    c.fillStyle = on ? 'rgba(120,100,150,.14)' : 'rgba(190,210,230,.22)';
+    c.fillRect(-0.8, -1.43, 1.6, 0.14);
+    if (fine) {                                                // the wiper across it
+      c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 0.02;
+      c.beginPath(); c.moveTo(0.12, -1.03); c.lineTo(-0.42, -1.26); c.stroke();
+    }
+    c.restore();
+    // the dark strip between the lamps, which is what makes them look wide
+    c.fillStyle = on ? '#0a0d11' : '#16191e';
+    c.beginPath(); c.roundRect(-0.92, -0.965, 1.84, 0.17, 0.03); c.fill();
+    for (const sx of [-1, 1]) {
+      rcLens(c, rcSide([[0.30, -0.945, 0.02], [0.905, -0.955, 0.04], [0.925, -0.84, 0.035],
+        [0.70, -0.815, 0.02], [0.30, -0.825, 0.02]], sx), on, braking, fine);
+      if (fine) {
+        c.fillStyle = 'rgba(255,255,255,.34)';
+        c.fillRect(sx * 0.74 - (sx < 0 ? 0 : 0.10), -0.905, 0.10, 0.035);
+      }
+      rcGlow(c, sx * 0.62, -0.88, 0.50, on || braking);
+    }
+    if (fine) {
+      c.strokeStyle = 'rgba(226,230,236,.9)'; c.lineWidth = 0.016;   // the four rings
+      for (let k = 0; k < 4; k++) {
+        c.beginPath(); c.ellipse(-0.105 + k * 0.07, -0.885, 0.042, 0.038, 0, 0, 7); c.stroke();
+      }
+      c.fillStyle = 'rgba(226,230,236,.75)';
+      c.font = '0.06px ' + MONO;
+      c.textAlign = 'center';
+      c.fillText('RS 6', 0, -0.71);
+      rcPlateAt(c, -0.62, 0.42);
+      c.fillStyle = '#b3342b';
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.86 - (sx < 0 ? 0 : 0.09), -0.42, 0.09, 0.035);
+      c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 0.014;        // the tailgate shut
+      c.beginPath(); c.moveTo(-0.90, -1.00); c.lineTo(0.90, -1.00); c.stroke();
+    }
+    // the diffuser, and the ovals out at the corners
+    c.fillStyle = '#16191d';
+    rcPath(c, rcSym([[0.90, -0.34, 0.07], [0.88, -0.11, 0.05], [0.32, -0.11, 0]])); c.fill();
+    if (fine) rcFins(c, 6, -0.32, 0.32, -0.26, -0.12);
+    for (const x of [-0.56, 0.56]) rcPipe(c, x, -0.18, 0.095, 0.055);
+  } },
+
   cruiser: { w: 1.98, len: 5.0, h: 2.05, pipes: [[0.62, -0.20]],
     prof: [[0, 1, .92, 'roof'], [.18, 1, .94, 'roof'], [.60, .99, .92, 'glass'], [.74, .77, .98, 'bonnet'], [.95, .74, .94, 'nose'], [1, .63, .80]],
     body: rcSym([[0.88, -1.96, 0.08], [0.965, -1.72, 0.12], [0.99, -0.70, 0.05], [0.985, -0.50, 0.03], [0.40, -0.50, 0]]),
