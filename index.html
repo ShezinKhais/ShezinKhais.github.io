@@ -734,7 +734,8 @@
   @media (hover:none) { .idhint { display:none; } }
 
   /* the highway leaderboard, hung under the badge the game is hidden in */
-  .lb { margin-top:14px; border-top:1px solid var(--line); padding-top:12px; }
+  .lb { border:1px solid var(--line); border-top:0; padding:10px 14px 12px; }
+  .lb[hidden] { display:none; }
   .lb h3 {
     margin:0 0 10px; font-size:10px; font-weight:400; letter-spacing:.18em;
     text-transform:uppercase; color:var(--dim);
@@ -1085,6 +1086,7 @@
     <div class="rtabs" role="tablist" aria-label="Cars and garage">
       <button type="button" role="tab" id="rcTabCars" data-tab="cars" aria-selected="true" aria-controls="rcCars">Cars</button>
       <button type="button" role="tab" id="rcTabShop" data-tab="shop" aria-selected="false" aria-controls="rcShop">Garage</button>
+      <button type="button" role="tab" id="rcTabTop" data-tab="top" aria-selected="false" aria-controls="lb">Top 5</button>
       <span class="rtabbank">bank <i id="rcBankN">0</i> pts</span>
     </div>
     <div class="rcars" id="rcCars" role="tabpanel" aria-labelledby="rcTabCars" aria-label="Choose a car"></div>
@@ -1098,8 +1100,7 @@
       <p class="rpaint" id="rcNeon" hidden></p>
     </div>
     <!-- the board lives in the game only: the page itself gives no hint there is one -->
-    <div class="lb" id="lb" role="region" aria-labelledby="lbH">
-      <h3 id="lbH">top 5</h3>
+    <div class="lb" id="lb" hidden role="tabpanel" aria-labelledby="rcTabTop">
       <ol id="lbList"></ol>
       <p class="lbnote">scores from this browser</p>
     </div>
@@ -6636,7 +6637,7 @@ const RC_MODS = [
   { id: 'weight', name: 'Weight', note: 'seats, glass and sound deadening, gone', cost: [2000, 5000, 11000],
     fit(c, s) { c.mass = Math.round(c.mass * (1 - 0.035 * s)); } },
   { id: 'aero', name: 'Aero', note: 'downforce, at the cost of a little drag', cost: [2200, 5500, 13000],
-    fit(c, s) { c.aero += 0.055 * s; c.cda *= 1 + 0.022 * s; c.damp += 0.10 * s; } },
+    fit(c, s) { c.aero += 0.07 * s; c.cda *= 1 + 0.022 * s; } },
   { id: 'exhaust', name: 'Exhaust', note: 'it bangs on the overrun, and it spits flame', cost: [1500, 4000],
     fit(c, s) { c.crackle = Math.min(1, c.crackle + 0.24 * s); c.flame = Math.min(1.4, c.flame + 0.45 * s); } },
   { id: 'glow', name: 'Underglow', note: 'after dark only, and worth nothing at all', cost: [2500],
@@ -6718,13 +6719,18 @@ const rcModsEl = document.getElementById('rcMods');
 const rcPaintEl = document.getElementById('rcPaint');
 const rcNeonEl = document.getElementById('rcNeon');
 
-function rcShopShow(on) {
-  rcShopEl.hidden = !on;
-  rcCarsEl.hidden = !!on;
-  rcTabCars.setAttribute('aria-selected', String(!on));
-  rcTabShop.setAttribute('aria-selected', String(!!on));
-  if (on) rcShopSync();
+// three tabs under the road: the cars, the garage, and the top five
+const rcTabTop = document.getElementById('rcTabTop');
+function rcTab(t) {
+  rcShopEl.hidden = t !== 'shop';
+  rcCarsEl.hidden = t !== 'cars';
+  document.getElementById('lb').hidden = t !== 'top';
+  rcTabCars.setAttribute('aria-selected', String(t === 'cars'));
+  rcTabShop.setAttribute('aria-selected', String(t === 'shop'));
+  rcTabTop.setAttribute('aria-selected', String(t === 'top'));
+  if (t === 'shop') rcShopSync();
 }
+function rcShopShow(on) { rcTab(on ? 'shop' : 'cars'); }
 
 // the bank is on the tab strip, so it is worth keeping right whichever tab is up
 function rcBankSync() { if (rcBankEl) rcBankEl.textContent = rcNum(rcBank); }
@@ -6784,6 +6790,7 @@ function rcFitted(stock) {
 
 rcTabCars.addEventListener('click', () => rcShopShow(false));
 rcTabShop.addEventListener('click', () => rcShopShow(true));
+rcTabTop.addEventListener('click', () => rcTab('top'));
 document.getElementById('rcShopX').addEventListener('click', () => { rcShopShow(false); rcTabCars.focus(); });
 rcNeonEl.addEventListener('click', e => {
   const b = e.target instanceof Element && e.target.closest('button[data-neon]');
@@ -7117,7 +7124,12 @@ function rcDrive(dt) {
   const dMax = Math.min(0.55, car.mu * (load / car.mass) * RC_WHEELBASE / (v * v));
   const delta = rcClamp(RC.steer, -1, 1) * dMax * (off ? 0.55 : 1);
   RC.yaw += (v / RC_WHEELBASE * delta - RC.v * rcCurve(RC.z)) * dt;
-  RC.yaw *= Math.max(0, 1 - car.damp * dt);            // it settles if you let go
+  /* It settles if you let go. That settling used to run while you were
+     steering too, which capped how fast the car could move across the road at
+     about four metres a second whatever the grip, and aero, which raised the
+     settling as well, half cancelled its own downforce. Held steering now
+     fights only a third of it, so the limit is the tyres, as it should be. */
+  RC.yaw *= Math.max(0, 1 - car.damp * dt * (Math.abs(want) > 0.05 ? 0.3 : 1));
   RC.x += RC.v * RC.yaw * dt;
   RC.z += RC.v * dt;
 
@@ -10672,9 +10684,37 @@ function rcCar3(c, car, V, P, braking, flame) {
     body: paint, lower: rcMix(paint, 0, 0.14), roof: m.roofCol || paint,
     glass: night ? '#0a0e14' : '#22303c', interior: '#0c0e11', dark: '#14161a',
     tyre: '#101215', rim: m.rim || '#a9b0b8', carbon: '#1b1d21', chrome: '#c9ced4',
-    trim: rcMix(car.trim || '#444', 0, night ? 0.5 : 0.2)
+    trim: rcMix(car.trim || '#444', 0, night ? 0.5 : 0.2),
+    tow: '#d0302a', lexan: night ? '#141c26' : '#46576a'
   };
-  const faces = [], parts = [], tyres = [];
+  const faces = [], parts = [], tyres = [], nose = [];
+  /* What the garage has fitted, made visible. Aero: a lip, then a wing with
+     skirts and a splitter, then a big wing on endplates with canards and a
+     deeper diffuser; a car that already has a wing gets a taller gurney flap
+     on it instead. Weight: a carbon roof, then carbon bonnet and boot lid,
+     then a lexan rear screen and a tow strap. */
+  const sA = (car.stage && car.stage.aero) || 0, sW = (car.stage && car.stage.weight) || 0;
+  const xp = [];
+  const hatch = m.cab[0] < 0.1;
+  const own = (m.parts || []).find(p => p.x[1] - p.x[0] > 1.2 && p.y[0] > 0.9);
+  if (own && sA >= 2) xp.push({ x: own.x, y: [own.y[1], own.y[1] + 0.025 + 0.02 * sA], z: [own.z[0], own.z[0] + 0.02] });
+  if (!own && sA >= 1) {
+    const base = hatch ? m.roof - 0.01 : m.deckR + 0.01, zr = hatch ? m.len * m.cab[0] : 0;
+    if (sA === 1) xp.push({ x: [-(m.w - 0.14), m.w - 0.14], y: [base, base + 0.045], z: [zr, zr + 0.12], col: 'paint' });
+    else {
+      const top = base + 0.10 + 0.05 * sA, half = m.w - (sA >= 3 ? 0.04 : 0.12);
+      xp.push({ x: [-half, half], y: [top, top + 0.04], z: [zr, zr + 0.26 + 0.04 * sA] });
+      for (const sx of [-1, 1]) xp.push({ x: sx < 0 ? [-0.42, -0.38] : [0.38, 0.42], y: [base, top], z: [zr + 0.08, zr + 0.16] });
+      if (sA >= 3) for (const sx of [-1, 1]) xp.push({ x: sx < 0 ? [-half - 0.03, -half] : [half, half + 0.03], y: [top - 0.10, top + 0.08], z: [zr, zr + 0.40] });
+    }
+  }
+  if (sA >= 2) xp.push({ x: [-(m.w * (1 - m.noseIn) - 0.02), m.w * (1 - m.noseIn) - 0.02], y: [0.06, 0.09], z: [m.len - 0.06, m.len + 0.07] });
+  if (sA >= 3) for (const sx of [-1, 1]) {
+    const x = sx * (m.w * (1 - m.noseIn) - 0.06);
+    xp.push({ x: [x - 0.10, x + 0.10].sort((a, b) => a - b), y: [m.noseH * 0.55, m.noseH * 0.55 + 0.02], z: [m.len - 0.20, m.len - 0.02] });
+  }
+  if (sW >= 3) xp.push({ x: [0.50, 0.58], y: [0.16, 0.30], z: [-0.03, 0.0], col: 'tow' });
+  const allParts = (m.parts || []).concat(xp);
   const add = (list, P3, mat, fixedN, ref) => {
     let cx = 0, cy = 0, cz = 0, nx = 0, ny = 0, nz = 0;
     for (let i = 0; i < P3.length; i++) {
@@ -10697,7 +10737,11 @@ function rcCar3(c, car, V, P, braking, flame) {
   for (let i = 0; i < st.length - 1; i++) {
     const a = st[i], b = st[i + 1];
     for (let j = 0; j < 5; j++) {
-      const mat = rc3Mat(m, a, b, j);
+      let mat = rc3Mat(m, a, b, j);
+      if (sA >= 2 && j === 0) mat = 'carbon';                                   // side skirts
+      if (sW >= 1 && j === 4 && mat === 'body' && a.k > 0.5 && b.k > 0.5) mat = 'carbon';   // roof
+      if (sW >= 2 && j === 4 && mat === 'body' && (b.u <= m.cab[0] + 0.001 || a.u >= m.cab[1] - 0.001)) mat = 'carbon';  // bonnet, boot
+      if (sW >= 3 && mat === 'glass' && j === 4 && (a.u + b.u) / 2 < 0.5) mat = 'lexan';
       for (const sx of [1, -1]) {
         add(faces, [[sx * a.pts[j][0], a.pts[j][1], a.z], [sx * a.pts[j + 1][0], a.pts[j + 1][1], a.z],
           [sx * b.pts[j + 1][0], b.pts[j + 1][1], b.z], [sx * b.pts[j][0], b.pts[j][1], b.z]], mat);
@@ -10728,14 +10772,16 @@ function rcCar3(c, car, V, P, braking, flame) {
     }
   }
   // wings, rails, headrests: boxes
-  for (const b of m.parts || []) {
+  for (const b of allParts) {
     const [x0, x1] = b.x, [y0, y1] = b.y, [z0, z1] = b.z, mat = b.col || 'carbon';
+    // parts at the far end are behind the body from here, so they go under it
+    const parts_ = z0 > m.len * 0.6 ? nose : parts;
     const v = (x, y, z) => [x, y, z];
-    add(parts, [v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], mat, [0, 1, 0]);
-    add(parts, [v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], mat, [0, 0, -1]);
-    add(parts, [v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0)], mat, [1, 0, 0]);
-    add(parts, [v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], mat, [-1, 0, 0]);
-    add(parts, [v(x0, y0, z1), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z1)], mat, [0, 0, 1]);
+    add(parts_, [v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], mat, [0, 1, 0]);
+    add(parts_, [v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], mat, [0, 0, -1]);
+    add(parts_, [v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0)], mat, [1, 0, 0]);
+    add(parts_, [v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], mat, [-1, 0, 0]);
+    add(parts_, [v(x0, y0, z1), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z1)], mat, [0, 0, 1]);
   }
 
   const shadeOf = f => {
@@ -10743,7 +10789,8 @@ function rcCar3(c, car, V, P, braking, flame) {
     const base = f.mat === 'wheel' ? cols.tyre : f.mat === 'paint' ? paint : (cols[f.mat] || paint);
     const lum = 0.42 + 0.58 * Math.max(0, nx * RC_L3[0] + ny * RC_L3[1] + nz * RC_L3[2]);
     let col = rcMix(base, 0, 1 - lum);
-    if (f.mat === 'glass') col = rcMix(col, 255, (night ? 0.04 : 0.10) + Math.max(0, ny) * (night ? 0.06 : 0.22));
+    if (f.mat === 'glass' || f.mat === 'lexan') col = rcMix(col, 255, (night ? 0.04 : 0.10) + Math.max(0, ny) * (night ? 0.06 : 0.22));
+    else if (f.mat === 'carbon') col = rcMix(col, 255, 0.05 + Math.max(0, ny) * (night ? 0.05 : 0.14));
     else if (f.mat !== 'tyre' && f.mat !== 'wheel' && ny > 0) col = rcMix(col, 255, ny * ny * (night ? 0.05 : 0.16));
     return col;
   };
@@ -10778,6 +10825,7 @@ function rcCar3(c, car, V, P, braking, flame) {
   }
   c.closePath(); c.fillStyle = night ? 'rgba(0,0,0,.38)' : 'rgba(0,0,0,.30)'; c.fill();
   tyres.sort((a, b) => b.d - a.d).forEach(draw);
+  nose.sort((a, b) => b.d - a.d).forEach(draw);
   faces.sort((a, b) => b.d - a.d).forEach(draw);
 
   // the tail, painted onto the rear face in its own metres (y negative is up)
@@ -10790,6 +10838,11 @@ function rcCar3(c, car, V, P, braking, flame) {
     c.closePath(); c.save(); c.clip();
     const S = { hw: st[0].pts[1][0], top: st[0].pts[5][1], belt: st[0].pts[2][1], gc: m.gc };
     m.tail(c, S, car, night, braking, p0.s > 26, P, paint);
+    if (sA >= 3) {
+      c.fillStyle = '#0f1114';
+      rcPath(c, rcSym([[S.hw * 0.70, rcY(m.gc + 0.16), 0.02], [S.hw * 0.92, rcY(m.gc - 0.06), 0.02], [0.2, rcY(m.gc - 0.06), 0]])); c.fill();
+      if (p0.s > 26) rcFins(c, 7, -S.hw * 0.66, S.hw * 0.66, rcY(m.gc + 0.13), rcY(m.gc - 0.05));
+    }
     c.restore();
     if (flame > 0) rcFlame(c, { pipes: m.pipes, w: m.w * 2 }, flame, P, RC.flameK);
     c.restore();
@@ -11441,6 +11494,7 @@ lbForm.addEventListener('submit', async e => {
   lbPending = null; lbForm.hidden = true;
   lbName.blur();
   await lbRender();
+  rcTab('top');                         // show where it went
 });
 document.getElementById('lbSkip').addEventListener('click', () => {
   // a skipped score is not offered again on the next visit
