@@ -6613,6 +6613,7 @@ const rcNum = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
    pull off of your own accord, with R or by closing it, and you keep the lot;
    put it in the barrier and you keep half; anything that wipes the score while
    you are out there, a cone or a patrol car with you, pays nothing at all. */
+const RC_FLAME_MAP = new Set(['r34', 'supra', 'typer', 'huracan', 'amggtr', 'stang']);
 const RC_MODS = [
   { id: 'power', name: 'Engine', note: 'ecu, manifold, cams', cost: [2500, 7000, 16000],
     /* Top gear goes out with it. Every car's top is geared so the redline lands
@@ -6640,6 +6641,13 @@ const RC_MODS = [
     fit(c, s) { c.aero += 0.07 * s; c.cda *= 1 + 0.022 * s; } },
   { id: 'exhaust', name: 'Exhaust', note: 'it bangs on the overrun, and it spits flame', cost: [1500, 4000],
     fit(c, s) { c.crackle = Math.min(1, c.crackle + 0.24 * s); c.flame = Math.min(1.4, c.flame + 0.45 * s); } },
+  /* The last word in exhaust, and only on the cars the scene does it to: a map
+     that dumps fuel into hot pipes on every lift and every upshift, so a lift
+     at the top of the revs is a second of machine-gun bangs and a flame a
+     foot long with a blue heart. Needs the full exhaust first. */
+  { id: 'flamemap', name: 'Flame map', note: 'anti-lag bangs on the lift, fire on every upshift', cost: [9000],
+    only: c => RC_FLAME_MAP.has(c.id), needs: 'exhaust',
+    fit(c, s) { c.flameMap = s; c.crackle = 1; c.flame = Math.min(2.2, c.flame + 0.8 * s); } },
   { id: 'glow', name: 'Underglow', note: 'after dark only, and worth nothing at all', cost: [2500],
     fit(c, s) { c.glow = s; } }
 ];
@@ -6744,13 +6752,16 @@ function rcShopSync() {
 
   rcModsEl.innerHTML = RC_MODS.filter(k => !k.only || k.only(stock)).map(k => {
     const s = rcStageOf(stock.id, k), max = k.cost.length;
+    const pre = k.needs && RC_MODS.find(q => q.id === k.needs);
+    const locked = pre && rcStageOf(stock.id, pre) < pre.cost.length;
     const done = s >= max, price = done ? 0 : k.cost[s];
-    const label = done ? 'fitted' : rcBank >= price ? 'buy ' + rcNum(price) : rcNum(price) + ' pts';
+    const label = done ? 'fitted' : locked ? 'full ' + pre.name.toLowerCase() + ' first'
+      : rcBank >= price ? 'buy ' + rcNum(price) : rcNum(price) + ' pts';
     return '<span class="rmod"><b>' + k.name
       + ' <i>' + '\u25cf'.repeat(s) + '\u25cb'.repeat(max - s) + '</i></b>'
       + '<em>' + k.note + '</em>'
       + '<button type="button" data-mod="' + k.id + '"'
-      + (done || rcBank < price ? ' disabled' : '') + '>' + label + '</button></span>';
+      + (done || locked || rcBank < price ? ' disabled' : '') + '>' + label + '</button></span>';
   }).join('');
 
   // the colour it came in is always there and always free to go back to
@@ -6804,6 +6815,8 @@ rcModsEl.addEventListener('click', e => {
   const k = RC_MODS.find(q => q.id === b.dataset.mod);
   if (!k) return;
   const stock = RC.stock, s = rcStageOf(stock.id, k);
+  const pre = k.needs && RC_MODS.find(q => q.id === k.needs);
+  if (pre && rcStageOf(stock.id, pre) < pre.cost.length) return;
   if (s >= k.cost.length || rcBank < k.cost[s]) return;
   rcBank -= k.cost[s];
   rcModsOf(stock.id)[k.id] = s + 1;
@@ -6872,7 +6885,7 @@ function rcReset(keepCar) {
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
   RC.lamp = 0; RC.flashT = 9; RC.lampAt = null; RC.keys.flash = 0; RC.msgUntil = 0;
-  RC.flame = 0; RC.flameK = 1; RC.lastThrottle = 0;
+  RC.flame = 0; RC.flameK = 1; RC.lastThrottle = 0; RC.antilag = 0; RC.alNext = 0;
   RC.msg = (banked ? 'banked ' + rcNum(banked) + '. ' : '')
     + (rcTouchUI ? 'tap drive to start' : 'press enter, or any arrow, to start');
   if (!keepCar) rcApplyCar(RC_CARS[0]);
@@ -7077,7 +7090,14 @@ function rcDrive(dt) {
     const worked = RC.onFor > 0.35 && rpm > car.redline * (0.60 - car.flame * 0.14);
     if (worked && Math.random() < Math.min(0.96, car.crackle * 0.9 + car.flame * 0.7))
       rcFire(car.crackle * 0.7 + car.flame * 0.45);
+    // anti-lag: a second of bangs after a lift from high in the revs
+    if (car.flameMap && rpm > car.redline * 0.55) { RC.antilag = RC.t + 1.1; RC.alNext = RC.t; }
     RC.onFor = 0;
+  }
+  // on the game clock, not this step's dt: this runs several times a frame
+  if (RC.antilag > RC.t) {
+    if (throttle) RC.antilag = 0;
+    else if (RC.t >= RC.alNext) { rcFire(0.9 + Math.random() * 0.6); RC.alNext = RC.t + 0.07 + Math.random() * 0.12; }
   }
   RC.lastThrottle = throttle;
   RC.blip = Math.max(0, RC.blip - dt);
@@ -8040,6 +8060,7 @@ function rcPop(strength) {
 
 // an upshift near the top of the revs may light the exhaust; short shifting does not
 function rcShiftPop(car) {
+  if (car.flameMap) { rcFire(1.4); return; }        // the map fires on every upshift
   const high = rcRpmOf(RC.v, rcRatio(car, RC.gear)) > car.redline * (0.75 - car.flame * 0.20);
   if (high && Math.random() < Math.min(0.96, 0.85 * car.crackle + car.flame * 0.6))
     rcFire(car.crackle + car.flame * 0.5);
@@ -10558,7 +10579,16 @@ function rcFlame(c, f, k, P, big) {
     c.beginPath(); c.arc(0, 0.14, r, 0, 7); c.fill();
     c.restore();
   }
+  const map = RC.car && RC.car.flameMap;
   for (const [px, py] of f.pipes) {
+    if (map) {
+      // the map's flame: a long hot tongue with a blue heart
+      const r = (0.07 + Math.random() * 0.05) * heavy;
+      const g = c.createRadialGradient(px, py, 0, px, py, r * 3.4);
+      g.addColorStop(0, 'rgba(255,190,90,.75)'); g.addColorStop(0.4, 'rgba(255,140,40,.40)');
+      g.addColorStop(1, 'rgba(255,110,30,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(px, py, r * 3.4, 0, 7); c.fill();
+    }
     /* The size is the tune's, not the tune's times the strength's: taking
        both put a thirty centimetre core on a car whose pipes are eighty
        millimetres across, and the three of them ran into one fireball. */
@@ -10575,6 +10605,13 @@ function rcFlame(c, f, k, P, big) {
     c.beginPath(); c.ellipse(px, py, rl * 0.52, rl * 0.46, 0, 0, 7); c.fill();
     c.fillStyle = 'rgba(255,248,232,.9)';
     c.beginPath(); c.ellipse(px, py, rl * 0.22, rl * 0.20, 0, 0, 7); c.fill();
+    if (map) {
+      // the blue heart, over the top: unburnt fuel lighting off at the tip
+      const bh = c.createRadialGradient(px, py, 0, px, py, rl * 0.75);
+      bh.addColorStop(0, 'rgba(235,242,255,.95)'); bh.addColorStop(0.45, 'rgba(110,150,255,.85)');
+      bh.addColorStop(1, 'rgba(80,120,255,0)');
+      c.fillStyle = bh; c.beginPath(); c.arc(px, py, rl * 0.75, 0, 7); c.fill();
+    }
   }
 }
 
