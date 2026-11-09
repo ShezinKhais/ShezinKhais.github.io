@@ -6320,7 +6320,25 @@ const RC_CARS = [
     drive: 0.95, shift: 0.30,
     aero: -0.03, agile: 0.70, damp: 1.1,
     cyl: 8, turbo: false, crackle: 0.05,
-    paint: '#e8e4dc', trim: '#5d5a52', shape: 'suv' }
+    paint: '#e8e4dc', trim: '#5d5a52', shape: 'suv' },
+  { id: 'mclaren', name: 'McLaren 720S', tag: 'twin turbo flat-plane V8, carbon tub',
+    kw: 530, peak: 7500, redline: 8100, mass: 1419, vmax: 341, ng: 7, mu: 1.30,
+    drive: 0.90, shift: 0.08,
+    aero: 0.30, agile: 1.40, damp: 2.6,
+    cyl: 8, turbo: true, crackle: 0.55, spool: 2.6, bov: 'valve', bovLevel: 0.5,
+    paint: '#f07a1e', trim: '#1a1c20', shape: 'wedge' },
+  { id: 'f458', name: 'Ferrari 458 Italia', tag: 'flat-plane V8 to 9,000 rpm',
+    kw: 419, peak: 8000, redline: 9000, mass: 1485, vmax: 325, ng: 7, mu: 1.24,
+    drive: 0.82, shift: 0.09,
+    aero: 0.18, agile: 1.32, damp: 2.4,
+    cyl: 8, turbo: false, crackle: 0.65,
+    paint: '#c8102e', trim: '#4a0a14', shape: 'wedge' },
+  { id: 'amggtr', name: 'Mercedes-AMG GT R', tag: 'hot vee V8, and it pops',
+    kw: 430, peak: 6250, redline: 7200, mass: 1630, vmax: 318, ng: 7, mu: 1.18,
+    drive: 0.80, shift: 0.12,
+    aero: 0.14, agile: 1.12, damp: 2.2,
+    cyl: 8, turbo: true, crackle: 0.95, spool: 2.0, bov: 'flutter', flame: 0.9,
+    paint: '#4f6b3a', trim: '#1c2418', shape: 'coupe' }
 ];
 
 const RC_RW = 0.34;                        // rolling radius, metres
@@ -6840,7 +6858,7 @@ function rcReset(keepCar) {
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
   RC.heat = 0; RC.cop = null; RC.lurk = null; RC.heli = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
   RC.runPeak = 0; RC.pbBefore = rcBestScore; RC.runLevel = RC.level;
-  RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
+  RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x; RC.camYaw = 0;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
   RC.lamp = 0; RC.flashT = 9; RC.lampAt = null; RC.keys.flash = 0; RC.msgUntil = 0;
@@ -7476,6 +7494,9 @@ function rcStep(dt) {
     rcTrafficStep(dt);        // the road is alive before you pull out
   }
   RC.camX += (RC.x - RC.camX) * Math.min(1, dt * 7);
+  /* The camera turns with the car a beat behind it, the way a chase camera on
+     a boom does, so a turn shows as the nose swinging into it. */
+  RC.camYaw += (RC.yaw - RC.camYaw) * Math.min(1, dt * 5);
   rcAudioUpdate();
 }
 
@@ -7645,7 +7666,16 @@ const RC_ENGINE = {
      bank pattern is already doing. */
   stang: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 4.3, pipeB: 4.8, fb: 0.60, damp: 0.42, tone: 1550, pw: 2.0, noise: 0.22, gain: 0.9 },
   // hot vee, turbos in the middle of it: flatter, harder, and a lot less of it
-  rs6: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.6, pipeB: 4.0, fb: 0.48, damp: 0.52, tone: 1900, pw: 1.6, noise: 0.30, gain: 0.85 }
+  rs6: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.6, pipeB: 4.0, fb: 0.48, damp: 0.52, tone: 1900, pw: 1.6, noise: 0.30, gain: 0.85 },
+  /* Flat-plane V8s fire bank to bank in strict alternation, which is why they
+     sound like two fours wailing rather than a V8 burbling. The McLaren's
+     turbos and short pipes give it a hard, raspy edge; the Ferrari is the same
+     layout with no turbos in the way, shorter pipes still, and a lot more
+     treble: it screams. */
+  mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.4, pipeB: 2.5, fb: 0.50, damp: 0.56, tone: 3600, pw: 0.9, noise: 0.34, gain: 0.85 },
+  f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.8, pipeB: 2.0, fb: 0.56, damp: 0.62, tone: 6400, pw: 0.6, noise: 0.22, gain: 0.8 },
+  // crossplane, long pipes and a big resonance: the deepest thing here bar the Land Cruiser
+  amggtr: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.9, pipeB: 4.4, fb: 0.60, damp: 0.40, tone: 1700, pw: 2.1, noise: 0.24, gain: 0.9 }
 };
 
 let rcAC = null, rcSnd = null;
@@ -8911,7 +8941,7 @@ function rcDraw() {
   c.clearRect(0, 0, w, h);
   rcSky(c, w, h, horizon, P);
 
-  const vx = w / 2 - RC.yaw * FOC + sx0;          // where the camera is looking
+  const vx = w / 2 - (RC.camYaw || 0) * FOC + sx0;   // where the camera is looking
   const proj = (xr, zw, off) => {
     const s = FOC / Math.max(zw, 1.4);
     return { x: vx + (xr - RC.camX + off) * s, y: horizon + camH * s + sy0, s };
@@ -9015,7 +9045,10 @@ function rcDraw() {
     const m = RC_SHAPES[t.shape];
     const lx = t.x !== undefined ? t.x : rcLaneX(t.lane);
     const paint = P === RC_NIGHT ? rcMix(t.paint, 0, 0.42) : t.paint;
-    rcVolume(c, RC_PROF[t.shape], m.w, m.h, m.len, d => proj(lx, t.z - camZ + d, atZ(t.z + d)), paint, P, vx);
+    // rigid too: along the road's direction at the car, plus its drift across lanes
+    const o0 = atZ(t.z), sl = (atZ(t.z + 4) - o0) / 4;
+    const head = t.target !== undefined && t.lane !== t.target ? Math.sign(t.target - t.lane) * 0.06 : 0;
+    rcVolume(c, RC_PROF[t.shape], m.w, m.h, m.len, d => proj(lx + head * d, t.z - camZ + d, o0 + sl * d), paint, P, vx);
     rcBarDark = !!t.parked;
     rcSprite(c, t.shape, p.x, p.y, p.s, t.paint, P, t.brake > 0, false, null,
       t === RC.lampAt ? RC.lamp : 0);
@@ -9026,8 +9059,13 @@ function rcDraw() {
     const hl = RC.heli;
     const g = proj(hl.x, hl.z - camZ, atZ(hl.z));
     const y = g.y - hl.alt * g.s;
-    const me = RC.heli.phase === 'trail' ? atW(RC.z, RC.x) : null;
-    rcHeliDraw(c, g.x, y, g.s, P, hl, me, rcClamp(1 - (hl.z - camZ - 600) / 400, 0, 1));
+    // where the light is: on you, searching a little either side
+    const lock = Math.min(1, hl.t / 6);
+    const aim = RC.x + Math.sin(RC.t * 0.8) * 1.6 * (1 - lock * 0.7) + Math.sin(RC.t * 2.3) * 0.25;
+    const me = RC.heli.phase === 'trail' ? atW(RC.z + 1.5, aim) : null;
+    const fade = rcClamp(1 - (hl.z - camZ - 600) / 400, 0, 1);
+    rcHeliBeam(c, g.x, y, g.s * 1.3, P, hl, me, fade * Math.min(1, hl.t / 1.2));
+    rcHeliDraw(c, g.x, y, g.s, P, hl, me, fade);
   }
 
   // the car you are in, drawn as itself rather than as a set of proportions
@@ -9057,9 +9095,15 @@ function rcDraw() {
     c.beginPath(); c.arc(me.x, gy, r, 0, 7); c.fill();
     c.restore();
   }
-  rcVolume(c, f.prof, f.w, f.h, f.len, d => proj(RC.x, RC_CAMB + d, atZ(RC.z + d)),
+  /* The body is rigid and points where the car points. It used to be laid
+     along the road, bending with it and ignoring the car's own heading, so in
+     a camera that turns with the car the nose swung the wrong way: steer left
+     and the front of the car slid off to the right of its own back end. */
+  const off0 = atZ(RC.z), slope0 = (atZ(RC.z + 4) - off0) / 4;
+  rcVolume(c, f.prof, f.w, f.h, f.len, d => proj(RC.x + RC.yaw * d, RC_CAMB + d, off0 + slope0 * d),
     P === RC_NIGHT ? rcMix(RC.car.paint, 0, 0.42) : RC.car.paint, P, vx);
   rcHero(c, RC.car, me.x, me.y, me.s, P, !!RC.keys.down, RC.flame);
+  if (rcHeliOn()) rcHeliGlare(c, me, P, Math.min(1, RC.heli.t / 1.2) * (0.6 + 0.4 * Math.abs(Math.sin(RC.t * 0.8))));
   rcTunnelLight(c, tun, P, w, h, camZ, atW, horizon);
 
   /* Their lights, on the inside of your own car. Only worth anything when
@@ -9408,22 +9452,72 @@ const RC_MODELS = {
    skids under it, a boom and fin that only show from behind, and the disc of
    the rotor as a blur with two blades through it. The searchlight is a cone
    down to wherever your car is, strong at night and a faint wash by day. */
+/* The searchlight, drawn under the helicopter and before your car so the car
+   sits in the light rather than behind it. Light adds, so the beam is drawn
+   with additive blending: three nested cones, wide and faint to narrow and
+   bright, give it a soft edge instead of a hard triangle; the pool on the road
+   has a hot centre; and at night there is dust drifting through the beam. The
+   aim wanders a metre or so either side of you, the way a hand-held light
+   searches, and tightens up the longer it has had you. */
+function rcHeliBeam(c, x, y, s, P, hl, me, fade) {
+  if (!me || fade <= 0) return;
+  const night = P === RC_NIGHT, t = RC.t;
+  const k = (night ? 1 : 0.42) * fade;
+  const bx = x, by = y + s * 1.25;                     // the lamp, under the nose
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  const sp = me.s * 2.6;
+  for (const [wk, a] of [[1.6, 0.05], [1.0, 0.07], [0.5, 0.09]]) {
+    const g = c.createLinearGradient(bx, by, me.x, me.y);
+    g.addColorStop(0, 'rgba(255,248,220,' + (a * 1.6 * k).toFixed(3) + ')');
+    g.addColorStop(0.7, 'rgba(255,248,220,' + (a * 0.7 * k).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(255,248,220,' + (a * 1.1 * k).toFixed(3) + ')');
+    c.fillStyle = g;
+    c.beginPath();
+    c.moveTo(bx - s * 0.18 * wk, by); c.lineTo(me.x - sp * wk, me.y);
+    c.lineTo(me.x + sp * wk, me.y); c.lineTo(bx + s * 0.18 * wk, by);
+    c.closePath(); c.fill();
+  }
+  // the pool on the road
+  c.save();
+  c.translate(me.x, me.y); c.scale(1, 0.30);
+  const pg = c.createRadialGradient(0, 0, 0, 0, 0, sp * 1.5);
+  pg.addColorStop(0, 'rgba(255,250,232,' + (0.34 * k).toFixed(3) + ')');
+  pg.addColorStop(0.45, 'rgba(255,246,220,' + (0.16 * k).toFixed(3) + ')');
+  pg.addColorStop(1, 'rgba(255,246,220,0)');
+  c.fillStyle = pg; c.beginPath(); c.arc(0, 0, sp * 1.5, 0, 7); c.fill();
+  c.restore();
+  // dust in the beam, after dark
+  if (night) {
+    c.fillStyle = 'rgba(255,250,230,' + (0.35 * fade).toFixed(3) + ')';
+    for (let i = 0; i < 14; i++) {
+      const u = (i * 0.137 + t * 0.07) % 1, w = Math.sin(i * 12.9 + t * 0.6) * 0.8;
+      const px = bx + (me.x - bx) * u + w * sp * u, py = by + (me.y - by) * u;
+      const r = Math.max(0.6, s * 0.02 + me.s * 0.012 * u);
+      c.beginPath(); c.arc(px, py, r, 0, 7); c.fill();
+    }
+  }
+  c.restore();
+}
+
+// the light landing on the roof of your car, drawn over it
+function rcHeliGlare(c, me, P, fade) {
+  if (fade <= 0) return;
+  const k = (P === RC_NIGHT ? 0.20 : 0.08) * fade;
+  c.save();
+  c.globalCompositeOperation = 'lighter';
+  const r = me.s * 1.5, y = me.y - me.s * 1.1;
+  const g = c.createRadialGradient(me.x, y, 0, me.x, y, r);
+  g.addColorStop(0, 'rgba(255,250,230,' + k.toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,250,230,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(me.x, y, r, 0, 7); c.fill();
+  c.restore();
+}
+
 function rcHeliDraw(c, x, y, s, P, hl, me, fade) {
   if (s * 11 < 3 || fade <= 0) return;
   const night = P === RC_NIGHT, t = RC.t;
   c.save();
   c.globalAlpha = fade;
-  if (me) {
-    const k = night ? 0.22 : 0.07;
-    const gr = c.createLinearGradient(x, y, me.x, me.y);
-    gr.addColorStop(0, 'rgba(255,250,225,' + (k * 1.4).toFixed(3) + ')');
-    gr.addColorStop(1, 'rgba(255,250,225,' + k.toFixed(3) + ')');
-    c.fillStyle = gr;
-    const sp = me.s * 3.2;
-    c.beginPath(); c.moveTo(x - s * 0.3, y + s * 0.9); c.lineTo(me.x - sp, me.y);
-    c.lineTo(me.x + sp, me.y); c.lineTo(x + s * 0.3, y + s * 0.9); c.closePath(); c.fill();
-    c.beginPath(); c.ellipse(me.x, me.y, sp * 1.1, sp * 0.32, 0, 0, 7); c.fill();
-  }
   // a touch over life size, so it still reads as a helicopter 170 m out
   c.translate(x, y); c.scale(s * 1.3, s * 1.3); c.rotate(hl.roll || 0);
   const body = night ? '#1d2229' : '#2b313a', trim = night ? '#2c3440' : '#3d4652';
@@ -9539,6 +9633,12 @@ function rcTyres(c, halfTrack, top, wide) {
     c.fillRect(x + wide * 0.12, top, wide * 0.76, -top * 0.18);
     c.fillStyle = 'rgba(0,0,0,.35)';                // and the grooves
     for (let k = 1; k < 3; k++) c.fillRect(x + wide * k / 3 - 0.008, top, 0.016, -top * 0.9);
+    // tread blocks between them, and the contact patch darker where it sits
+    c.fillStyle = 'rgba(0,0,0,.22)';
+    for (let y = top + 0.04; y < -0.05; y += 0.07)
+      for (let k = 0; k < 3; k++) c.fillRect(x + wide * (k + 0.25) / 3, y, wide * 0.16, 0.025);
+    c.fillStyle = 'rgba(0,0,0,.30)';
+    c.fillRect(x, -0.05, wide, 0.05);
   }
 }
 
@@ -9582,7 +9682,14 @@ function rcGlass(c, P, x, y, w, h, r) {
   c.moveTo(x + w * 0.58, y); c.lineTo(x + w * 0.70, y);
   c.lineTo(x + w * 0.52, y + h); c.lineTo(x + w * 0.40, y + h);
   c.fill();
+  // the horizon behind you, a band of sky low in the glass
+  c.fillStyle = night ? 'rgba(255,170,120,.06)' : 'rgba(225,235,245,.14)';
+  c.fillRect(x, y + h * 0.62, w, h * 0.10);
   c.restore();
+  // a dark frit round the edge, as every bonded window has
+  c.beginPath();
+  if (c.roundRect) c.roundRect(x, y, w, h, r || 0.04); else c.rect(x, y, w, h);
+  c.lineWidth = Math.min(0.03, h * 0.12); c.strokeStyle = 'rgba(0,0,0,.45)'; c.stroke();
 }
 
 function rcGlow(c, x, y, r, on) {
@@ -9645,7 +9752,18 @@ function rcShell(c, pts, paint, top, w) {
   c.save(); c.clip();
   c.fillStyle = g.h; c.fillRect(-w / 2, top, w, -top);
   c.fillStyle = g.v; c.fillRect(-w / 2, top, w, -top * 0.55);
+  /* A crease of light across the shoulder and the bumper going into shadow
+     at the bottom: the two cues that say a panel is curved rather than flat. */
+  c.fillStyle = 'rgba(255,255,255,.16)';
+  c.fillRect(-w / 2, top * 0.66, w, 0.016);
+  c.fillStyle = 'rgba(0,0,0,.10)';
+  c.fillRect(-w / 2, top * 0.64, w, 0.012);
+  const lo = c.createLinearGradient(0, top * 0.22, 0, 0);
+  lo.addColorStop(0, 'rgba(0,0,0,0)'); lo.addColorStop(1, 'rgba(0,0,0,.22)');
+  c.fillStyle = lo; c.fillRect(-w / 2, top * 0.22, w, -top * 0.22);
   c.restore();
+  // a hairline round the outline, so the body reads as one pressed panel
+  c.lineWidth = 0.012; c.strokeStyle = 'rgba(0,0,0,.28)'; c.stroke();
 }
 
 // a lamp lens: the colour, a brighter upper edge where the light catches it, a dark rim
@@ -9661,16 +9779,25 @@ function rcLens(c, pts, on, braking, fine) {
   c.fillRect(l, t, r - l, (b - t) * 0.36);
   c.fillStyle = 'rgba(0,0,0,.22)';
   c.fillRect(l, b - (b - t) * 0.22, r - l, (b - t) * 0.22);
+  // the LED strip through the middle of it, which is what is actually lit
+  const mid = (t + b) / 2, hh = Math.max(0.012, (b - t) * 0.12);
+  c.fillStyle = braking ? 'rgba(255,236,226,.80)' : on ? 'rgba(255,200,180,.55)' : 'rgba(255,170,160,.18)';
+  c.fillRect(l + (r - l) * 0.08, mid - hh / 2, (r - l) * 0.84, hh);
   c.restore();
   c.lineWidth = 0.014; c.strokeStyle = 'rgba(0,0,0,.5)'; c.stroke();
 }
 
 // a tailpipe: a polished lip round a dark bore
 function rcPipe(c, x, y, rx, ry) {
-  c.fillStyle = '#9aa1a9';
+  // polished, lit from above, with the heat tint a tip picks up
+  const g = c.createLinearGradient(x, y - ry, x, y + ry);
+  g.addColorStop(0, '#d5dae0'); g.addColorStop(0.5, '#8d949c'); g.addColorStop(1, '#5d636a');
+  c.fillStyle = g;
   c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 7); c.fill();
-  c.fillStyle = '#16191d';
-  c.beginPath(); c.ellipse(x, y + ry * 0.08, rx * 0.74, ry * 0.7, 0, 0, 7); c.fill();
+  c.strokeStyle = 'rgba(176,128,84,.45)'; c.lineWidth = Math.max(0.008, rx * 0.12);
+  c.beginPath(); c.ellipse(x, y, rx * 0.86, ry * 0.86, 0, 0, 7); c.stroke();
+  c.fillStyle = '#0d0f12';
+  c.beginPath(); c.ellipse(x, y + ry * 0.08, rx * 0.70, ry * 0.66, 0, 0, 7); c.fill();
 }
 
 // fins across a diffuser
@@ -9794,6 +9921,147 @@ const RC_HERO = {
     rcPath(c, rcSym([[0.12, -0.51, 0.01], [0.17, -0.42, 0.01], [0.12, -0.33, 0.01]])); c.fill();
     c.fillStyle = '#16191d';
     rcPath(c, rcSym([[0.09, -0.48, 0.01], [0.13, -0.42, 0.01], [0.09, -0.36, 0.01]])); c.fill();
+  } },
+
+  /* 720S: a teardrop of a car. The rear deck is glass over the engine with
+     flying buttresses either side of it, the airbrake spans the whole tail,
+     the lamps are two thin blades along the upper edge, and the pipes sit
+     high in the middle of an open mesh, over a diffuser as deep as the bumper. */
+  mclaren: { w: 1.93, len: 4.54, h: 1.196, pipes: [[-0.13, -0.66], [0.13, -0.66]],
+    prof: [[0, .94, .60, 'roof'], [.10, .90, .72, 'roof'], [.27, 1, .64, 'roof'], [.45, .97, .60, 'glass'], [.60, .64, .96, 'bonnet'], [.92, .58, .86, 'nose'], [1, .46, .64]],
+    body: rcSym([[0.50, -1.19, 0.06], [0.78, -1.06, 0.22], [0.965, -0.74, 0.12], [0.965, -0.36, 0.05], [0.92, -0.12, 0.06], [0.40, -0.12, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.95, -0.54, 0.29);
+    rcShell(c, this.body, car.paint, -1.19, 1.93);
+    // the buttress gaps, open to the road behind
+    c.fillStyle = '#0a0c0f';
+    for (const sx of [-1, 1]) { rcPath(c, rcSide([[0.48, -1.13, 0.02], [0.64, -1.02, 0.03], [0.56, -0.95, 0.02]], sx)); c.fill(); }
+    // glass over the engine
+    c.fillStyle = on ? '#0b0f15' : '#1c242d';
+    rcPath(c, rcSym([[0.34, -1.17, 0.02], [0.44, -1.00, 0.02], [0.28, -0.97, 0.01]])); c.fill();
+    if (fine) {
+      c.strokeStyle = 'rgba(255,255,255,.12)'; c.lineWidth = 0.014;
+      for (let i = 1; i < 4; i++) { const y = -1.15 + i * 0.045, x = 0.33 + i * 0.02; c.beginPath(); c.moveTo(-x, y); c.lineTo(x, y); c.stroke(); }
+    }
+    // the airbrake, full width, carbon on its edge
+    c.fillStyle = rcMix(car.paint, 0, 0.30);
+    c.beginPath(); c.roundRect(-0.82, -1.07, 1.64, 0.06, 0.02); c.fill();
+    c.fillStyle = '#1a1c20'; c.fillRect(-0.82, -1.02, 1.64, 0.018);
+    // black mesh tail
+    c.fillStyle = '#121418';
+    rcPath(c, rcSym([[0.82, -0.88, 0.05], [0.82, -0.42, 0.03], [0.30, -0.42, 0]])); c.fill();
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.05)';
+      let row = 0;
+      for (let y = -0.85; y < -0.45; y += 0.045, row++) for (let x = -0.78; x < 0.76; x += 0.06)
+        c.fillRect(x + (row & 1 ? 0.03 : 0), y, 0.026, 0.018);
+    }
+    // the lamp blades along the top edge, curling down at the corners
+    c.lineCap = 'round';
+    c.strokeStyle = rcLensTone(on, braking); c.lineWidth = 0.045;
+    for (const sx of [-1, 1]) {
+      c.beginPath(); c.moveTo(sx * 0.34, -0.93);
+      c.quadraticCurveTo(sx * 0.80, -0.93, sx * 0.92, -0.70); c.stroke();
+    }
+    if (fine && (on || braking)) {
+      c.strokeStyle = 'rgba(255,230,220,.6)'; c.lineWidth = 0.014;
+      for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(sx * 0.36, -0.93); c.quadraticCurveTo(sx * 0.80, -0.93, sx * 0.91, -0.71); c.stroke(); }
+    }
+    c.lineCap = 'butt';
+    for (const sx of [-1, 1]) rcGlow(c, sx * 0.70, -0.88, 0.5, on || braking);
+    // carbon surround and the two pipes, high and central
+    c.fillStyle = '#1b1d21';
+    c.beginPath(); c.roundRect(-0.26, -0.75, 0.52, 0.18, 0.06); c.fill();
+    for (const sx of [-1, 1]) rcPipe(c, sx * 0.13, -0.66, 0.075, 0.06);
+    if (fine) rcPlateAt(c, -0.53, 0.30);
+    // the diffuser
+    c.fillStyle = '#15181c';
+    rcPath(c, rcSym([[0.70, -0.40, 0.02], [0.86, -0.10, 0.04], [0.30, -0.10, 0]])); c.fill();
+    if (fine) rcFins(c, 8, -0.70, 0.70, -0.36, -0.11);
+  } },
+
+  /* 458 Italia: round lamps set high in the corners, a black mesh band under
+     them, a lip of a spoiler on the deck, and the three pipes stacked in a
+     triangle in the middle of the diffuser, which is the giveaway. */
+  f458: { w: 1.937, len: 4.53, h: 1.203, pipes: [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]],
+    prof: [[0, .95, .62, 'roof'], [.10, .91, .74, 'roof'], [.27, 1, .66, 'roof'], [.45, .98, .62, 'glass'], [.61, .66, .96, 'bonnet'], [.92, .60, .88, 'nose'], [1, .48, .66]],
+    body: rcSym([[0.58, -1.20, 0.06], [0.82, -1.07, 0.24], [0.965, -0.78, 0.14], [0.96, -0.40, 0.05], [0.92, -0.13, 0.06], [0.40, -0.13, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.95, -0.53, 0.28);
+    rcShell(c, this.body, car.paint, -1.20, 1.937);
+    rcGlass(c, P, -0.46, -1.17, 0.92, 0.15, 0.05);
+    c.fillStyle = rcMix(car.paint, 0, 0.40);              // the spoiler lip
+    c.fillRect(-0.70, -1.215, 1.40, 0.03);
+    // black band across the tail, mesh in it
+    c.fillStyle = '#121418';
+    rcPath(c, rcSym([[0.86, -0.68, 0.05], [0.86, -0.44, 0.03], [0.30, -0.44, 0]])); c.fill();
+    if (fine) {
+      c.fillStyle = 'rgba(255,255,255,.05)';
+      for (let y = -0.65; y < -0.47; y += 0.04) for (let x = -0.80; x < 0.78; x += 0.06) c.fillRect(x, y, 0.028, 0.018);
+    }
+    // the round lamps, a ring of LEDs round each when lit
+    for (const sx of [-1, 1]) {
+      rcLens(c, rcSide([[0.62, -0.93, 0.095], [0.81, -0.93, 0.095], [0.81, -0.74, 0.095], [0.62, -0.74, 0.095]], sx), on, braking, fine);
+      if (fine) {
+        c.strokeStyle = on || braking ? 'rgba(255,215,200,.65)' : 'rgba(255,255,255,.18)'; c.lineWidth = 0.016;
+        c.beginPath(); c.arc(sx * 0.715, -0.835, 0.065, 0, 7); c.stroke();
+      }
+      rcGlow(c, sx * 0.715, -0.835, 0.45, on || braking);
+    }
+    if (fine) {
+      c.fillStyle = '#e8c63a';                             // the badge
+      c.beginPath(); c.roundRect(-0.035, -0.92, 0.07, 0.09, 0.01); c.fill();
+      rcPlateAt(c, -0.62, 0.34);
+    }
+    // the diffuser, and the three pipes in a triangle
+    c.fillStyle = '#16191d';
+    rcPath(c, rcSym([[0.64, -0.44, 0.02], [0.80, -0.11, 0.04], [0.30, -0.11, 0]])); c.fill();
+    if (fine) rcFins(c, 6, -0.62, 0.62, -0.20, -0.12);
+    for (const [x, y] of [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]]) rcPipe(c, x, y, 0.068, 0.055);
+  } },
+
+  /* AMG GT R: a long fastback window, a fixed wing on two struts, lamps as
+     thin slits that run from the badge out round the corners, and the two big
+     trapezoid pipes in the middle of the diffuser. */
+  amggtr: { w: 2.007, len: 4.55, h: 1.284, pipes: [[-0.13, -0.25], [0.13, -0.25]],
+    prof: [[0, .94, .66, 'roof'], [.12, .94, .76, 'roof'], [.30, 1, .70, 'roof'], [.46, .97, .64, 'glass'], [.56, .70, .96, 'bonnet'], [.93, .64, .88, 'nose'], [1, .52, .70]],
+    body: rcSym([[0.56, -1.28, 0.08], [0.82, -1.12, 0.24], [0.97, -0.80, 0.14], [0.965, -0.42, 0.05], [0.93, -0.15, 0.06], [0.40, -0.15, 0]]),
+    draw(c, car, P, braking, fine) {
+    const on = P === RC_NIGHT;
+    rcTyres(c, 0.96, -0.56, 0.29);
+    rcShell(c, this.body, car.paint, -1.28, 2.007);
+    rcGlass(c, P, -0.50, -1.26, 1.00, 0.22, 0.08);
+    // the wing, on its two struts
+    c.fillStyle = '#16191d';
+    for (const sx of [-1, 1]) c.fillRect(sx * 0.30 - 0.025, -1.14, 0.05, 0.14);
+    c.fillStyle = '#1a1d22';
+    c.beginPath(); c.roundRect(-0.88, -1.22, 1.76, 0.07, 0.02); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.10)'; c.fillRect(-0.86, -1.22, 1.72, 0.012);
+    for (const sx of [-1, 1]) { c.fillStyle = '#121418'; c.fillRect(sx * 0.88 - (sx < 0 ? 0 : 0.03), -1.26, 0.03, 0.14); }
+    for (const sx of [-1, 1]) {
+      rcLens(c, rcSide([[0.22, -0.93, 0.02], [0.86, -0.96, 0.04], [0.90, -0.86, 0.03], [0.30, -0.86, 0.02]], sx), on, braking, fine);
+      rcGlow(c, sx * 0.60, -0.90, 0.5, on || braking);
+    }
+    if (fine) {
+      c.fillStyle = 'rgba(235,238,242,.85)';
+      c.font = '700 0.07px sans-serif'; c.textAlign = 'center';
+      c.fillText('AMG', 0, -0.76);
+      rcPlateAt(c, -0.64, 0.36);
+    }
+    c.fillStyle = '#16191d';
+    rcPath(c, rcSym([[0.66, -0.46, 0.03], [0.86, -0.12, 0.04], [0.30, -0.12, 0]])); c.fill();
+    if (fine) rcFins(c, 5, -0.62, 0.62, -0.42, -0.13);
+    // the trapezoid pipes
+    for (const sx of [-1, 1]) {
+      const g = c.createLinearGradient(0, -0.33, 0, -0.17);
+      g.addColorStop(0, '#d5dae0'); g.addColorStop(1, '#6a7078');
+      c.fillStyle = g;
+      rcPath(c, rcSide([[0.04, -0.33, 0.02], [0.23, -0.33, 0.02], [0.21, -0.17, 0.02], [0.06, -0.17, 0.02]], sx)); c.fill();
+      c.fillStyle = '#0d0f12';
+      rcPath(c, rcSide([[0.065, -0.305, 0.015], [0.205, -0.305, 0.015], [0.19, -0.195, 0.015], [0.08, -0.195, 0.015]], sx)); c.fill();
+    }
   } },
 
   /* Type R: the wing is the car, standing on two struts off the tailgate.
