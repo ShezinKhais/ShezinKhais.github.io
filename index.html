@@ -6701,7 +6701,7 @@ const RC = {
   cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
   keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
   score: 0, mult: 1, multAt: -9, slowFor: 0, draft: 0, pops: [],
-  heat: 0, cop: null, lurk: null, chaseFor: 0, awayFor: 0, nearFor: 0,
+  heat: 0, cop: null, lurk: null, heli: null, chaseFor: 0, awayFor: 0, nearFor: 0,
   lamp: 0, flashT: 9, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
   flame: 0, flameK: 1, lastThrottle: 0
 };
@@ -6725,7 +6725,7 @@ function rcReset(keepCar) {
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
   RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
-  RC.heat = 0; RC.cop = null; RC.lurk = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
+  RC.heat = 0; RC.cop = null; RC.lurk = null; RC.heli = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
@@ -7004,6 +7004,7 @@ function rcDrive(dt) {
   }
   rcScore(dt);
   rcCopStep(dt);
+  rcHeliStep(dt);
 
   // cones scatter, they do not end a run
   for (const k of RC.cones) {
@@ -7081,7 +7082,8 @@ function rcCopStep(dt) {
   cop.v0 = Math.min(80, Math.max(RC.v + RC_COP_EDGE, 36));
   RC.chaseFor += dt;
 
-  if (dist > RC_COP_GONE) {
+  // with the helicopter on you the car can always be told where you are
+  if (dist > RC_COP_GONE && !rcHeliOn()) {
     RC.awayFor += dt;
     if (RC.awayFor > 4) {
       const pts = Math.round((700 + RC.chaseFor * 110) * (1 + RC.mult * 0.04));
@@ -7142,6 +7144,75 @@ function rcCopSpot(cop) {
   RC.cop = cop; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
   RC.heat = Math.max(RC.heat, 1);
   rcSay('speed trap, they have seen you');
+}
+
+/* ---- air support ----
+   Partway into a chase there is a chance of a helicopter. It turns up in
+   front, low over the road and coming the other way, banks round as it
+   reaches you and then sits up ahead pacing you, light on you, for fifteen
+   seconds or so before it peels off over your head. While it is up there the
+   car on the ground can always be told where you are, so getting clear does
+   not count: you have to hold your lead until it goes. */
+/* Metres in front it holds station, and how high. Further out and lower than
+   a real one would sit, because the camera looks along the road: at 85 metres
+   and 32 up it was above the top of the frame and all you saw was its light. */
+const RC_HELI_AHEAD = 170, RC_HELI_ALT = 15;
+function rcHeliOn() { return !!RC.heli && RC.heli.phase === 'trail'; }
+
+function rcHeliStep(dt) {
+  const hel = RC.heli;
+  if (!hel) {
+    let clear = true;                             // no tunnel between you and where it comes from
+    for (let d = 0; d <= 900; d += 60) if (rcInTunnel(RC.z + d) > 0) { clear = false; break; }
+    if (RC.cop && !RC.cop.parked && RC.chaseFor > 4 && clear && Math.random() < dt * 0.045) {
+      RC.heli = {
+        z: RC.z + 900, x: rcWidth(RC.z) / 2 + 30, alt: 45, v: -38, vx: 0,
+        phase: 'in', t: 0, stay: 13 + Math.random() * 6, face: -1
+      };
+      rcSay('helicopter, up ahead');
+    }
+    return;
+  }
+  hel.t += dt;
+  // the chase ended under it: nothing left to watch, so it goes
+  if (!RC.cop && hel.phase !== 'out') { hel.phase = 'out'; hel.t = 0; }
+  // a tunnel breaks the line of sight: it climbs over and does not come back
+  if (hel.phase !== 'out' && (rcInTunnel(RC.z) > 0 || rcInTunnel(hel.z) > 0)) {
+    hel.phase = 'out'; hel.t = 0; rcSay('lost the helicopter in the tunnel');
+  }
+
+  let ax;
+  if (hel.phase === 'in') {
+    // straight down the road at you, dropping as it comes
+    hel.alt += (24 - hel.alt) * Math.min(1, dt * 0.5);
+    // start turning while there is still room to come round in front of you
+    if (hel.z - RC.z < RC_HELI_AHEAD + 360) { hel.phase = 'trail'; hel.t = 0; rcSay('air support, they can see you'); }
+  }
+  if (hel.phase !== 'in') {
+    /* Station keeping on the gap ahead of you. The closing speed it wants is
+       the most it could still shed by the time it gets there at a steady
+       eleven metres a second squared, so it comes round in one sweep and
+       settles in front without overshooting into the space behind you, where
+       you could not see it. A spring did overshoot: the deceleration it asked
+       for on arrival was more than a helicopter can pull. */
+    const want = hel.phase === 'out' ? -140 : RC_HELI_AHEAD;
+    const gap = hel.z - RC.z - want, rel = hel.v - RC.v;
+    const vt = -Math.sign(gap) * Math.min(Math.sqrt(2 * 11 * Math.abs(gap)), 0.9 * Math.abs(gap),
+      hel.phase === 'out' ? 35 : 1e9);
+    hel.v += rcClamp(2.5 * (vt - rel), -14, 14) * dt;
+    hel.alt += ((hel.phase === 'out' ? 95 : RC_HELI_ALT) - hel.alt) * Math.min(1, dt * 0.6);
+    if (hel.phase === 'trail' && hel.t > hel.stay) { hel.phase = 'out'; hel.t = 0; rcSay('the helicopter peels off'); }
+  }
+  hel.z += hel.v * dt;
+  // across the road: out to the side on the way in, over your lane once on you
+  const tx = hel.phase === 'trail' ? RC.x + 5 : rcWidth(hel.z) / 2 + 30;
+  ax = rcClamp(1.4 * (tx - hel.x) - 2.2 * hel.vx, -9, 9);
+  hel.vx += ax * dt;
+  hel.x += hel.vx * dt;
+  hel.roll = rcClamp(hel.vx * 0.035, -0.35, 0.35);
+  hel.face = hel.v > RC.v * 0.3 ? 1 : -1;          // tail to you once it is going your way
+  if (hel.phase === 'out' && hel.z < RC.z - 30) RC.heli = null;
+  if (hel.z > RC.z + 1400) RC.heli = null;
 }
 
 function rcCopDrop() {
@@ -7537,7 +7608,19 @@ function rcAudioInit() {
   const hg = ac.createGain(); hg.gain.value = 0;
   hiss.connect(hf); hf.connect(hg); hg.connect(master); hiss.start();
 
-  rcSnd = { ac, master, comp, tone, lp, o1, o2, o3, ng, nf, tg, turbo, hf, hg, eg2, sir, sg, buf: noise.buffer, lastPop: 0,
+  /* Rotor: low noise chopped by a blade-pass rate of about eighteen a second,
+     which is the whole of what a helicopter overhead sounds like from a car. */
+  const rot = ac.createBufferSource(); rot.buffer = noise.buffer; rot.loop = true;
+  rot.playbackRate.value = 0.71;
+  const rf = ac.createBiquadFilter(); rf.type = 'lowpass'; rf.frequency.value = 220;
+  const chop = ac.createGain(); chop.gain.value = 0.5;
+  const lfo = ac.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 18;
+  const lg = ac.createGain(); lg.gain.value = 0.5;
+  lfo.connect(lg); lg.connect(chop.gain); lfo.start();
+  const rg = ac.createGain(); rg.gain.value = 0;
+  rot.connect(rf); rf.connect(chop); chop.connect(rg); rg.connect(master); rot.start();
+
+  rcSnd = { ac, master, comp, tone, lp, o1, o2, o3, ng, nf, tg, turbo, hf, hg, eg2, sir, sg, rg, lfo, buf: noise.buffer, lastPop: 0,
     eng: null, engId: null, spin: 0, at: ac.currentTime };
 
   /* The real engine loads a moment later, from a module made out of the
@@ -7613,6 +7696,13 @@ function rcAudioUpdate() {
     s.sir.frequency.setTargetAtTime((Math.floor(t * 2.2) % 2 ? 660 : 880) * shift, t, 0.02);
     s.sg.gain.setTargetAtTime(near * near * 0.045, t, 0.10);
   } else s.sg.gain.setTargetAtTime(0, t, 0.25);
+
+  // the rotor, louder the nearer and lower it is
+  if (RC.heli) {
+    const d = Math.hypot(RC.heli.z - RC.z, RC.heli.alt);
+    const near = rcClamp(1 - d / 600, 0, 1);
+    s.rg.gain.setTargetAtTime(near * near * 0.5, t, 0.15);
+  } else s.rg.gain.setTargetAtTime(0, t, 0.4);
 
   // and the walls of a tunnel throwing it all back at you
   s.eg2.gain.setTargetAtTime(rcInTunnel(RC.z) * 0.5, t, 0.25);
@@ -8816,6 +8906,14 @@ function rcDraw() {
     rcBarDark = false;
   }
 
+  if (RC.heli && RC.heli.z - camZ > 4) {
+    const hl = RC.heli;
+    const g = proj(hl.x, hl.z - camZ, atZ(hl.z));
+    const y = g.y - hl.alt * g.s;
+    const me = RC.heli.phase === 'trail' ? atW(RC.z, RC.x) : null;
+    rcHeliDraw(c, g.x, y, g.s, P, hl, me, rcClamp(1 - (hl.z - camZ - 600) / 400, 0, 1));
+  }
+
   // the car you are in, drawn as itself rather than as a set of proportions
   const f = RC_HERO[RC.car.id];
   /* Eleven metres ahead of the camera, which on a bend is eleven metres of
@@ -9188,6 +9286,88 @@ const RC_MODELS = {
     if (fine) rcPlateAt(c, -0.60, 0.36);
   } }
 };
+
+/* The helicopter, nose on or tail on, at whatever scale its distance gives.
+   Drawn in metres about its centre: a rounded cabin, glass at the front,
+   skids under it, a boom and fin that only show from behind, and the disc of
+   the rotor as a blur with two blades through it. The searchlight is a cone
+   down to wherever your car is, strong at night and a faint wash by day. */
+function rcHeliDraw(c, x, y, s, P, hl, me, fade) {
+  if (s * 11 < 3 || fade <= 0) return;
+  const night = P === RC_NIGHT, t = RC.t;
+  c.save();
+  c.globalAlpha = fade;
+  if (me) {
+    const k = night ? 0.22 : 0.07;
+    const gr = c.createLinearGradient(x, y, me.x, me.y);
+    gr.addColorStop(0, 'rgba(255,250,225,' + (k * 1.4).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(255,250,225,' + k.toFixed(3) + ')');
+    c.fillStyle = gr;
+    const sp = me.s * 3.2;
+    c.beginPath(); c.moveTo(x - s * 0.3, y + s * 0.9); c.lineTo(me.x - sp, me.y);
+    c.lineTo(me.x + sp, me.y); c.lineTo(x + s * 0.3, y + s * 0.9); c.closePath(); c.fill();
+    c.beginPath(); c.ellipse(me.x, me.y, sp * 1.1, sp * 0.32, 0, 0, 7); c.fill();
+  }
+  // a touch over life size, so it still reads as a helicopter 170 m out
+  c.translate(x, y); c.scale(s * 1.3, s * 1.3); c.rotate(hl.roll || 0);
+  const body = night ? '#1d2229' : '#2b313a', trim = night ? '#2c3440' : '#3d4652';
+  // skids
+  c.strokeStyle = '#15181d'; c.lineWidth = 0.12; c.lineCap = 'round';
+  c.beginPath();
+  for (const sx of [-1, 1]) {
+    c.moveTo(sx * 1.3, 1.45); c.lineTo(sx * 1.3, 1.45);
+    c.moveTo(sx * 0.7, 0.85); c.lineTo(sx * 1.25, 1.45);
+  }
+  c.moveTo(-1.55, 1.45); c.lineTo(1.55, 1.45);
+  c.stroke();
+  // boom and fin, tail on only
+  if (hl.face > 0) {
+    c.fillStyle = trim;
+    c.beginPath(); c.roundRect(-0.22, -0.2, 0.44, 1.9, 0.18); c.fill();
+    c.fillStyle = body;
+    c.beginPath(); c.roundRect(-0.09, 0.9, 0.18, 1.3, 0.06); c.fill();
+    // tail rotor, a smear of a disc beside the fin
+    c.fillStyle = 'rgba(40,44,52,.35)';
+    c.beginPath(); c.ellipse(0.32, 1.45, 0.1, 0.62, 0, 0, 7); c.fill();
+  }
+  // cabin
+  c.fillStyle = body;
+  c.beginPath(); c.ellipse(0, 0, 1.25, 1.05, 0, 0, 7); c.fill();
+  c.fillStyle = trim;
+  c.fillRect(-1.2, 0.18, 2.4, 0.22);
+  if (hl.face < 0) {
+    // nose on: the glass
+    c.fillStyle = night ? 'rgba(120,150,190,.35)' : 'rgba(150,180,215,.6)';
+    c.beginPath(); c.ellipse(0, -0.18, 0.95, 0.62, 0, Math.PI, 0); c.lineTo(0.95, -0.1);
+    c.ellipse(0, -0.1, 0.95, 0.35, 0, 0, Math.PI); c.fill();
+  }
+  c.fillStyle = '#e8ecf0';
+  c.font = '600 0.34px sans-serif'; c.textAlign = 'center';
+  c.fillText('POLICE', 0, 0.72);
+  // mast and the rotor disc, flattened by perspective
+  c.fillStyle = '#15181d'; c.fillRect(-0.09, -1.35, 0.18, 0.4);
+  c.fillStyle = 'rgba(20,24,30,.16)';
+  c.beginPath(); c.ellipse(0, -1.38, 5.6, 0.42, 0, 0, 7); c.fill();
+  c.strokeStyle = 'rgba(15,18,22,.75)'; c.lineWidth = 0.1;
+  c.beginPath();
+  for (let i = 0; i < 2; i++) {
+    const a = t * 31 + i * Math.PI / 2;
+    const bx = Math.cos(a) * 5.5, by = Math.sin(a) * 0.4;
+    c.moveTo(-bx, -1.38 - by); c.lineTo(bx, -1.38 + by);
+  }
+  c.stroke();
+  // navigation lights and the strobe
+  c.fillStyle = '#ff4040'; c.beginPath(); c.arc(-1.25 * -hl.face, 0.2, 0.11, 0, 7); c.fill();
+  c.fillStyle = '#3cff70'; c.beginPath(); c.arc(1.25 * -hl.face, 0.2, 0.11, 0, 7); c.fill();
+  if ((t * 1.2) % 1 < 0.08) {
+    c.fillStyle = 'rgba(255,255,255,.95)';
+    c.beginPath(); c.arc(0, 1.0, 0.18, 0, 7); c.fill();
+    const gl = c.createRadialGradient(0, 1.0, 0, 0, 1.0, 1.6);
+    gl.addColorStop(0, 'rgba(255,255,255,.55)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    c.fillStyle = gl; c.beginPath(); c.arc(0, 1.0, 1.6, 0, 7); c.fill();
+  }
+  c.restore();
+}
 
 let rcBarDark = false;   // a patrol car parked up, lights off
 
@@ -10129,7 +10309,8 @@ function rcHud(c, w, h, P) {
     c.fillStyle = beat ? '#ff6b6b' : '#6ba8ff';
     c.fillText('POLICE', px + pw / 2, py + 13 * k);
     c.font = (9.5 * k).toFixed(1) + 'px ' + MONO; c.fillStyle = muted;
-    c.fillText(gap > RC_COP_GONE ? 'losing them' : gap + (back ? ' m back' : ' m ahead'), px + pw / 2, py + 25 * k);
+    c.fillText(rcHeliOn() ? 'air support on you'
+      : gap > RC_COP_GONE ? 'losing them' : gap + (back ? ' m back' : ' m ahead'), px + pw / 2, py + 25 * k);
     if (RC.awayFor > 0) {
       c.fillStyle = 'rgba(122,212,143,.9)';
       c.fillRect(px, py + Math.round(28 * k), pw * rcClamp(RC.awayFor / 4, 0, 1), Math.max(2, 2 * k));
