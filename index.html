@@ -11450,7 +11450,7 @@ const LB_KEY = 'raceBoard', LB_SHOW = 5, LB_KEEP = 50;
    score from the console; that cannot be prevented without a server that
    watches the run, and is what the dashboard is for. If the database cannot
    be reached the board quietly falls back to this browser's scores. */
-const LB_DB = { url: '', key: '' };
+const LB_DB = { url: 'https://aiudpsvptnquobvbyefg.supabase.co', key: 'sb_publishable_z5l2ptm-v_GrmkI73MnXQw_LlueL8sz' };
 const LB_TABLE = 'highway_scores';
 const lbShared = () => !!(LB_DB.url && LB_DB.key);
 // a legacy anon key is a JWT and goes in both headers; a newer publishable key only in apikey
