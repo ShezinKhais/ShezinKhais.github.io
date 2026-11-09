@@ -1065,7 +1065,7 @@
     </div>
     <div id="lbSlotGame">
       <form class="lbform" id="lbForm" hidden autocomplete="off">
-        <label for="lbName">New personal best, <b id="lbScore">0</b>. Your name for the board:</label>
+        <label for="lbName"><span id="lbLead">New personal best</span>, <b id="lbScore">0</b>. Your name for the board:</label>
         <span class="lbrow">
           <input id="lbName" name="name" maxlength="16" spellcheck="false" placeholder="name" required>
           <button type="submit">Save</button>
@@ -1890,9 +1890,17 @@ function coilPoints(b, startX) {
   // snake can arrive from below through the middle of the lettering and turn
   // straight into the coil. It is the same closed loop, just started elsewhere,
   // so the perimeter still matches the body.
+  /* Joining partway along the top run and going round to the usual end, the
+     top-left corner, gives exactly the resting shape the coil always had: the
+     body lies over the last stretch of the same loop. Only when that stretch is
+     shorter than the body (small names, where the loop is sized to close on
+     itself) does it go the whole way round instead, so the tail is on the ring
+     and not still hanging down through the lettering. */
   if (startX !== undefined) {
     const k = Math.round(clamp((startX - x1) / (x2 - x1), 0.05, 0.95) * S);
-    const lap = out.slice(k).concat(out.slice(0, k + 1));
+    let lap = out.slice(k), len = 0;
+    for (let i = 1; i < lap.length; i++) len += Math.hypot(lap[i].x - lap[i - 1].x, lap[i].y - lap[i - 1].y);
+    if (len < BODY + 40) lap = out.slice(k).concat(out.slice(1, k + 1));
     out.length = 0; out.push(...lap);
   }
 
@@ -2105,10 +2113,18 @@ function buildPath() {
   const box = nameBox();
   const gapX = nameGapX();
   const heroBot = heroSpace.getBoundingClientRect().bottom + scrollY;
+  /* Up through the gap, then a quarter circle of the coil's own radius onto
+     the top run. Joining the run right above the gap meant turning through
+     ninety degrees in a few pixels, which the body folded through: that kink
+     was the stutter at the end of the tour. */
+  const ry = Math.max(box.h / 2 + 26, 32), cyN = box.y + box.h / 2;
   pts.push({ x: gapX, y: heroBot + 140, v: 950 });
-  pts.push({ x: gapX, y: box.y + box.h * 0.5, v: 900 });
-
-  path = joinCoil(pts, coilPoints(box, gapX), true, 64);
+  pts.push({ x: gapX, y: cyN + ry * 0.6, v: 900 });
+  for (let i = 0; i <= 6; i++) {
+    const a = Math.PI + Math.PI / 2 * i / 6;
+    pts.push({ x: gapX + ry + Math.cos(a) * ry, y: cyN + Math.sin(a) * ry, v: 700 });
+  }
+  path = joinCoil(pts, coilPoints(box, gapX + ry * 1.6), true, 14);
   tourPath = true;
   if (pathIdx >= path.length) { pathIdx = Math.max(0, path.length - 1); pathPos = 0; }
 }
@@ -10518,7 +10534,8 @@ const lbList = document.getElementById('lbList');
 const lbForm = document.getElementById('lbForm');
 const lbName = document.getElementById('lbName');
 const lbScoreEl = document.getElementById('lbScore');
-let lbPending = null, lbMine = null;
+let lbPending = null, lbMine = null, lbTop = [];
+const lbLead = document.getElementById('lbLead');
 
 function lbClean(name) {
   return String(name).replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
@@ -10526,6 +10543,7 @@ function lbClean(name) {
 
 async function lbRender() {
   const top = await LB.top(LB_SHOW);
+  lbTop = top;
   lbList.textContent = '';
   if (!top.length) {
     const li = document.createElement('li');
@@ -10552,15 +10570,26 @@ function lbPlace() {
   if (lbForm.parentNode !== slot) slot.appendChild(lbForm);
 }
 
-// a run is over: did it set a personal best worth a name?
+/* A run is over: is it worth a name? A personal best always is, and so is
+   anything that would make the top five. Asking only on a personal best left
+   the board empty for anyone whose best was set before the board existed,
+   since nothing they drove afterwards could beat it. */
 function lbRunEnd() {
   const peak = Math.round(RC.runPeak || 0);
   RC.runPeak = 0;
-  if (peak < 1 || peak <= Math.round(RC.pbBefore || 0)) return;
-  RC.pbBefore = peak;
+  if (peak < 1) return;
+  const best = peak > Math.round(RC.pbBefore || 0);
+  const makesTop = lbTop.length < LB_SHOW || peak > lbTop[lbTop.length - 1].score;
+  if (!best && !makesTop) return;
+  if (best) RC.pbBefore = peak;
   if (lbPending && lbPending.score >= peak) return;
-  lbPending = { score: peak, level: RC.runLevel || RC.level, car: RC.stock && RC.stock.id };
-  lbScoreEl.textContent = rcNum(peak);
+  lbOffer(peak, RC.runLevel || RC.level, RC.stock && RC.stock.id, best ? 'New personal best' : 'That makes the top 5');
+}
+
+function lbOffer(score, level, car, lead) {
+  lbPending = { score, level, car };
+  lbLead.textContent = lead;
+  lbScoreEl.textContent = rcNum(score);
   try { lbName.value = localStorage.getItem('raceName') || ''; } catch {}
   lbPlace();
   lbForm.hidden = false;
@@ -10577,10 +10606,24 @@ lbForm.addEventListener('submit', async e => {
   await lbRender();
 });
 document.getElementById('lbSkip').addEventListener('click', () => {
+  // a skipped score is not offered again on the next visit
+  try { if (lbPending) localStorage.setItem('raceSkip', String(lbPending.score)); } catch {}
   lbPending = null; lbForm.hidden = true;
 });
 document.getElementById('lbPlay').addEventListener('click', () => rcOpen());
-lbRender();
+// a best from before the board existed: offer it once the board is known empty
+lbRender().then(() => {
+  if (lbTop.length || lbPending) return;
+  let top = null;
+  for (const lv of Object.keys(LB_LEVEL)) {
+    let v = 0;
+    try { v = +(localStorage.getItem('raceScore_' + lv) || 0) || 0; } catch {}
+    if (v >= 1 && (!top || v > top.score)) top = { score: Math.round(v), level: lv };
+  }
+  let skipped = 0;
+  try { skipped = +(localStorage.getItem('raceSkip') || 0) || 0; } catch {}
+  if (top && top.score > skipped) lbOffer(top.score, top.level, null, 'Your best so far');
+});
 
 function rcStart() {
   if (RC.state === 'crash') rcReset(true);
