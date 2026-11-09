@@ -734,7 +734,7 @@
   @media (hover:none) { .idhint { display:none; } }
 
   /* the highway leaderboard, hung under the badge the game is hidden in */
-  .lb { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
+  .lb { margin-top:14px; border-top:1px solid var(--line); padding-top:12px; }
   .lb h3 {
     margin:0 0 10px; font-size:10px; font-weight:400; letter-spacing:.18em;
     text-transform:uppercase; color:var(--dim);
@@ -1096,6 +1096,12 @@
       <div class="rmods" id="rcMods"></div>
       <p class="rpaint" id="rcPaint"></p>
       <p class="rpaint" id="rcNeon" hidden></p>
+    </div>
+    <!-- the board lives in the game only: the page itself gives no hint there is one -->
+    <div class="lb" id="lb" role="region" aria-labelledby="lbH">
+      <h3 id="lbH">top 5</h3>
+      <ol id="lbList"></ol>
+      <p class="lbnote">scores from this browser</p>
     </div>
     <p class="rlevel">
       <label for="rcLevel">Traffic</label>
@@ -1534,13 +1540,6 @@
         <canvas id="idCv" role="img" tabindex="-1"
                 aria-label="An ID badge on a lanyard showing Shezin Khais, computer science"></canvas>
         <span class="idhint">drag the badge</span>
-
-        <div class="lb" id="lb" role="region" aria-labelledby="lbH">
-          <h3 id="lbH">highway &middot; top 5</h3>
-          <ol id="lbList"></ol>
-          <div id="lbSlotPage"></div>
-          <p class="lbnote">scores from this browser &middot; <button type="button" id="lbPlay">drive the highway</button></p>
-        </div>
       </div>
     </div>
   </section>
@@ -10820,7 +10819,7 @@ async function lbRender() {
   if (!top.length) {
     const li = document.createElement('li');
     li.className = 'lbempty';
-    li.textContent = 'No scores yet. The badge opens the game: tap it three times.';
+    li.textContent = 'No scores yet. Beat your best to put your name here.';
     lbList.appendChild(li);
     return;
   }
@@ -10836,9 +10835,10 @@ async function lbRender() {
   }
 }
 
-// the one form lives in the game while it is open and on the page otherwise
+// the form and the board live in the game panel only, so nothing on the page
+// gives the game away; a best set just before closing waits there for next time
 function lbPlace() {
-  const slot = document.getElementById(raceEl.hidden ? 'lbSlotPage' : 'lbSlotGame');
+  const slot = document.getElementById('lbSlotGame');
   if (lbForm.parentNode !== slot) slot.appendChild(lbForm);
 }
 
@@ -10882,7 +10882,6 @@ document.getElementById('lbSkip').addEventListener('click', () => {
   try { if (lbPending) localStorage.setItem('raceSkip', String(lbPending.score)); } catch {}
   lbPending = null; lbForm.hidden = true;
 });
-document.getElementById('lbPlay').addEventListener('click', () => rcOpen());
 // a best from before the board existed: offer it once the board is known empty
 lbRender().then(() => {
   if (lbTop.length || lbPending) return;
