@@ -733,6 +733,48 @@
   }
   @media (hover:none) { .idhint { display:none; } }
 
+  /* the highway leaderboard, hung under the badge the game is hidden in */
+  .lb { margin-top:26px; border-top:1px solid var(--line); padding-top:14px; }
+  .lb h3 {
+    margin:0 0 10px; font-size:10px; font-weight:400; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--dim);
+  }
+  .lb ol { list-style:none; margin:0; padding:0; counter-reset:lb; }
+  .lb li {
+    display:grid; grid-template-columns:20px minmax(0,1fr) auto; gap:8px; align-items:baseline;
+    font-size:12.5px; padding:5px 0; border-bottom:1px dashed var(--line); counter-increment:lb;
+  }
+  .lb li::before { content:counter(lb); color:var(--dim); font-size:10.5px; }
+  .lb li .n { color:var(--fg); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb li .n small { color:var(--dim); font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; margin-left:6px; }
+  .lb li .s { color:var(--num); font-variant-numeric:tabular-nums; }
+  .lb li.me .n { color:var(--accent); }
+  .lb li.lbempty { display:block; font-size:12px; color:var(--muted); border:0; }
+  .lb li.lbempty::before { content:none; }
+  .lb .lbnote { font-size:10px; color:var(--dim); margin:10px 0 0; letter-spacing:.04em; }
+  .lb .lbnote button {
+    font:inherit; color:var(--muted); background:none; border:0; padding:0;
+    border-bottom:1px solid var(--line); cursor:pointer;
+  }
+  .lb .lbnote button:hover { color:var(--fg); }
+  .lbform[hidden] { display:none; }
+  .lbform { margin:12px 0 0; font-size:12px; color:var(--muted); }
+  .lbform label { display:block; margin-bottom:7px; }
+  .lbform label b { color:var(--num); font-weight:600; }
+  .lbform .lbrow { display:flex; gap:6px; }
+  .lbform input {
+    flex:1; min-width:0; font:inherit; font-size:13px; color:var(--fg); background:var(--bg);
+    border:1px solid var(--line); padding:6px 8px;
+  }
+  .lbform input:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+  .lbform button {
+    font:inherit; font-size:11px; letter-spacing:.08em; color:var(--fg); background:none;
+    border:1px solid var(--line); padding:5px 10px; cursor:pointer;
+  }
+  .lbform button[type=submit] { border-color:var(--sn-mid); }
+  .lbform button:hover { border-color:var(--fg); }
+  #lbSlotGame .lbform { margin:10px 0 2px; }
+
   /* ---------- the game ----------
      It has spent the whole page pretending to be a snake, so if you catch it
      resting on the name and click it, it becomes one. */
@@ -1020,6 +1062,16 @@
     <div class="rstage">
       <canvas id="raceCv" role="img"
               aria-label="A motorway seen from behind your car, with traffic ahead. Arrow keys steer and brake."></canvas>
+    </div>
+    <div id="lbSlotGame">
+      <form class="lbform" id="lbForm" hidden autocomplete="off">
+        <label for="lbName">New personal best, <b id="lbScore">0</b>. Your name for the board:</label>
+        <span class="lbrow">
+          <input id="lbName" name="name" maxlength="16" spellcheck="false" placeholder="name" required>
+          <button type="submit">Save</button>
+          <button type="button" id="lbSkip">Skip</button>
+        </span>
+      </form>
     </div>
     <div class="rtouch" id="rcTouch">
       <button type="button" data-rc="drive">Drive</button>
@@ -1472,6 +1524,13 @@
         <canvas id="idCv" role="img" tabindex="-1"
                 aria-label="An ID badge on a lanyard showing Shezin Khais, computer science"></canvas>
         <span class="idhint">drag the badge</span>
+
+        <div class="lb" id="lb" role="region" aria-labelledby="lbH">
+          <h3 id="lbH">highway &middot; top 5</h3>
+          <ol id="lbList"></ol>
+          <div id="lbSlotPage"></div>
+          <p class="lbnote">scores from this browser &middot; <button type="button" id="lbPlay">drive the highway</button></p>
+        </div>
       </div>
     </div>
   </section>
@@ -6572,6 +6631,7 @@ function rcCredit(share) {
 }
 // coming off the motorway because you chose to, rather than because of a lorry
 function rcPullOff() {
+  if (RC.state === 'run' || RC.state === 'pause') lbRunEnd();
   return RC.state === 'run' && RC.score > 0 ? rcCredit(1) : 0;
 }
 
@@ -6726,6 +6786,7 @@ function rcReset(keepCar) {
   RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
   RC.heat = 0; RC.cop = null; RC.lurk = null; RC.heli = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
+  RC.runPeak = 0; RC.pbBefore = rcBestScore; RC.runLevel = RC.level;
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
@@ -7252,6 +7313,7 @@ function rcScore(dt) {
 
   // the multiplier goes off the boil as soon as you stop working for it
   if (RC.t - RC.multAt > 0.8) RC.mult = Math.max(1, RC.mult - dt * 0.9);
+  if (RC.score > RC.runPeak) RC.runPeak = RC.score;
   if (RC.score > rcBestScore) {
     rcBestScore = RC.score;
     try { localStorage.setItem(rcScoreKey(), String(Math.round(rcBestScore))); } catch {}
@@ -7306,6 +7368,7 @@ function rcFlash() {
 function rcCrash(how) {
   RC.state = 'crash';
   RC.shake = 1;
+  lbRunEnd();
   // half of what you were holding survives it; the rest of it does not
   const got = rcCredit(0.5);
   RC.msg = how + ' at ' + Math.round(RC.v * 3.6) + ' km/h'
@@ -10389,6 +10452,99 @@ const RC_HELD = {
 const RC_UPSHIFT = { e: 1, x: 1, ']': 1, '+': 1, '=': 1, Shift: 1 };
 const RC_DOWNSHIFT = { q: 1, z: 1, '[': 1, '-': 1, _: 1, Control: 1 };
 
+/* ---- the leaderboard ----
+   A run that beats your personal best on its difficulty asks for a name, and
+   the top five go on the board under the badge. For now the board lives in
+   this browser's storage, so it is your scores and nobody else's. Everything
+   goes through LB.top and LB.add, which are async on purpose: putting a shared
+   database behind those two is the whole of making it public. Names are only
+   ever set as text, never as markup, and are trimmed to sixteen characters. */
+const LB_KEY = 'raceBoard', LB_SHOW = 5, LB_KEEP = 50;
+const LB = {
+  async top(n) {
+    let all = [];
+    try { all = JSON.parse(localStorage.getItem(LB_KEY) || '[]'); } catch {}
+    if (!Array.isArray(all)) all = [];
+    return all.filter(e => e && typeof e.name === 'string' && isFinite(e.score))
+      .sort((a, b) => b.score - a.score).slice(0, n);
+  },
+  async add(entry) {
+    const all = await LB.top(LB_KEEP);
+    all.push(entry);
+    all.sort((a, b) => b.score - a.score);
+    try { localStorage.setItem(LB_KEY, JSON.stringify(all.slice(0, LB_KEEP))); } catch {}
+    return entry;
+  }
+};
+const LB_LEVEL = { quiet: 'quiet', busy: 'busy', rush: 'rush hour' };
+const lbList = document.getElementById('lbList');
+const lbForm = document.getElementById('lbForm');
+const lbName = document.getElementById('lbName');
+const lbScoreEl = document.getElementById('lbScore');
+let lbPending = null, lbMine = null;
+
+function lbClean(name) {
+  return String(name).replace(/[\u0000-\u001f\u007f<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, 16);
+}
+
+async function lbRender() {
+  const top = await LB.top(LB_SHOW);
+  lbList.textContent = '';
+  if (!top.length) {
+    const li = document.createElement('li');
+    li.className = 'lbempty';
+    li.textContent = 'No scores yet. The badge opens the game: tap it three times.';
+    lbList.appendChild(li);
+    return;
+  }
+  for (const e of top) {
+    const li = document.createElement('li');
+    if (lbMine && e.at === lbMine.at && e.name === lbMine.name) li.className = 'me';
+    const n = document.createElement('span'); n.className = 'n'; n.textContent = e.name;
+    const lv = document.createElement('small'); lv.textContent = LB_LEVEL[e.level] || '';
+    n.appendChild(lv);
+    const sc = document.createElement('span'); sc.className = 's'; sc.textContent = rcNum(e.score);
+    li.append(n, sc);
+    lbList.appendChild(li);
+  }
+}
+
+// the one form lives in the game while it is open and on the page otherwise
+function lbPlace() {
+  const slot = document.getElementById(raceEl.hidden ? 'lbSlotPage' : 'lbSlotGame');
+  if (lbForm.parentNode !== slot) slot.appendChild(lbForm);
+}
+
+// a run is over: did it set a personal best worth a name?
+function lbRunEnd() {
+  const peak = Math.round(RC.runPeak || 0);
+  RC.runPeak = 0;
+  if (peak < 1 || peak <= Math.round(RC.pbBefore || 0)) return;
+  RC.pbBefore = peak;
+  if (lbPending && lbPending.score >= peak) return;
+  lbPending = { score: peak, level: RC.runLevel || RC.level, car: RC.stock && RC.stock.id };
+  lbScoreEl.textContent = rcNum(peak);
+  try { lbName.value = localStorage.getItem('raceName') || ''; } catch {}
+  lbPlace();
+  lbForm.hidden = false;
+}
+
+lbForm.addEventListener('submit', async e => {
+  e.preventDefault();
+  const name = lbClean(lbName.value);
+  if (!name || !lbPending) { lbName.focus(); return; }
+  try { localStorage.setItem('raceName', name); } catch {}
+  lbMine = await LB.add({ name, score: lbPending.score, level: lbPending.level, car: lbPending.car, at: Date.now() });
+  lbPending = null; lbForm.hidden = true;
+  lbName.blur();
+  await lbRender();
+});
+document.getElementById('lbSkip').addEventListener('click', () => {
+  lbPending = null; lbForm.hidden = true;
+});
+document.getElementById('lbPlay').addEventListener('click', () => rcOpen());
+lbRender();
+
 function rcStart() {
   if (RC.state === 'crash') rcReset(true);
   RC.state = 'run'; RC.msg = ''; rcHudText();
@@ -10463,11 +10619,13 @@ function rcOpen() {
   cancelAnimationFrame(RC.raf);
   RC.raf = requestAnimationFrame(rcFrame);
   document.getElementById('rcClose').focus();
+  lbPlace();
 }
 
 function rcClose() {
   rcPullOff();
   raceEl.hidden = true;
+  lbPlace();
   rcSoundStop();
   cancelAnimationFrame(RC.raf); RC.raf = 0;
   RC.keys = Object.create(null); rcDragSteer = 0;
@@ -10495,6 +10653,8 @@ raceEl.addEventListener('click', e => { if (e.target === raceEl) rcClose(); });
 
 addEventListener('keydown', e => {
   if (raceEl.hidden) return;
+  // the name box for the leaderboard keeps its own keys
+  if (e.target instanceof Element && e.target.closest('input, select, textarea')) return;
   if (e.key === 'Escape') { e.preventDefault(); rcClose(); return; }
   // Enter and space belong to whichever button has focus, not to the car.
   // e.target is not always an element, so it is asked rather than assumed.
