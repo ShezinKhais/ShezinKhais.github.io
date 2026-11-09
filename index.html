@@ -11453,6 +11453,9 @@ const LB_KEY = 'raceBoard', LB_SHOW = 5, LB_KEEP = 50;
 const LB_DB = { url: '', key: '' };
 const LB_TABLE = 'highway_scores';
 const lbShared = () => !!(LB_DB.url && LB_DB.key);
+// a legacy anon key is a JWT and goes in both headers; a newer publishable key only in apikey
+const lbHeaders = () => LB_DB.key.startsWith('eyJ')
+  ? { apikey: LB_DB.key, Authorization: 'Bearer ' + LB_DB.key } : { apikey: LB_DB.key };
 const lbLocal = {
   top(n) {
     let all = [];
@@ -11475,7 +11478,7 @@ const LB = {
       try {
         const r = await fetch(LB_DB.url.replace(/\/$/, '') + '/rest/v1/' + LB_TABLE
           + '?select=name,score,level,car,created_at&order=score.desc&limit=' + n,
-          { headers: { apikey: LB_DB.key, Authorization: 'Bearer ' + LB_DB.key } });
+          { headers: lbHeaders() });
         if (r.ok) {
           const rows = await r.json();
           lbOnline = true;
@@ -11493,8 +11496,7 @@ const LB = {
       try {
         await fetch(LB_DB.url.replace(/\/$/, '') + '/rest/v1/' + LB_TABLE, {
           method: 'POST',
-          headers: { apikey: LB_DB.key, Authorization: 'Bearer ' + LB_DB.key,
-            'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          headers: Object.assign(lbHeaders(), { 'Content-Type': 'application/json', Prefer: 'return=minimal' }),
           body: JSON.stringify({ name: entry.name, score: Math.round(entry.score), level: entry.level, car: entry.car || null })
         });
       } catch {}
