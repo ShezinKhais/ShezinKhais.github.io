@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shezin Khais</title>
-<meta name="description" content="Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.">
+<meta name="description" content="Computer science student building small, focused tools in Python: developer tooling, research-analysis utilities and one Android app.">
 <link rel="canonical" href="https://shezinkhais.github.io/">
 
 <!-- the snake, as a curve: an SVG data URI keeps the page a single file -->
@@ -15,14 +15,14 @@
 <meta property="og:site_name" content="Shezin Khais">
 <meta property="og:url" content="https://shezinkhais.github.io/">
 <meta property="og:title" content="Shezin Khais">
-<meta property="og:description" content="Computer science student building small, focused tools in Python. Static analysis, sequence alignment, speaker verification. Every one ships with tests and CI.">
+<meta property="og:description" content="Computer science student building small, focused tools in Python. Static analysis, sequence alignment, speaker verification, congestion-aware routing. Every one ships with tests.">
 <meta property="og:image" content="https://shezinkhais.github.io/social.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="Shezin Khais, portfolio: CodeCartographer, HarmonicDNA, EchoLock.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="Shezin Khais">
-<meta name="twitter:description" content="Computer science student building small, focused tools in Python. Every one ships with tests and CI.">
+<meta name="twitter:description" content="Computer science student building small, focused tools in Python, and one Android app. Every one ships with tests.">
 <meta name="twitter:image" content="https://shezinkhais.github.io/social.png">
 <meta name="theme-color" content="#161b22" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#efebe2" media="(prefers-color-scheme: light)">
@@ -1150,7 +1150,7 @@
 
     <div id="heroSpace"></div>
     <div class="noscript-hero">
-      <p>Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities.</p>
+      <p>Computer science student building small, focused tools in Python: developer tooling, research-analysis utilities and one Android app.</p>
     </div>
 
 
@@ -1401,6 +1401,15 @@
       </p>
     </div>
 
+    <a class="card" data-kind="product algorithms" href="https://github.com/ShezinKhais/clearlane">
+      <h3>Clearlane <span class="arrow" aria-hidden="true">&nearr;</span><span class="vh">(on GitHub)</span></h3>
+      <p>An Android routing app that looks for the least congested way to a destination instead of the quickest one, and tells you exactly what the calm route costs in minutes.</p>
+      <div class="more"><div>
+        <p>Built for the UAE, where five motorways run the same direction a few kilometres apart and a routing API will never offer you the far one. A driving screen with speed against the posted limit, warnings from 1,566 real camera positions, Salik tariff windows, and 102 tests across the pure-Kotlin modules.</p>
+      </div></div>
+      <div class="chips"><span class="chip">Kotlin</span><span class="chip">Jetpack Compose</span><span class="chip">MapLibre</span><span class="chip">congestion modelling</span></div>
+    </a>
+
     <a class="card" data-kind="ml product" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
       <h3>C.L.I.P <span class="arrow" aria-hidden="true">&nearr;</span><span class="vh">(on GitHub)</span> <span class="status">ongoing</span></h3>
       <p>Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
@@ -1498,14 +1507,15 @@
           bioinformatics alignment algorithm say something useful about two chord
           progressions? Can you verify a speaker without a pretrained model or a
           single network call? The answer is sometimes no, and the README says so
-          when it is. Every project ships with a pytest suite and CI, because a
+          when it is. Every project ships with a test suite, and the Python ones run
+          it in CI on every push, because a
           claim you have not tested is just a claim.</p>
 
         <dl class="facts">
           <div><dt>Education</dt><dd>BSc Computer Science, <b>University of Wollongong in Dubai</b>, expected 2026</dd></div>
           <div><dt>Currently</dt><dd>Capstone (CSIT321): a Microsoft Teams app that generates comprehension checkpoints from lecture material, with on-device gaze tracking and live engagement analytics</dd></div>
-          <div><dt>Languages</dt><dd><b>Python</b>, Java, C++, SQL, JavaScript</dd></div>
-          <div><dt>Tools</dt><dd>PyTorch, scikit-learn, numpy, FastAPI, React, PostgreSQL, Firebase, pytest, Git</dd></div>
+          <div><dt>Languages</dt><dd><b>Python</b>, Kotlin, Java, C++, SQL, JavaScript</dd></div>
+          <div><dt>Tools</dt><dd>PyTorch, scikit-learn, numpy, FastAPI, React, Jetpack Compose, PostgreSQL, Firebase, pytest, Git</dd></div>
           <div><dt>Interests</dt><dd>Algorithms, machine learning, signal processing, <b>secure systems</b></dd></div>
           <div><dt>Based in</dt><dd>Dubai, and open to roles <b>anywhere in the UAE</b></dd></div>
           <div><dt>Available</dt><dd>Internships <b>now</b>; full-time software engineering roles from <b>January 2027</b></dd></div>
@@ -1538,7 +1548,7 @@
   </main>
 
   <footer>
-    Every project ships with a pytest suite and GitHub Actions CI.
+    Every project ships with a test suite, and the Python ones run it in GitHub Actions CI.
     This page is a single file with no build step; the hero is set with <a href="https://github.com/chenglou/pretext">pretext</a>.
   </footer>
 </div>
@@ -1557,7 +1567,7 @@ const heroSpace = document.getElementById('heroSpace');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const NAME = 'Shezin Khais';
-const BIO  = 'Computer science student building small, focused tools in Python: developer tooling and research-analysis utilities. Each one ships with a test suite, CI, and a README that says where it falls short.';
+const BIO  = 'Computer science student building small, focused tools in Python: developer tooling, research-analysis utilities and one Android app. Each one ships with a test suite and a README that says where it falls short.';
 
 // CW is the full column. BW is the width the bio wraps to: the column is now
 // wide enough that setting the bio across all of it would run to 120 characters
@@ -3634,6 +3644,27 @@ const SIGS = {
       c.fillStyle = c.bg; c.strokeStyle = i === 5 ? c.warn : i === 0 ? c.hot : c.fg;
       c.beginPath(); c.rect(x - 9, y - 6, 18, 12); c.fill(); c.stroke();
     });
+  }],
+  Clearlane: [ 'the quick way through traffic, the calm way round', (c, r) => {
+    const ax = 22, ay = 74, bx = 170, by = 34, lw = c.lineWidth;
+    // the direct line, in pieces coloured by how jammed each one is
+    const n = 9;
+    for (let i = 0; i < n; i++) {
+      const t0 = i / n, t1 = (i + 1) / n;
+      c.strokeStyle = (i > 2 && i < 7) ? c.warn : c.fg;
+      c.lineWidth = lw * 2.2;
+      c.beginPath(); c.moveTo(ax + (bx - ax) * t0, ay + (by - ay) * t0);
+      c.lineTo(ax + (bx - ax) * t1, ay + (by - ay) * t1); c.stroke();
+    }
+    // the calm one, further but clear the whole way
+    c.strokeStyle = c.hot; c.lineWidth = lw * 2.2;
+    c.beginPath(); c.moveTo(ax, ay);
+    c.bezierCurveTo(70, 104, 150, 98, bx, by); c.stroke();
+    c.lineWidth = lw;
+    for (const [x, y] of [[ax, ay], [bx, by]]) {
+      c.fillStyle = c.bg; c.strokeStyle = c.fg;
+      c.beginPath(); c.arc(x, y, 5, 0, 7); c.fill(); c.stroke();
+    }
   }],
   'federated-aml': [ 'weights in, data stays home', (c, r) => {
     const cx = PW_ / 2, cy = PH_ / 2;
