@@ -1855,6 +1855,7 @@ function nameBox() {
   return { x: CX, y: top + nameSize * 0.26, w, h: nameSize * 0.74 };
 }
 
+const RC_COIL_PAD = 19;   // px between the name's cap band and the middle of the body
 // A stadium, not an ellipse: straight runs clear above and below the name and the
 // round caps sit past its ends, so the body never lies across a glyph.
 function coilPoints(b, startX) {
@@ -1865,12 +1866,15 @@ function coilPoints(b, startX) {
      vertex, comfortably finer than a frame of travel. The polygon is shorter
      than the arc it approximates by 0.02% at this radius, so the perimeter the
      body length is matched against is unaffected. */
-  const ry = Math.max(b.h / 2 + 26, 32), V = 56, S = 30, v = 340;
+  // Hugging the lettering: 26px of air round the name and runs 12px past each
+  // end left the left-hand cap a long way out from the S, so the snake looked
+  // as if it were resting on nothing rather than wrapped round the name.
+  const ry = Math.max(b.h / 2 + RC_COIL_PAD, 30), V = 56, S = 30, v = 340;
   const cy = b.y + b.h / 2, cx = b.x + b.w / 2;
 
   // Size the straight runs so the loop's perimeter matches the body length. The
   // coil then closes exactly, whatever the label underneath happens to measure.
-  const span = Math.max(b.w + 24, (BODY - 2 * Math.PI * ry) / 2);
+  const span = Math.max(b.w + 2, (BODY - 2 * Math.PI * ry) / 2);
   let x1 = cx - span / 2, x2 = cx + span / 2;
   const push = Math.max(0, 12 - (x1 - ry)) - Math.max(0, (x2 + ry) - (PW - 12));
   x1 += push; x2 += push;
@@ -2117,7 +2121,7 @@ function buildPath() {
      the top run. Joining the run right above the gap meant turning through
      ninety degrees in a few pixels, which the body folded through: that kink
      was the stutter at the end of the tour. */
-  const ry = Math.max(box.h / 2 + 26, 32), cyN = box.y + box.h / 2;
+  const ry = Math.max(box.h / 2 + RC_COIL_PAD, 30), cyN = box.y + box.h / 2;
   pts.push({ x: gapX, y: heroBot + 140, v: 950 });
   pts.push({ x: gapX, y: cyN + ry * 0.6, v: 900 });
   for (let i = 0; i <= 6; i++) {
