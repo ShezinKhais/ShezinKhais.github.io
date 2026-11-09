@@ -6701,7 +6701,7 @@ const RC = {
   cars: [], cones: [], t: 0, top: 0, hits: 0, shake: 0, msg: '',
   keys: Object.create(null), raf: 0, last: 0, spawnZ: 0, coneZ: 0, flash: 0,
   score: 0, mult: 1, multAt: -9, slowFor: 0, draft: 0, pops: [],
-  heat: 0, cop: null, chaseFor: 0, awayFor: 0, nearFor: 0,
+  heat: 0, cop: null, lurk: null, chaseFor: 0, awayFor: 0, nearFor: 0,
   lamp: 0, flashT: 9, lampAt: null, msgUntil: 0, level: 'busy', laidOut: {},
   flame: 0, flameK: 1, lastThrottle: 0
 };
@@ -6725,7 +6725,7 @@ function rcReset(keepCar) {
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
   RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
-  RC.heat = 0; RC.cop = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
+  RC.heat = 0; RC.cop = null; RC.lurk = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
   RC.x = rcLaneX(Math.floor(lanes) - 2); RC.camX = RC.x;
   RC.cars = []; RC.cones = []; RC.laidOut = {}; RC.t = 0; RC.top = 0; RC.hits = 0; RC.shake = 0;
   RC.spawnZ = 0; RC.coneZ = 0; RC.flash = 0;
@@ -6799,6 +6799,7 @@ function rcTrafficStep(dt) {
   const all = RC.cars.concat(me);
 
   for (const c of RC.cars) {
+    if (c.parked) continue;                         // on the shoulder, waiting
     const lanes = rcLanes(c.z);
     const [lead] = rcNeighbours(all, c.z, c.lane, c);
     const gap = lead ? lead.z - c.z - RC_SHAPES[c.shape].len : 1e4;
@@ -6857,7 +6858,9 @@ function rcTrafficStep(dt) {
        traffic behind concertina. */
     if (!c.cop && c.check <= 0 && Math.random() < dt * D.spook) c.check = 0.4 + Math.random() * 0.4;
     if (c.check > 0) { c.check -= dt; a = -5.5; }
-    a = rcClamp(a, -6, RC_A);
+    // a patrol car on a shout drives harder than the traffic it is cutting through
+    if (c.cop && a > 0) a *= RC_COP_PUNCH;
+    a = rcClamp(a, -6, c.cop ? RC_A * RC_COP_PUNCH : RC_A);
     c.brake = a < -0.6 || c.check > 0 ? 1 : Math.max(0, c.brake - dt * 3);
     c.v = Math.max(3, c.v + a * dt);
     c.z += c.v * dt;
@@ -6995,7 +6998,8 @@ function rcDrive(dt) {
     const s = RC_SHAPES[c.shape];
     if (Math.abs(c.z - RC.z) > (s.len + mine.len) / 2) continue;
     if (Math.abs(rcLaneX(c.lane) - RC.x) < (s.w + mine.w) / 2 * 0.88)
-      return rcCrash(c.cop ? 'into the back of a patrol car'
+      return rcCrash(c.parked ? 'into a parked patrol car'
+        : c.cop ? 'into the back of a patrol car'
         : c.shape === 'truck' || c.shape === 'bus' ? 'into the back of a lorry' : 'into traffic');
   }
   rcScore(dt);
@@ -7027,31 +7031,54 @@ function rcDrive(dt) {
    traffic behind you or off the hard shoulder in front, and then it is a
    question of whether you can get far enough ahead for long enough.
 
+   The other way to meet one is a speed trap: a patrol car parked on the hard
+   shoulder ahead, lights off. Go past it under the limit and it stays where it
+   is. Go past it over the limit and it spots you: the bar lights, the siren
+   starts, and it pulls off the shoulder behind you and gives chase. It used to
+   be a car pulling out slowly into the road in front of you and then steering
+   into whatever lane you were in, which at your speed and its could not be
+   avoided, only driven into.
+
    A patrol car is a traffic car with a flag on it, so it queues, changes lane
    and brakes for lorries like everything else out there. The only difference
    is what it wants: the lane you are in, and your speed plus a bit. */
 const RC_COP_AT = 150;        // km/h they take an interest in
 const RC_COP_GONE = 420;      // metres of clear air that counts as lost
 const RC_COP_HAD = 18;        // and how close they have to sit to have you
+const RC_COP_PUNCH = 3.2;     // how much harder than traffic a patrol car accelerates
+const RC_COP_EDGE = 7;        // m/s over your speed they will chase at
 
 function rcCopStep(dt) {
   const kph = RC.v * 3.6;
   RC.heat = rcClamp(RC.heat + dt * (kph > RC_COP_AT ? (kph - RC_COP_AT) / 500 : -0.18), 0, 2.2);
 
+  // a car on the shoulder ahead: does it see you go by, and how fast?
+  const lurk = RC.lurk;
+  if (lurk) {
+    const dz = RC.z - lurk.z;                     // positive once you are past it
+    if (RC.cars.indexOf(lurk) < 0 || dz > 260) { RC.lurk = null; }
+    // it reacts once you are by, never in front of you: pulling out into the
+    // lane ahead of a car doing twice its speed is the trap this replaced
+    else if (dz > 6 && dz < 40 && kph > RC_COP_AT) rcCopSpot(lurk);
+  }
+
   const cop = RC.cop;
   if (!cop) {
+    if (RC.lurk) return;
     // one comes along sooner the hotter you are running
-    if (RC.heat > 1 && Math.random() < dt * (0.05 + RC.heat * 0.06)) rcCopJoin();
+    if (RC.heat > 1 && Math.random() < dt * (0.05 + RC.heat * 0.06)) {
+      if (Math.random() < 0.45) rcCopLurk(); else rcCopJoin();
+    } else if (Math.random() < dt * 0.018) rcCopLurk();   // and now and then, one waiting anyway
     return;
   }
   if (RC.cars.indexOf(cop) < 0) { RC.cop = null; return; }   // dropped off the back of the road
 
   const dist = Math.abs(cop.z - RC.z);
-  /* Your speed and a bit, up to about 270. Once they are on you they sit
+  /* Your speed and a bit, up to about 290. Once they are on you they sit
      there rather than driving into the back of you: they want you stopped,
      not wrapped round a lorry, and a patrol car that rams is a different
      game. */
-  cop.v0 = Math.min(75, Math.max(RC.v + 4, 33));
+  cop.v0 = Math.min(80, Math.max(RC.v + RC_COP_EDGE, 36));
   RC.chaseFor += dt;
 
   if (dist > RC_COP_GONE) {
@@ -7073,19 +7100,48 @@ function rcCopStep(dt) {
   } else RC.nearFor = Math.max(0, RC.nearFor - dt * 0.6);
 }
 
+// out of the traffic behind you, already rolling
 function rcCopJoin() {
   const lanes = Math.floor(rcLanes(RC.z));
-  const ahead = Math.random() < 0.45;
-  const lane = ahead ? lanes - 1 : rcClamp(Math.round(RC.x / RC_LANE - 0.5), 0, lanes - 1);
+  const lane = rcClamp(Math.round(RC.x / RC_LANE - 0.5), 0, lanes - 1);
   const cop = {
-    z: RC.z + (ahead ? 240 + Math.random() * 160 : -(120 + Math.random() * 90)),
-    lane, target: lane, v: ahead ? 22 : RC.v * 0.92, v0: RC.v + 4,
+    z: RC.z - (120 + Math.random() * 90),
+    lane, target: lane, v: RC.v * 0.95, v0: RC.v + RC_COP_EDGE,
     shape: 'police', paint: '#eef1f4', brake: 0, wait: 9e9,
     mood: 'deaf', flashes: 0, check: 0, cop: true, behind: true
   };
   RC.cars.push(cop);
   RC.cop = cop; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
-  rcSay(ahead ? 'a patrol car pulling out' : 'police, behind you');
+  rcSay('police, behind you');
+}
+
+/* Parked on the hard shoulder, far enough ahead to be seen coming: just past
+   the edge line, where it is in nobody's lane and only a car that runs onto
+   the shoulder can hit it. */
+function rcCopLurk() {
+  const z = RC.z + 340 + Math.random() * 160;
+  if (rcWorksAt(z) || rcInTunnel(z)) return;     // no shoulder to sit on there
+  const lane = (rcWidth(z) + 1.0) / RC_LANE - 0.5;
+  const cop = {
+    z, lane, target: lane, v: 0, v0: 0,
+    shape: 'police', paint: '#eef1f4', brake: 0, wait: 9e9,
+    mood: 'deaf', flashes: 0, check: 0, cop: true, parked: true, behind: false
+  };
+  RC.cars.push(cop);
+  RC.lurk = cop;
+}
+
+// it saw you: lights, siren, and off the shoulder into the inside lane
+function rcCopSpot(cop) {
+  RC.lurk = null;
+  cop.parked = false;
+  cop.v = 6;
+  cop.target = Math.max(0, Math.round(rcLanes(cop.z)) - 1);
+  cop.behind = true;
+  if (RC.cop) { rcCopDrop(); }                    // one chase at a time
+  RC.cop = cop; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
+  RC.heat = Math.max(RC.heat, 1);
+  rcSay('speed trap, they have seen you');
 }
 
 function rcCopDrop() {
@@ -8754,8 +8810,10 @@ function rcDraw() {
     const lx = t.x !== undefined ? t.x : rcLaneX(t.lane);
     const paint = P === RC_NIGHT ? rcMix(t.paint, 0, 0.42) : t.paint;
     rcVolume(c, RC_PROF[t.shape], m.w, m.h, m.len, d => proj(lx, t.z - camZ + d, atZ(t.z + d)), paint, P, vx);
+    rcBarDark = !!t.parked;
     rcSprite(c, t.shape, p.x, p.y, p.s, t.paint, P, t.brake > 0, false, null,
       t === RC.lampAt ? RC.lamp : 0);
+    rcBarDark = false;
   }
 
   // the car you are in, drawn as itself rather than as a set of proportions
@@ -8961,8 +9019,8 @@ const RC_MODELS = {
       c.font = '0.16px sans-serif'; c.textAlign = 'center';
       c.fillText('POLICE', 0, -0.98);
     }
-    // the bar: a dark spine with a lens each side of it
-    const beat = Math.floor(RC.t * 5.5) % 2;
+    // the bar: a dark spine with a lens each side of it, unlit while it waits
+    const beat = rcBarDark ? -1 : Math.floor(RC.t * 5.5) % 2;
     c.fillStyle = '#20242b';
     c.beginPath(); c.roundRect(-0.56, -1.63, 1.12, 0.11, 0.04); c.fill();
     for (const [sx, col, lit] of [[-1, '#3b78ff', beat === 0], [1, '#ff3b3b', beat === 1]]) {
@@ -9130,6 +9188,8 @@ const RC_MODELS = {
     if (fine) rcPlateAt(c, -0.60, 0.36);
   } }
 };
+
+let rcBarDark = false;   // a patrol car parked up, lights off
 
 /* One entry point for anything that is not the car you are in. The night
    darkening, the shadow and the flash of your headlights are common to all of
