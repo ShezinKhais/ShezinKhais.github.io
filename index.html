@@ -1102,7 +1102,7 @@
     <!-- the board lives in the game only: the page itself gives no hint there is one -->
     <div class="lb" id="lb" hidden role="tabpanel" aria-labelledby="rcTabTop">
       <ol id="lbList"></ol>
-      <p class="lbnote">scores from this browser</p>
+      <p class="lbnote" id="lbNote">scores from this browser</p>
     </div>
     <p class="rlevel">
       <label for="rcLevel">Traffic</label>
@@ -6737,6 +6737,7 @@ function rcTab(t) {
   rcTabShop.setAttribute('aria-selected', String(t === 'shop'));
   rcTabTop.setAttribute('aria-selected', String(t === 'top'));
   if (t === 'shop') rcShopSync();
+  if (t === 'top') lbRender();          // fresh from the database each time it is looked at
 }
 function rcShopShow(on) { rcTab(on ? 'shop' : 'cars'); }
 
@@ -11439,19 +11440,65 @@ const RC_DOWNSHIFT = { q: 1, z: 1, '[': 1, '-': 1, _: 1, Control: 1 };
    database behind those two is the whole of making it public. Names are only
    ever set as text, never as markup, and are trimmed to sixteen characters. */
 const LB_KEY = 'raceBoard', LB_SHOW = 5, LB_KEEP = 50;
-const LB = {
-  async top(n) {
+/* Shared when a database is configured, local when not. LB_DB is a Supabase
+   project: its URL and its public "anon" key, which is meant to sit in page
+   code. What that key can do is set by the table's row level security: read
+   every score and add new ones, never edit or delete, so the only way a score
+   leaves the board is the owner removing it from the dashboard. The table
+   itself refuses names over sixteen characters or with angle brackets,
+   unknown traffic levels and absurd scores. Anyone can still post a made up
+   score from the console; that cannot be prevented without a server that
+   watches the run, and is what the dashboard is for. If the database cannot
+   be reached the board quietly falls back to this browser's scores. */
+const LB_DB = { url: '', key: '' };
+const LB_TABLE = 'highway_scores';
+const lbShared = () => !!(LB_DB.url && LB_DB.key);
+const lbLocal = {
+  top(n) {
     let all = [];
     try { all = JSON.parse(localStorage.getItem(LB_KEY) || '[]'); } catch {}
     if (!Array.isArray(all)) all = [];
     return all.filter(e => e && typeof e.name === 'string' && isFinite(e.score))
       .sort((a, b) => b.score - a.score).slice(0, n);
   },
-  async add(entry) {
-    const all = await LB.top(LB_KEEP);
+  add(entry) {
+    const all = lbLocal.top(LB_KEEP);
     all.push(entry);
     all.sort((a, b) => b.score - a.score);
     try { localStorage.setItem(LB_KEY, JSON.stringify(all.slice(0, LB_KEEP))); } catch {}
+  }
+};
+let lbOnline = false;
+const LB = {
+  async top(n) {
+    if (lbShared()) {
+      try {
+        const r = await fetch(LB_DB.url.replace(/\/$/, '') + '/rest/v1/' + LB_TABLE
+          + '?select=name,score,level,car,created_at&order=score.desc&limit=' + n,
+          { headers: { apikey: LB_DB.key, Authorization: 'Bearer ' + LB_DB.key } });
+        if (r.ok) {
+          const rows = await r.json();
+          lbOnline = true;
+          return rows.map(e => ({ name: String(e.name), score: +e.score, level: e.level, car: e.car,
+            at: Date.parse(e.created_at) || 0 }));
+        }
+      } catch {}
+    }
+    lbOnline = false;
+    return lbLocal.top(n);
+  },
+  async add(entry) {
+    lbLocal.add(entry);                    // always kept here too, so it survives being offline
+    if (lbShared()) {
+      try {
+        await fetch(LB_DB.url.replace(/\/$/, '') + '/rest/v1/' + LB_TABLE, {
+          method: 'POST',
+          headers: { apikey: LB_DB.key, Authorization: 'Bearer ' + LB_DB.key,
+            'Content-Type': 'application/json', Prefer: 'return=minimal' },
+          body: JSON.stringify({ name: entry.name, score: Math.round(entry.score), level: entry.level, car: entry.car || null })
+        });
+      } catch {}
+    }
     return entry;
   }
 };
@@ -11470,6 +11517,7 @@ function lbClean(name) {
 async function lbRender() {
   const top = await LB.top(LB_SHOW);
   lbTop = top;
+  document.getElementById('lbNote').textContent = lbOnline ? 'everyone who has driven it' : 'scores from this browser';
   lbList.textContent = '';
   if (!top.length) {
     const li = document.createElement('li');
@@ -11480,7 +11528,7 @@ async function lbRender() {
   }
   for (const e of top) {
     const li = document.createElement('li');
-    if (lbMine && e.at === lbMine.at && e.name === lbMine.name) li.className = 'me';
+    if (lbMine && e.score === Math.round(lbMine.score) && e.name === lbMine.name) li.className = 'me';
     const n = document.createElement('span'); n.className = 'n'; n.textContent = e.name;
     const lv = document.createElement('small'); lv.textContent = LB_LEVEL[e.level] || '';
     n.appendChild(lv);
@@ -11526,7 +11574,7 @@ lbForm.addEventListener('submit', async e => {
   e.preventDefault();
   const name = lbClean(lbName.value);
   if (!name || !lbPending) { lbName.focus(); return; }
-  try { localStorage.setItem('raceName', name); } catch {}
+  try { localStorage.setItem('raceName', name); localStorage.setItem('raceSkip', String(lbPending.score)); } catch {}
   lbMine = await LB.add({ name, score: lbPending.score, level: lbPending.level, car: lbPending.car, at: Date.now() });
   lbPending = null; lbForm.hidden = true;
   lbName.blur();
@@ -11540,7 +11588,7 @@ document.getElementById('lbSkip').addEventListener('click', () => {
 });
 // a best from before the board existed: offer it once the board is known empty
 lbRender().then(() => {
-  if (lbTop.length || lbPending) return;
+  if (lbPending) return;
   let top = null;
   for (const lv of Object.keys(LB_LEVEL)) {
     let v = 0;
@@ -11549,7 +11597,9 @@ lbRender().then(() => {
   }
   let skipped = 0;
   try { skipped = +(localStorage.getItem('raceSkip') || 0) || 0; } catch {}
-  if (top && top.score > skipped) lbOffer(top.score, top.level, null, 'Your best so far');
+  const fits = top && (lbTop.length < LB_SHOW || top.score > lbTop[lbTop.length - 1].score);
+  const there = top && lbTop.some(e => e.score === top.score);
+  if (fits && !there && top.score > skipped) lbOffer(top.score, top.level, null, 'Your best so far');
 });
 
 function rcStart() {
