@@ -1522,14 +1522,48 @@ function fonts() {
   prepBio = prepareWithSegments(BIO, fBio);
 }
 
-function measureHero() {
-  let y = 0, cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
-  while (guard++ < 60) {
-    const l = layoutNextLine(prepBio, cur, BW);
-    if (!l) break;
-    cur = l.end; y += LH_BIO;
+/* Narrower than this either side and a parted line is a few words wide, which
+   reads worse than the snake simply passing under the text, so on a phone the
+   bio holds still and only the name parts. */
+const BIO_MIN_SIDE = 110;
+let bioSplit = false;   // set by measureHero: is there room held for a parted bio
+function bioLines(runs) {
+  let n = 0, cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
+  outer: while (guard++ < 60) {
+    for (const w of runs) {
+      const l = layoutNextLine(prepBio, cur, Math.max(w, 60));
+      if (!l) break outer;
+      cur = l.end;
+    }
+    n++;
   }
-  return nameSize + BIO_GAP + y + 24;
+  return n;
+}
+
+// x of the space between the two words of the name, where the snake comes up
+function nameGapX() {
+  ctx.font = fName;
+  return CX + ctx.measureText(NAME.slice(0, NAME.indexOf(' '))).width
+            + ctx.measureText(' ').width / 2;
+}
+
+/* While the opening tour runs, the snake climbs through the bio and every line
+   it crosses is set in two shorter runs, which costs lines. Reserving only the
+   plain height let the parted paragraph spill over the links below it, so the
+   room is held for the split layout until the tour ends and then handed back
+   (see releaseParagraphs). */
+function measureHero() {
+  let lines = bioLines([BW]);
+  bioSplit = false;
+  if (!released && !reduced) {
+    // the channel allows for the body, its sway and the clearance spanAt adds
+    const g = nameGapX(), l = g - 80 - CX, r = CX + BW - (g + 90);
+    if (l >= BIO_MIN_SIDE && r >= BIO_MIN_SIDE) {
+      lines = Math.max(lines, bioLines([l, r]) + 1);
+      bioSplit = true;
+    }
+  }
+  return nameSize + BIO_GAP + lines * LH_BIO + 24;
 }
 
 // ================= card text reflow =================
@@ -1582,6 +1616,13 @@ function releaseParagraphs() {
   if (released) return;
   released = true;
 
+  // the hero held room for a parted bio; ease it back to the plain height
+  const heroNat = measureHero();
+  if (heroSpace.offsetHeight > heroNat) {
+    if (!reduced) heroSpace.style.transition = 'height .55s cubic-bezier(.16,1,.3,1)';
+    heroSpace.style.height = heroNat + 'px';
+  }
+
   if (reduced) { for (const o of flows) { o.p.style.height = ''; o.h = 0; } return; }
 
   /* Measure every target first, with nothing armed. Reading a natural height
@@ -1606,6 +1647,7 @@ function releaseParagraphs() {
   // the rows have moved up, so the route drawn against the old geometry is stale
   setTimeout(() => {
     for (const o of flows) { o.p.style.transition = ''; o.p.style.height = ''; }
+    heroSpace.style.transition = '';
     resize();
     if (rafId === 0) draw(performance.now() / 1000);
   }, 620);
@@ -1746,7 +1788,7 @@ function nameBox() {
 
 // A stadium, not an ellipse: straight runs clear above and below the name and the
 // round caps sit past its ends, so the body never lies across a glyph.
-function coilPoints(b) {
+function coilPoints(b, startX) {
   /* V was 24, so each cap was a 24-gon: 7.5 degrees of direction change per
      vertex, and at 340px/s the head crossed about one and a half vertices per
      frame. The route itself therefore turned in steps rather than continuously,
@@ -1774,6 +1816,15 @@ function coilPoints(b) {
   for (let i = 1; i < V; i++) {
     const a = Math.PI / 2 + Math.PI * i / V;
     out.push({ x: x1 + Math.cos(a) * ry, y: cy + Math.sin(a) * ry, v });
+  }
+  // Open the loop partway along the top run instead of at its left end, so the
+  // snake can arrive from below through the middle of the lettering and turn
+  // straight into the coil. It is the same closed loop, just started elsewhere,
+  // so the perimeter still matches the body.
+  if (startX !== undefined) {
+    const k = Math.round(clamp((startX - x1) / (x2 - x1), 0.05, 0.95) * S);
+    const lap = out.slice(k).concat(out.slice(0, k + 1));
+    out.length = 0; out.push(...lap);
   }
 
   /* The last thing the snake does is come round this final cap: 180 degrees in
@@ -1904,13 +1955,15 @@ function easeCorners(pts, maxDeg, passes, keepTail) {
    already removes. */
 const EASE = { rounds: 4, passes: 40, deg: 11, step: 6 };
 
-function joinCoil(lead, coil, ease) {
+function joinCoil(lead, coil, ease, run) {
   const c0 = coil[0], c1 = coil[1] || coil[0];
   const ux = c1.x - c0.x, uy = c1.y - c0.y;
   const L = Math.hypot(ux, uy) || 1;
+  // `run` is how far back along the coil's opening line the approach lines up
+  run = run || 260;
   const pts = lead.concat([
-    { x: c0.x - ux / L * 260, y: c0.y - uy / L * 260, v: 1000 },
-    { x: c0.x - ux / L * 110, y: c0.y - uy / L * 110, v: 950 },
+    { x: c0.x - ux / L * run, y: c0.y - uy / L * run, v: 1000 },
+    { x: c0.x - ux / L * run * 0.42, y: c0.y - uy / L * run * 0.42, v: 950 },
     { x: c0.x, y: c0.y, v: coil[0].v }
   ]);
   let transit = resample(smoothPath(pts, 12), EASE.step);
@@ -1920,7 +1973,7 @@ function joinCoil(lead, coil, ease) {
      of smoothing: measured at 99 degrees with the route either side of it under
      8. So the last stretch is eased onto the line the coil actually opens
      along, weighted so it is exact at the seam and fades out well before it. */
-  const M = 16;
+  const M = Math.round(Math.min(16, run / 6));
   for (let k = 0; k < M; k++) {
     const i = transit.length - 1 - k;
     if (i < 1) break;
@@ -1974,10 +2027,19 @@ function buildPath() {
     pts.push({ x: i % 2 ? L : R, y: 120 + (bottom - 120) * f, v: 1400 });
   }
 
+  /* The finish threads the hero rather than skirting it: straight up through
+     the middle of the bio, whose lines part on both sides of the body, then
+     through the space between the two words of the name, whose letters slide
+     apart for it, and round into the coil from the top of the gap. Arriving
+     from the right used to cut back across the whole name, and arriving from
+     the side left the copy shoved over to one side, which read as a fault. */
   const box = nameBox();
-  pts.push({ x: box.x + box.w + 70, y: box.y + box.h + 110, v: 950 });
+  const gapX = nameGapX();
+  const heroBot = heroSpace.getBoundingClientRect().bottom + scrollY;
+  pts.push({ x: gapX, y: heroBot + 140, v: 950 });
+  pts.push({ x: gapX, y: box.y + box.h * 0.5, v: 900 });
 
-  path = joinCoil(pts, coilPoints(box));
+  path = joinCoil(pts, coilPoints(box, gapX), true, 64);
   tourPath = true;
   if (pathIdx >= path.length) { pathIdx = Math.max(0, path.length - 1); pathPos = 0; }
 }
@@ -2478,33 +2540,100 @@ function draw(t) {
   // name, one glyph at a time on first paint
   ctx.font = fName; ctx.fillStyle = PAL.fg;
   const nb = top + nameSize;
+  const gx = [], gw = [];
   let nx = CX;
-  for (const ch of NAME) {
-    const k = reduced ? 1 : clamp((t - 0.15 - nx * 0.0016) / 0.5, 0, 1);
+  for (const ch of NAME) { const w = ctx.measureText(ch).width; gx.push(nx); gw.push(w); nx += w; }
+  const part = partName(t, gx, gw, nb);
+  for (let i = 0; i < NAME.length; i++) {
+    const k = reduced ? 1 : clamp((t - 0.15 - gx[i] * 0.0016) / 0.5, 0, 1);
     const e = 1 - Math.pow(1 - k, 3);
     ctx.globalAlpha = e;
-    ctx.fillText(ch, nx, nb + (1 - e) * 18);
-    nx += ctx.measureText(ch).width;
+    ctx.fillText(NAME[i], gx[i] + part[i], nb + (1 - e) * 18);
   }
   ctx.globalAlpha = 1;
 
+  /* Where the snake crosses a line of the bio, the line is set on both sides of
+     it, so the body runs through a channel in the paragraph. Putting the whole
+     line on whichever side had more room left a ragged hole beside the snake
+     and read as text that had been knocked out of place. */
   ctx.font = fBio; ctx.fillStyle = PAL.muted;
   let y = top + nameSize + BIO_GAP;
   let cur = { segmentIndex:0, graphemeIndex:0 }, guard = 0;
   while (guard++ < 60) {
-    let x = CX, avail = BW;
+    let runs = [[CX, BW]], under = false;
     const sp = spanAt(y, y + LH_BIO);
     if (sp) {
-      const [l, r] = sp;
-      if ((l - CX) >= (CX + BW - r)) { x = CX; avail = l - CX; }
-      else { x = r; avail = CX + BW - r; }
-      if (avail < 150) { x = CX; avail = BW; }
+      const l = Math.min(sp[0], CX + BW), r = Math.max(sp[1], CX);
+      const lw = l - CX, rw = CX + BW - r;
+      if (bioSplit && lw >= BIO_MIN_SIDE && rw >= BIO_MIN_SIDE) runs = [[CX, lw], [r, rw]];
+      // too tight to part: the line stays whole over the body, haloed to read
+      else if (sp[1] > CX && sp[0] < CX + BW) under = true;
     }
-    const line = layoutNextLine(prepBio, cur, Math.max(avail, 60));
-    if (!line) break;
-    ctx.fillText(line.text, x, y + LH_BIO * .72);
-    cur = line.end; y += LH_BIO;
+    if (under) { ctx.shadowColor = css('--bg'); ctx.shadowBlur = 6; }
+    let done = false;
+    for (const [x, w] of runs) {
+      const line = layoutNextLine(prepBio, cur, Math.max(w, 60));
+      if (!line) { done = true; break; }
+      // the left run is right-aligned onto the channel so both edges hug the body
+      const lx = runs.length > 1 && x === CX ? x + w - ctx.measureText(line.text.trimEnd()).width : x;
+      ctx.fillText(line.text, lx, y + LH_BIO * .72);
+      cur = line.end;
+    }
+    ctx.shadowBlur = 0;
+    if (done) break;
+    y += LH_BIO;
   }
+}
+
+/* The name parts for the snake. Where the body crosses the cap band, the letters
+   either side of it slide apart to open a channel just wide enough, then close
+   back up once it has gone. Offsets are eased so the gap opens like the letters
+   are being nudged rather than jumping. A stretch of body lying along the band
+   is wider than any gap that would still read as one name, so that is left
+   alone; the route is drawn so the snake never does that. */
+const partOff = new Float32Array(NAME.length);
+let partT = 0;
+function partName(t, gx, gw, nb) {
+  const dt = clamp(t - partT, 0, 0.05); partT = t;
+  const want = new Float32Array(NAME.length);
+  if (!reduced && lastRibs.length) {
+    const bTop = nb - nameSize * 0.74, bBot = nb + nameSize * 0.06;
+    // merge the body's horizontal footprint across the band into clusters
+    // Only body that crosses the middle of the lettering counts. The coil's
+    // straight runs sit above and below the name and their sway grazes the band
+    // edges, which is not a crossing and must not shove the letters about.
+    const bMid = (bTop + bBot) / 2, near = (bBot - bTop) * 0.3;
+    const iv = [];
+    for (const q of lastRibs) {
+      if (q.y + q.hw < bTop || q.y - q.hw > bBot) continue;
+      iv.push([q.x - q.hw, q.x + q.hw, Math.abs(q.y - bMid) < near]);
+    }
+    iv.sort((a, b) => a[0] - b[0]);
+    const cl = [];
+    for (const v of iv) {
+      const c = cl[cl.length - 1];
+      if (c && v[0] <= c[1] + 4) { c[1] = Math.max(c[1], v[1]); c[2] = c[2] || v[2]; }
+      else cl.push(v.slice());
+    }
+    const PAD = Math.max(8, nameSize * 0.1), CAP = nameSize * 0.9;
+    const x0 = gx[0], x1 = gx[gx.length - 1] + gw[gw.length - 1];
+    for (const [lo, hi, crosses] of cl) {
+      if (!crosses || hi - lo > nameSize * 1.6 || hi < x0 - PAD || lo > x1 + PAD) continue;
+      const mid = (lo + hi) / 2;
+      let s = 0;
+      while (s < NAME.length && gx[s] + gw[s] / 2 < mid) s++;
+      // near the word space, part the words rather than splitting one of them
+      const sp = NAME.indexOf(' ');
+      if (Math.abs(mid - (gx[sp] + gw[sp] / 2)) < nameSize * 0.9) s = sp;
+      const seam = s < NAME.length ? gx[s] : x1;
+      const L = s > 0 ? clamp((lo - PAD) - seam, -CAP, 0) : 0;
+      const R = s < NAME.length ? clamp((hi + PAD) - seam, 0, CAP) : 0;
+      for (let i = 0; i < NAME.length; i++) want[i] += i < s ? L : R;
+    }
+  }
+  const k = Math.min(1, dt * 14);
+  for (let i = 0; i < NAME.length; i++) partOff[i] += (want[i] - partOff[i]) * k;
+  return partOff;
 }
 
 let last = 0, rafId = 0, paused = false;
