@@ -7806,8 +7806,18 @@ const RC_ENGINE = {
   lfa: { fire: rcFiring(10, 72, [0, 1]), pipeA: 1.55, pipeB: 1.55, fb: 0.5, damp: 0.68, tone: 7400, pw: 0.40, noise: 0.14, gain: 0.82,
     intake: { gain: 0.9, res: [[2, 9, 0, 1.0], [4, 11, 0, 0.7], [0, 3.2, 1150, 0.55], [6, 14, 0, 0.3]] },
     valve: 3800, whine: [10, 0.012] },
-  mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.4, pipeB: 2.5, fb: 0.50, damp: 0.56, tone: 3600, pw: 0.9, noise: 0.34, gain: 0.85 },
-  f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.8, pipeB: 2.0, fb: 0.56, damp: 0.62, tone: 6400, pw: 0.6, noise: 0.22, gain: 0.8 },
+  /* The two of them sounded like each other and like nothing much: the same
+     engine with a different tone knob. Now the McLaren is the gruff one: wider
+     pulses, longer pipes, a lot of rasp in the noise, its intake leaning on
+     the third harmonic, which is the odd, tearing one, and a low airbox
+     chamber; its valves open late. The Ferrari is the scream: needle pulses
+     through the shortest pipes on the road, the intake on the second and
+     fourth harmonics like the LFA's but with its own vowel higher up, the
+     valves open from 5,200, and a thread of cam whine on top. */
+  mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.6, pipeB: 2.75, fb: 0.52, damp: 0.50, tone: 3000, pw: 1.0, noise: 0.40, gain: 0.88,
+    intake: { gain: 0.55, res: [[2, 5, 0, 0.6], [3, 7, 0, 0.45], [0, 2.2, 640, 0.5]] }, valve: 4200 },
+  f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.5, pipeB: 1.65, fb: 0.55, damp: 0.66, tone: 7800, pw: 0.45, noise: 0.18, gain: 0.82,
+    intake: { gain: 0.8, res: [[2, 8, 0, 0.9], [4, 10, 0, 0.55], [0, 3.0, 1450, 0.5], [3, 9, 0, 0.22]] }, valve: 5200, whine: [8, 0.008] },
   // crossplane, long pipes and a big resonance: the deepest thing here bar the Land Cruiser
   amggtr: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.9, pipeB: 4.4, fb: 0.60, damp: 0.40, tone: 1700, pw: 2.1, noise: 0.24, gain: 0.9 }
 };
@@ -10873,6 +10883,19 @@ function rc3Build(m) {
       else { p[1] += f * 0.05; p[0] *= 1 - f * 0.05; }
     });
   }
+  /* The nose rolls off the same way: the top edge drops and pulls in over the
+     last few per cent, so the front is a rounded snout rather than a wall. */
+  const nroll = m.noseRoll || 0.06;
+  for (const s of st) {
+    const f = rcSS(1 - nroll, 1, s.u);
+    if (f <= 0) continue;
+    s.pts.forEach((p, j) => {
+      if (j >= 4) { p[1] -= f * (m.noseDrop != null ? m.noseDrop : 0.05); p[0] *= 1 - f * 0.10; }
+      else if (j === 3) p[0] *= 1 - f * 0.07;
+      else if (j >= 1) p[0] *= 1 - f * 0.04;
+      else { p[1] += f * 0.03; p[0] *= 1 - f * 0.06; }
+    });
+  }
   // the height of the top of the body along its length, for seating parts on it
   m.deckAt = z => {
     const u = rcClamp(z / L, 0, 1);
@@ -11161,6 +11184,74 @@ function rcCar3(c, car, V, P, braking, flame) {
   tyres.sort((a, b) => b.d - a.d).forEach(draw);
   nose.sort((a, b) => b.d - a.d).forEach(draw);
   faces.sort((a, b) => b.d - a.d).forEach(draw);
+
+  /* The flanks. A lofted side is one smooth sheet, and lit as one it read as
+     a flat slab: no shoulder, no doors, nothing to catch the eye between the
+     arches. On each side the camera can see, the shoulder gets its crease (a
+     line of light with its shadow under it), the door its shut lines and a
+     handle, and the sill a dark edge. */
+  {
+    const at = (u, j, sx) => {
+      let i = 0; while (i < st.length - 2 && st[i + 1].u < u) i++;
+      const a = st[i], b = st[i + 1], t = rcClamp((u - a.u) / ((b.u - a.u) || 1), 0, 1);
+      const x = rcLerp(a.pts[j][0], b.pts[j][0], t), y = rcLerp(a.pts[j][1], b.pts[j][1], t);
+      return [sx * (x + 0.004), y, u * m.len];
+    };
+    const yAt = (u, j0, j1, f, sx) => { const p = at(u, j0, sx), q = at(u, j1, sx); return [rcLerp(p[0], q[0], f), rcLerp(p[1], q[1], f), p[2]]; };
+    const line = (pts, col, wpx) => {
+      c.beginPath();
+      for (const p of pts) { const q = V.pt(p[0], p[1], p[2]); c.lineTo(q.x, q.y); }
+      c.strokeStyle = col; c.lineWidth = wpx; c.stroke();
+    };
+    const sc = V.pt(0, 0, m.len / 2).s;
+    if (sc > 6) for (const sx of [1, -1]) {
+      const xm = m.hwAt(0.5);
+      if ((cam[0] - sx * xm) * sx <= 0.05) continue;
+      const lw = Math.max(0.6, sc * 0.012);
+      const us = []; for (let u = 0.04; u <= 0.94; u += 0.03) us.push(u);
+      // the shoulder: the light along the crease and the shadow just under it
+      line(us.map(u => yAt(u, 3, 4, 0.55, sx)), rcMix(paint, 255, night ? 0.12 : 0.38), lw);
+      line(us.map(u => { const p = yAt(u, 3, 4, 0.40, sx); return p; }), rcMix(paint, 0, 0.30), lw * 0.8);
+      // the sill
+      line(us.map(u => yAt(u, 0, 1, 0.85, sx)), 'rgba(0,0,0,.35)', lw);
+      if (!hatch || m.cab[1] - m.cab[0] > 0.3) {
+        // the door, from just behind the front arch back to the cabin's rear pillar
+        const u1 = rcClamp(m.fu - 0.10, 0.3, 0.9), u0 = Math.max(m.ru + 0.12, u1 - (m.doorLen || 0.27));
+        const top = (u) => yAt(u, 4, 5, 0.9, sx), bot = (u) => yAt(u, 0, 1, 0.95, sx);
+        for (const u of [u0, u1]) line([bot(u), yAt(u, 2, 3, 0.5, sx), top(u)], 'rgba(0,0,0,.40)', lw * 0.9);
+        const hu = u0 + 0.04, h0 = yAt(hu, 3, 4, 0.15, sx), h1 = yAt(hu + 0.035, 3, 4, 0.15, sx);
+        line([h0, h1], 'rgba(0,0,0,.45)', lw * 2.2);
+      }
+    }
+  }
+
+  /* The nose, when it is towards us: lamps at its upper corners and the
+     intake below, drawn on the front face in its own metres the way the tail
+     used to be. It was a bare panel of paint, which is what made every car
+     look like a brick from the front. */
+  if (cam[2] > m.len + 0.2) {
+    const sN = st[st.length - 1], ln = m.len + 0.003;
+    const q0 = V.pt(0, 0, ln), qx = V.pt(1, 0, ln), qy = V.pt(0, 1, ln);
+    c.save();
+    c.transform(qx.x - q0.x, qx.y - q0.y, -(qy.x - q0.x), -(qy.y - q0.y), q0.x, q0.y);
+    c.beginPath();
+    for (const p of cap(sN, 0)) c.lineTo(p[0], -p[1]);
+    c.closePath(); c.clip();
+    const hwN = Math.max(...sN.pts.map(p => p[0])), topN = Math.max(...sN.pts.map(p => p[1])), gcN = sN.pts[0][1];
+    const hgt = topN - gcN;
+    // the intake: a dark mouth across the lower half
+    c.fillStyle = '#0f1114';
+    rcPath(c, rcSym([[hwN * 0.70, -(gcN + hgt * 0.55), 0.03], [hwN * 0.82, -(gcN + hgt * 0.08), 0.03], [0.2, -(gcN + hgt * 0.08), 0]])); c.fill();
+    // the lamps: a slim dark-rimmed lens at each upper corner
+    for (const sx of [-1, 1]) {
+      c.fillStyle = '#1a1d22';
+      rcPath(c, rcSide([[hwN * 0.40, -(gcN + hgt * 0.92), 0.02], [hwN * 0.96, -(gcN + hgt * 0.96), 0.03], [hwN * 0.96, -(gcN + hgt * 0.66), 0.03], [hwN * 0.52, -(gcN + hgt * 0.70), 0.02]], sx)); c.fill();
+      c.fillStyle = night ? '#fff6dc' : '#dfe7ef';
+      rcPath(c, rcSide([[hwN * 0.46, -(gcN + hgt * 0.88), 0.015], [hwN * 0.92, -(gcN + hgt * 0.92), 0.02], [hwN * 0.92, -(gcN + hgt * 0.73), 0.02], [hwN * 0.55, -(gcN + hgt * 0.75), 0.015]], sx)); c.fill();
+    }
+    if (m.nose) m.nose(c, hwN, gcN, topN, night);
+    c.restore();
+  }
 
   /* Wheel arches. The body runs down to the sills, so without these the wheels
      were hidden inside it and every car was a hull on four little feet. On
@@ -11710,45 +11801,70 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
       rcDiffuser(c, S, 0.36, 0.66, 7, fine);
     } },
-  mclaren: { box: 0.05, lampY: [0.66, 0.93], noBumper: true, len: 4.54, w: 0.93, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
-    beltR: 0.98, beltF: 0.66, deckR: 1.04, deck0: 1.10, deck1: 0.78, noseH: 0.50,
-    cab: [0.36, 0.72], roof: 1.30, rs: 0.12, fs: 0.18, roofW: 0.58, crown: 0.17,
-    crease: 0.03, tumble: 0.2, hip: 0.11, fender: 0.02, tailIn: 0.08, tailLen: 0.10, noseIn: 0.27, noseLen: 0.34, noseCurve: 1.6,
-    glassDeck: [0.10, 0.38], intake: [0.24, 0.40], rim: '#202327',
-    parts: [{ x: [-0.82, 0.82], y: [0.99, 1.03], z: [0.02, 0.30], col: 'paint' }],
-    pipes: [[-0.13, -0.66], [0.13, -0.66]],
+  mclaren: { box: 0.45, lampY: [0.78, 0.90], noBumper: true, len: 4.54, w: 0.965, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
+    beltR: 0.84, beltF: 0.64, deckR: 0.95, deck0: 1.06, deck1: 0.76, noseH: 0.44, tailCurve: 0.7,
+    cab: [0.38, 0.71], roof: 1.20, rs: 0.17, fs: 0.20, roofW: 0.48, crown: 0.06,
+    crease: 0.04, tumble: 0.26, hip: 0.15, fender: 0.05, tailIn: 0.07, tailLen: 0.10, noseIn: 0.30, noseLen: 0.36, noseCurve: 1.35,
+    noseDrop: 0.08, tailBulge: 0.08, tailLean: 0.05,
+    glassDeck: [0.24, 0.38], intake: [0.27, 0.41], rim: '#202327', doorLen: 0.30,
+    parts: [{ x: [-0.80, 0.80], y: [0.93, 0.965], z: [0.02, 0.22], col: 'paint' }],
+    pipes: [[-0.12, -0.60], [0.12, -0.60]], pipeR: 0.05,
+    /* 720S: the tail is mostly open, a black mesh with the gearbox behind it,
+       framed by lamps as thin as a pencil line that run along the top and
+       turn down the outer edge; the two pipes sit high in the middle, and the
+       diffuser takes up everything below. */
     tail(c, S, car, on, braking, fine) {
-      c.fillStyle = '#121418'; rcPath(c, rcSym([[S.hw * 0.92, -0.86, 0.05], [S.hw * 0.92, -0.42, 0.03], [0.3, -0.42, 0]])); c.fill();
+      const hw = S.hw;
+      c.fillStyle = '#0e1013'; rcPath(c, rcSym([[hw - 0.10, -0.82, 0.08], [hw - 0.06, -0.46, 0.04], [0.3, -0.46, 0]])); c.fill();
       if (fine) {
-        c.fillStyle = 'rgba(255,255,255,.05)'; let row = 0;
-        for (let y = -0.83; y < -0.45; y += 0.045, row++) for (let x = -0.78; x < 0.76; x += 0.06) c.fillRect(x + (row & 1 ? 0.03 : 0), y, 0.026, 0.018);
+        c.fillStyle = 'rgba(255,255,255,.06)'; let row = 0;
+        for (let y = -0.80; y < -0.48; y += 0.036, row++) for (let x = -hw + 0.12; x < hw - 0.12; x += 0.05) c.fillRect(x + (row & 1 ? 0.025 : 0), y, 0.022, 0.014);
       }
-      c.lineCap = 'round'; c.strokeStyle = rcLensTone(on, braking); c.lineWidth = 0.045;
-      for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(sx * 0.32, -0.92); c.quadraticCurveTo(sx * 0.78, -0.92, sx * (S.hw - 0.02), -0.66); c.stroke(); rcGlow(c, sx * 0.68, -0.86, 0.5, on || braking); }
+      c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = braking ? '#ff3a2c' : on ? '#e2402f' : '#b8352b'; c.lineWidth = 0.046;
+      for (const sx of [-1, 1]) {
+        c.beginPath(); c.moveTo(sx * 0.22, -0.86); c.lineTo(sx * (hw - 0.14), -0.86);
+        c.quadraticCurveTo(sx * (hw - 0.04), -0.86, sx * (hw - 0.05), -0.74); c.lineTo(sx * (hw - 0.08), -0.56); c.stroke();
+        if (fine) { c.strokeStyle = braking ? 'rgba(255,230,220,.9)' : on ? 'rgba(255,190,170,.7)' : 'rgba(255,190,180,.3)'; c.lineWidth = 0.010;
+          c.beginPath(); c.moveTo(sx * 0.24, -0.86); c.lineTo(sx * (hw - 0.15), -0.86); c.stroke(); c.strokeStyle = braking ? '#ff3a2c' : on ? '#e2402f' : '#b8352b'; c.lineWidth = 0.046; }
+        rcGlow(c, sx * (hw - 0.2), -0.84, 0.5, on || braking);
+      }
       c.lineCap = 'butt';
-      c.fillStyle = '#1b1d21'; c.beginPath(); c.roundRect(-0.26, -0.75, 0.52, 0.18, 0.06); c.fill();
-      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.075, 0.06);
-      if (fine) rcPlateAt(c, -0.53, 0.30);
-      rcDiffuser(c, S, 0.40, 0.70, 8, fine);
+      if (fine) { c.fillStyle = 'rgba(230,232,236,.75)'; c.font = '700 0.05px sans-serif'; c.textAlign = 'center'; c.fillText('McLAREN', 0, -0.885); }
+      rcDiffuser(c, S, 0.40, 0.72, 9, fine);
+      if (fine) rcPlateAt(c, -0.40, 0.30);
+      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
     } },
 
-  f458: { box: 0.1, lampY: [0.74, 0.93], noBumper: true, len: 4.53, w: 0.95, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
-    beltR: 1.02, beltF: 0.70, deckR: 1.06, deck0: 1.12, deck1: 0.82, noseH: 0.54,
-    cab: [0.38, 0.70], roof: 1.30, rs: 0.13, fs: 0.16, roofW: 0.58, crown: 0.13,
-    crease: 0.04, tumble: 0.12, hip: 0.15, fender: 0.05, tailIn: 0.1, tailLen: 0.16, noseIn: 0.24, noseLen: 0.30,
-    glassDeck: [0.14, 0.40], intake: [0.30, 0.40],
-    parts: [{ x: [-0.66, 0.66], y: [1.00, 1.025], z: [0.0, 0.08], col: 'paint' }],
-    pipes: [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]],
+  f458: { box: 0.40, lampY: [0.76, 0.90], noBumper: true, len: 4.53, w: 0.97, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
+    beltR: 0.86, beltF: 0.68, deckR: 0.96, deck0: 1.07, deck1: 0.80, noseH: 0.48, tailCurve: 0.75,
+    cab: [0.39, 0.70], roof: 1.21, rs: 0.16, fs: 0.19, roofW: 0.50, crown: 0.07,
+    crease: 0.05, tumble: 0.22, hip: 0.17, fender: 0.07, tailIn: 0.09, tailLen: 0.14, noseIn: 0.27, noseLen: 0.33, noseCurve: 1.3,
+    noseDrop: 0.08, tailBulge: 0.09, tailLean: 0.05,
+    glassDeck: [0.20, 0.39], intake: [0.30, 0.40], doorLen: 0.30,
+    parts: [{ x: [-0.62, 0.62], y: [0.95, 0.975], z: [0.0, 0.08], col: 'paint' }],
+    pipes: [[-0.12, -0.36], [0.12, -0.36], [0, -0.27]], pipeR: 0.05,
+    /* 458 Italia: one big round lamp high on each corner, set into the body
+       rather than a strip, a black grille between them, the prancing horse in
+       its yellow shield, the three pipes clustered in the middle of the
+       diffuser like a triangle. */
     tail(c, S, car, on, braking, fine) {
-      c.fillStyle = '#121418'; rcPath(c, rcSym([[S.hw * 0.94, -0.68, 0.05], [S.hw * 0.94, -0.44, 0.03], [0.3, -0.44, 0]])); c.fill();
+      const hw = S.hw;
+      c.fillStyle = '#121418'; rcPath(c, rcSym([[hw - 0.30, -0.74, 0.05], [hw - 0.24, -0.52, 0.04], [0.3, -0.52, 0]])); c.fill();
+      if (fine) { c.fillStyle = 'rgba(255,255,255,.07)'; for (let x = -hw + 0.34; x < hw - 0.34; x += 0.05) c.fillRect(x, -0.72, 0.02, 0.18); }
       for (const sx of [-1, 1]) {
-        rcLens(c, rcSide([[0.60, -0.93, 0.095], [0.79, -0.93, 0.095], [0.79, -0.74, 0.095], [0.60, -0.74, 0.095]], sx), on, braking, fine);
-        if (fine) { c.strokeStyle = on || braking ? 'rgba(255,215,200,.65)' : 'rgba(255,255,255,.18)'; c.lineWidth = 0.016; c.beginPath(); c.arc(sx * 0.695, -0.835, 0.065, 0, 7); c.stroke(); }
-        rcGlow(c, sx * 0.695, -0.835, 0.45, on || braking);
+        const cx = sx * (hw - 0.17), cy = -0.83;
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.arc(cx, cy, 0.105, 0, 7); c.fill();
+        c.fillStyle = rcLensTone(on, braking); c.beginPath(); c.arc(cx, cy, 0.088, 0, 7); c.fill();
+        if (fine) {
+          c.strokeStyle = on || braking ? 'rgba(255,215,200,.75)' : 'rgba(255,255,255,.25)'; c.lineWidth = 0.014;
+          c.beginPath(); c.arc(cx, cy, 0.058, 0, 7); c.stroke();
+          c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.ellipse(cx - 0.02, cy - 0.04, 0.04, 0.018, -0.3, 0, 7); c.fill();
+        }
+        rcGlow(c, cx, cy, 0.45, on || braking);
       }
-      if (fine) { c.fillStyle = '#e8c63a'; c.beginPath(); c.roundRect(-0.035, -0.92, 0.07, 0.09, 0.01); c.fill(); rcPlateAt(c, -0.62, 0.34); }
-      rcDiffuser(c, S, 0.44, 0.62, 6, fine);
-      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.068, 0.055);
+      if (fine) { c.fillStyle = '#e8c63a'; c.beginPath(); c.roundRect(-0.03, -0.90, 0.06, 0.08, 0.012); c.fill(); rcPlateAt(c, -0.66, 0.32); }
+      rcDiffuser(c, S, 0.42, 0.66, 7, fine);
+      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
     } },
 
   amggtr: { box: 0.2, lampY: [0.86, 0.96], noBumper: true, flatPipes: true, len: 4.55, w: 0.985, gc: 0.11, rax: 0.88, fax: 3.51, tr: 0.34, tw: 0.31,
