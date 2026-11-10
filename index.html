@@ -10727,6 +10727,20 @@ function rc3Build(m) {
     ] });
   }
   m.ru = ru; m.fu = fu; m.hwAt = hw;
+  /* The last twenty-odd centimetres roll off: the top edge drops and the upper
+     body tucks in, the corners pull round, and the bumper's lower edge lifts.
+     The back of every car was one flat panel standing on a box corner. */
+  const roll = m.tailRoll || 0.05;
+  for (const s of st) {
+    const f = 1 - rcSS(0, roll, s.u);
+    if (f <= 0) continue;
+    s.pts.forEach((p, j) => {
+      if (j >= 4) { p[1] -= f * 0.035; p[0] *= 1 - f * 0.07; }
+      else if (j === 3) p[0] *= 1 - f * 0.05;
+      else if (j >= 1) p[0] *= 1 - f * 0.025;
+      else { p[1] += f * 0.05; p[0] *= 1 - f * 0.05; }
+    });
+  }
   /* Normals at the points, averaged from the strips around each one, so the
      body can be shaded smoothly: a panel blends from the light at one edge to
      the light at the other instead of being one flat tone, which is what made
@@ -10999,6 +11013,27 @@ function rcCar3(c, car, V, P, braking, flame) {
     for (const p of rear) c.lineTo(p[0], -p[1]);
     c.closePath(); c.save(); c.clip();
     const S = { hw: st[0].pts[2][0], top: st[0].pts[8][1], belt: st[0].pts[4][1], gc: m.gc };
+    {
+      // the rear is lit as a curved panel: corners turning away, the boot lid
+      // catching the sky along the top, a shine along the bumper, shade under it
+      const k = night ? 0.6 : 1;
+      const gx = c.createLinearGradient(-S.hw, 0, S.hw, 0);
+      gx.addColorStop(0, 'rgba(0,0,0,' + (0.34 * k).toFixed(3) + ')'); gx.addColorStop(0.16, 'rgba(0,0,0,.06)');
+      gx.addColorStop(0.5, 'rgba(255,255,255,' + (0.07 * k).toFixed(3) + ')');
+      gx.addColorStop(0.84, 'rgba(0,0,0,.06)'); gx.addColorStop(1, 'rgba(0,0,0,' + (0.34 * k).toFixed(3) + ')');
+      c.fillStyle = gx; c.fillRect(-S.hw - 0.1, -S.top - 0.1, S.hw * 2 + 0.2, S.top + 0.2);
+      const gt = c.createLinearGradient(0, -S.top, 0, -S.top + 0.22);
+      gt.addColorStop(0, 'rgba(255,255,255,' + (0.26 * k).toFixed(3) + ')'); gt.addColorStop(1, 'rgba(255,255,255,0)');
+      c.fillStyle = gt; c.fillRect(-S.hw - 0.1, -S.top - 0.02, S.hw * 2 + 0.2, 0.26);
+      const yb = -(S.gc + (S.belt - S.gc) * 0.45);
+      const gb = c.createLinearGradient(0, yb - 0.05, 0, yb + 0.06);
+      gb.addColorStop(0, 'rgba(255,255,255,0)'); gb.addColorStop(0.45, 'rgba(255,255,255,' + (0.16 * k).toFixed(3) + ')');
+      gb.addColorStop(0.55, 'rgba(0,0,0,.06)'); gb.addColorStop(1, 'rgba(0,0,0,0)');
+      c.fillStyle = gb; c.fillRect(-S.hw - 0.1, yb - 0.05, S.hw * 2 + 0.2, 0.11);
+      const gu = c.createLinearGradient(0, -(S.gc + 0.22), 0, -S.gc);
+      gu.addColorStop(0, 'rgba(0,0,0,0)'); gu.addColorStop(1, 'rgba(0,0,0,' + (0.30 * k).toFixed(3) + ')');
+      c.fillStyle = gu; c.fillRect(-S.hw - 0.1, -(S.gc + 0.22), S.hw * 2 + 0.2, 0.24);
+    }
     m.tail(c, S, car, night, braking, p0.s > 26, P, paint);
     if (sA >= 3) {
       c.fillStyle = '#0f1114';
