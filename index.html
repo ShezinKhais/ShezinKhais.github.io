@@ -6680,7 +6680,7 @@ const rcTuneCache = new Map();
 function rcTuned(stock) {
   const m = rcModsOf(stock.id);
   const sig = stock.id + ':' + RC_MODS.map(k => rcStageOf(stock.id, k)).join('')
-    + ':' + (m.paint || '') + ':' + (m.glowC || '');
+    + ':' + (m.paint || '') + ':' + (m.glowC || '') + ':' + (m.roofDown ? 'open' : '');
   let t = rcTuneCache.get(sig);
   if (t) return t;
   t = Object.assign({}, stock, { gears: stock.gears.slice(), sig, stage: {}, glow: 0 });
@@ -6692,6 +6692,7 @@ function rcTuned(stock) {
   t.roll = 0.012 * t.mass * RC_G;                  // a lighter car rolls easier too
   if (m.paint) { t.paint = m.paint; t.trim = rcMix(m.paint, 0, 0.52); }
   t.glowCol = m.glowC || t.paint;
+  t.roofDown = !!m.roofDown;
   rcTuneCache.set(sig, t);
   return t;
 }
@@ -6764,7 +6765,10 @@ function rcShopSync() {
       + '<em>' + k.note + '</em>'
       + '<button type="button" data-mod="' + k.id + '"'
       + (done || locked || rcBank < price ? ' disabled' : '') + '>' + label + '</button></span>';
-  }).join('');
+  }).join('')
+    // a folding roof, on the car that has one: free, and it stays as you left it
+    + (RC_M3[stock.id + '_open'] ? '<span class="rmod"><b>Roof</b><em>a folding hard top</em>'
+      + '<button type="button" data-roof="1">' + (m.roofDown ? 'put it up' : 'put it down') + '</button></span>' : '');
 
   // the colour it came in is always there and always free to go back to
   const owned = m.owned || [];
@@ -6812,6 +6816,13 @@ rcNeonEl.addEventListener('click', e => {
   rcSaveShop(); rcFitted(RC.stock);
 });
 rcModsEl.addEventListener('click', e => {
+  const r = e.target instanceof Element && e.target.closest('button[data-roof]');
+  if (r) {
+    const m = rcModsOf(RC.stock.id);
+    m.roofDown = !m.roofDown;
+    rcSaveShop(); rcFitted(RC.stock);
+    return;
+  }
   const b = e.target instanceof Element && e.target.closest('button[data-mod]');
   if (!b) return;
   const k = RC_MODS.find(q => q.id === b.dataset.mod);
@@ -10748,7 +10759,7 @@ function rc3Mat(m, a, b, j) {
 const RC_L3 = (() => { const v = [-0.30, 0.86, -0.42], n = Math.hypot(...v); return v.map(x => x / n); })();
 
 function rcCar3(c, car, V, P, braking, flame) {
-  const m = RC_M3[car.id];
+  const m = RC_M3[car.roofDown && RC_M3[car.id + '_open'] ? car.id + '_open' : car.id];
   if (!m) return;
   if (!m.st) { m.tr0 = m.tr0 || m.tr; m.tr = m.tr0 * 1.08; m.st = rc3Build(m); }
   const st = m.st;
@@ -10759,7 +10770,7 @@ function rcCar3(c, car, V, P, braking, flame) {
     glass: night ? '#0a0e14' : '#22303c', interior: '#0c0e11', dark: '#14161a',
     tyre: '#101215', rim: m.rim || '#a9b0b8', carbon: '#1b1d21', chrome: '#c9ced4',
     trim: rcMix(car.trim || '#444', 0, night ? 0.5 : 0.2),
-    tow: '#d0302a', lexan: night ? '#141c26' : '#46576a'
+    tow: '#d0302a', seat: night ? '#16181c' : '#2b2e34', lexan: night ? '#141c26' : '#46576a'
   };
   const faces = [], parts = [], tyres = [], nose = [];
   /* What the garage has fitted, made visible. Aero: a lip, then a wing with
@@ -11015,7 +11026,7 @@ const RC_M3 = {
     cab: [0.30, 0.64], roof: 1.40, rs: 0.13, fs: 0.15, roofW: 0.64, crown: 0.07,
     crease: 0.03, tumble: 0.05, hip: 0.03, fender: 0.02, tailIn: 0.07, tailLen: 0.12, noseIn: 0.18, noseLen: 0.25,
     parts: [],
-    pipes: [[-0.62, -0.20], [0.62, -0.20]],
+    pipes: [[-0.68, -0.19], [0.68, -0.19]],
     /* From photographs of the real one, from behind: a lip spoiler with the high
        brake light let into it, lamps that wrap the corners and point in towards
        the plate with three bars of LED across them, the L in its oval over a
@@ -11023,45 +11034,48 @@ const RC_M3 = {
        deep bumper with a small reflector low in each corner and the parking
        sensors, and a round pipe under each corner. */
     tail(c, S, car, on, braking, fine) {
-      const hw = S.hw;
-      // the lip, and the brake light in it
-      c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-hw * 0.78, -S.top + 0.035, hw * 1.56, 0.012);
-      c.fillStyle = braking ? '#ff3a2c' : '#5a1416'; c.fillRect(-0.30, -S.top + 0.012, 0.60, 0.018);
+      // positions measured off the owner's straight-on photograph, as heights in metres
+      const hw = S.hw, Y = v => -v;
+      // the lip, and the high brake light let into it
+      c.fillStyle = 'rgba(0,0,0,.20)'; c.fillRect(-hw * 0.80, Y(S.top - 0.03), hw * 1.60, 0.012);
+      c.fillStyle = braking ? '#ff3a2c' : '#4a1214';
+      c.beginPath(); c.roundRect(-0.30, Y(S.top - 0.006), 0.60, 0.022, 0.01); c.fill();
       for (const sx of [-1, 1]) {
-        rcLens(c, rcSide([[0.36, -0.79, 0.01], [0.46, -0.90, 0.02], [hw - 0.06, -0.94, 0.05], [hw - 0.005, -0.84, 0.05],
-          [hw - 0.03, -0.72, 0.03], [0.70, -0.70, 0.02], [0.50, -0.73, 0.01]], sx), on, braking, fine);
+        // flat along the top, sweeping down and in to a point beside the plate
+        rcLens(c, rcSide([[0.45, Y(0.885), 0.01], [hw - 0.06, Y(0.935), 0.05], [hw - 0.005, Y(0.85), 0.05],
+          [hw - 0.02, Y(0.745), 0.03], [0.64, Y(0.72), 0.02], [0.43, Y(0.655), 0.01]], sx), on, braking, fine);
         if (fine) {
-          c.strokeStyle = braking ? 'rgba(255,220,205,.9)' : on ? 'rgba(255,170,150,.7)' : 'rgba(255,190,180,.35)';
-          c.lineWidth = 0.014; c.lineCap = 'round';
+          c.strokeStyle = braking ? 'rgba(255,225,210,.95)' : on ? 'rgba(255,170,150,.75)' : 'rgba(255,190,180,.35)';
+          c.lineWidth = 0.016; c.lineCap = 'round';
           for (let k = 0; k < 3; k++) {
-            const y = -0.88 + k * 0.045;
-            c.beginPath(); c.moveTo(sx * (0.52 + k * 0.03), y); c.lineTo(sx * (hw - 0.07 + k * 0.005), y - 0.012); c.stroke();
+            const y = 0.895 - k * 0.042;
+            c.beginPath(); c.moveTo(sx * (0.50 + k * 0.04), Y(y - 0.004)); c.lineTo(sx * (hw - 0.05), Y(y + 0.006)); c.stroke();
           }
           c.lineCap = 'butt';
         }
-        rcGlow(c, sx * 0.66, -0.82, 0.55, on || braking);
+        rcGlow(c, sx * 0.68, Y(0.83), 0.6, on || braking);
       }
       if (fine) {
-        // the chrome trapezoid round the plate
-        c.strokeStyle = 'rgba(235,238,242,.85)'; c.lineWidth = 0.02;
-        c.beginPath(); c.moveTo(-0.38, -0.76); c.lineTo(0.38, -0.76); c.lineTo(0.30, -0.53); c.lineTo(-0.30, -0.53); c.closePath(); c.stroke();
-        c.fillStyle = 'rgba(0,0,0,.10)'; c.fill();
-        rcPlateAt(c, -0.71, 0.34);
-        // the L in its oval
+        // the L in its oval, high between the lamps
         c.strokeStyle = 'rgba(235,238,242,.95)'; c.lineWidth = 0.016;
-        c.beginPath(); c.ellipse(0, -0.835, 0.065, 0.042, 0, 0, 7); c.stroke();
-        c.beginPath(); c.moveTo(-0.02, -0.865); c.lineTo(-0.03, -0.81); c.lineTo(0.035, -0.81); c.stroke();
-        c.font = '600 0.035px sans-serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(40,44,50,.75)';
-        c.fillText('F SPORT', -0.52, -0.57); c.fillText('IS 350C', 0.52, -0.57);
-        // boot shut line, and the bumper below it
-        c.strokeStyle = 'rgba(0,0,0,.30)'; c.lineWidth = 0.012;
-        c.beginPath(); c.moveTo(-hw + 0.08, -0.62); c.quadraticCurveTo(0, -0.50, hw - 0.08, -0.62); c.stroke();
+        c.beginPath(); c.ellipse(0, Y(0.90), 0.068, 0.044, 0, 0, 7); c.stroke();
+        c.beginPath(); c.moveTo(-0.02, Y(0.93)); c.lineTo(-0.032, Y(0.875)); c.lineTo(0.036, Y(0.875)); c.stroke();
+        // the chrome trapezoid round the plate: wide at the top, narrower at the foot
+        c.fillStyle = 'rgba(0,0,0,.10)';
+        c.beginPath(); c.moveTo(-0.44, Y(0.81)); c.lineTo(0.44, Y(0.81)); c.lineTo(0.35, Y(0.56)); c.lineTo(-0.35, Y(0.56)); c.closePath(); c.fill();
+        c.strokeStyle = 'rgba(235,238,242,.9)'; c.lineWidth = 0.02; c.stroke();
+        rcPlateAt(c, Y(0.755), 0.40);
+        c.font = '600 0.034px sans-serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(40,44,50,.75)';
+        c.fillText('F SPORT', -0.55, Y(0.585)); c.fillText('IS 350C', 0.55, Y(0.585));
+        // the boot meets the bumper, and the bumper is deep
+        c.strokeStyle = 'rgba(0,0,0,.32)'; c.lineWidth = 0.012;
+        c.beginPath(); c.moveTo(-hw + 0.06, Y(0.55)); c.quadraticCurveTo(0, Y(0.52), hw - 0.06, Y(0.55)); c.stroke();
         c.fillStyle = '#b3342b';
-        for (const sx of [-1, 1]) c.fillRect(sx * 0.70 - 0.05, -0.34, 0.10, 0.03);
-        c.fillStyle = 'rgba(0,0,0,.18)';
-        for (const x of [-0.42, -0.16, 0.16, 0.42]) { c.beginPath(); c.arc(x, -0.40, 0.012, 0, 7); c.fill(); }
+        for (const sx of [-1, 1]) { c.beginPath(); c.roundRect(sx * 0.75 - 0.06, Y(0.445), 0.12, 0.03, 0.01); c.fill(); }
+        c.fillStyle = 'rgba(0,0,0,.20)';
+        for (const x of [-0.40, -0.14, 0.14, 0.40]) { c.beginPath(); c.arc(x, Y(0.38), 0.012, 0, 7); c.fill(); }
       }
-      for (const sx of [-1, 1]) rcPipe(c, sx * 0.62, -0.17, 0.065, 0.05);
+      for (const sx of [-1, 1]) rcPipe(c, sx * 0.68, Y(0.19), 0.07, 0.05);
     } },
 
   huracan: { len: 4.46, w: 0.93, gc: 0.10, rax: 0.90, fax: 3.52, tr: 0.34, tw: 0.31,
@@ -11344,6 +11358,23 @@ const RC_M3 = {
       }
     } }
 };
+/* The IS 350C with its roof folded, as in the owner's photo: the windscreen
+   frame standing up, black seats with headrests in a short cockpit, and the
+   tonneau over the folded roof in body colour behind them. The cockpit is
+   kept short and the tonneau high, which is what stops it reading as an open
+   boat the way the first roof-down version did. */
+RC_M3.is350c_open = Object.assign({}, RC_M3.is350c, {
+  cab: [0.40, 0.66], roof: 1.33, fs: 0.11, open: true, deck0: 1.01, deckR: 0.99, st: null,
+  parts: [-1, 1].flatMap(sx => {
+    const x = (a, b) => sx < 0 ? [-b, -a] : [a, b];
+    return [
+      { x: x(0.20, 0.46), y: [0.92, 1.06], z: [2.40, 2.48], col: 'seat', layer: 'over' },   // front seat back
+      { x: x(0.27, 0.40), y: [1.09, 1.21], z: [2.39, 2.46], col: 'seat', layer: 'over' },   // its headrest
+      { x: x(0.22, 0.44), y: [0.94, 1.02], z: [1.90, 1.97], col: 'seat', layer: 'over' },   // rear seat back
+      { x: x(0.28, 0.38), y: [1.04, 1.12], z: [1.89, 1.95], col: 'seat', layer: 'over' }    // and its headrest
+    ];
+  })
+});
 // the body numbers are the cars' own; keep the collision sizes in step with them
 for (const id in RC_M3) {
   const m = RC_M3[id];
