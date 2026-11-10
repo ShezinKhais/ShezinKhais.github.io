@@ -6508,9 +6508,13 @@ const RC_SHAPES = {
   police:  { w: 1.82, h: 1.52, len: 4.8, roofW: .66, roofH: .44, glass: .32, light: 'strip' },
   van:     { w: 1.95, h: 2.10, len: 5.3, roofW: .86, roofH: .60, glass: .30, light: 'tall' },
   pickup:  { w: 1.95, h: 1.88, len: 5.6, roofW: .74, roofH: .48, glass: .30, light: 'tall' },
-  truck:   { w: 2.50, h: 3.60, len: 14.0, roofW: .94, roofH: .74, glass: .18, light: 'low' },
-  bus:     { w: 2.55, h: 3.20, len: 12.0, roofW: .96, roofH: .82, glass: .46, light: 'low' }
+  truck:   { w: 2.48, h: 3.55, len: 8.2, roofW: .94, roofH: .74, glass: .18, light: 'low' },
+  semi:    { w: 2.55, h: 4.00, len: 16.4, roofW: .94, roofH: .74, glass: .18, light: 'low' },
+  bus:     { w: 2.55, h: 3.20, len: 12.0, roofW: .96, roofH: .82, glass: .46, light: 'low' },
+  bike:    { w: 0.80, h: 1.50, len: 2.1, roofW: .4, roofH: .4, glass: 0, light: 'low' },
+  tuner:   { w: 1.88, h: 1.30, len: 4.5, roofW: .58, roofH: .40, glass: .30, light: 'bar' }
 };
+const rcHeavy = shape => shape === 'truck' || shape === 'semi' || shape === 'bus';
 
 /* The everyday traffic. Nobody on this road picks a speed out of the air:
    there is a limit, and each driver sits at some fraction of it, from the one
@@ -6526,9 +6530,18 @@ const RC_TRAFFIC = [
   { shape: 'suv', w: 18, cap: 140 },
   { shape: 'van', w: 10, cap: 112 },
   { shape: 'pickup', w: 8, cap: 122 },
-  { shape: 'truck', w: 4, cap: 90 },
-  { shape: 'bus', w: 2, cap: 100 }
+  { shape: 'truck', w: 3, cap: 95 },
+  { shape: 'semi', w: 3, cap: 90 },
+  { shape: 'bus', w: 2, cap: 100 },
+  { shape: 'bike', w: 4, cap: 175 },
+  { shape: 'tuner', w: 1.6, cap: 200 }
 ];
+/* The odd modified car: somebody's weekend project, wing and all, driving
+   like they have somewhere to be. Loud colours, and what they have done to it
+   is what the garage would do to yours. */
+const RC_TUNERS = ['supra', 'r34', 'typer', 'm3', 'stang', 'rs6', 'is350c', 'amggtr', 'carrera'];
+const RC_TUNER_PAINT = ['#f4c430', '#e8572a', '#2fb5a8', '#7a3fd0', '#d81e5b', '#9fe02e', '#1e90ff', '#111317', '#f2f2f2'];
+const RC_BIKE_PAINT = ['#c8102e', '#111317', '#f5f5f5', '#1d4ed8', '#f59e0b', '#16a34a'];
 const RC_PAINT = ['#b9bec6', '#8f959e', '#6f757e', '#e7e9ec', '#4e5560',
                   '#7c8ba0', '#9aa39b', '#c2b8a8', '#5f6b78'];
 
@@ -6940,21 +6953,30 @@ function rcPickModel() {
 function rcSpawn(z) {
   const lanes = Math.floor(rcLanes(z));
   const m = rcPickModel();
-  const heavy = m.shape === 'truck' || m.shape === 'bus';
+  const heavy = rcHeavy(m.shape);
   let lane = heavy
     ? lanes - 1 - (Math.random() < 0.25 ? 1 : 0)
     : Math.floor(Math.random() * lanes);
   lane = rcClamp(lane, 0, lanes - 1);
   const fast = 1 - lane / Math.max(1, lanes - 1);       // 1 in the left lane
   // what this driver reckons the limit is worth, and what the vehicle allows
-  const pace = rcLerp(0.72, 1.21, rcClamp(fast * 0.78 + Math.random() * 0.34 - 0.06, 0, 1));
-  const v0 = Math.min(RC_LIMIT * pace, m.cap) / 3.6;
-  RC.cars.push({
+  const pace = rcLerp(0.70, 1.12, rcClamp(fast * 0.78 + Math.random() * 0.34 - 0.06, 0, 1));
+  // bikes and the modified cars push on: they sit well over whatever the rest are doing
+  const keen = m.shape === 'bike' ? 1.22 : m.shape === 'tuner' ? 1.30 : 1;
+  const v0 = Math.min(RC_LIMIT * pace * keen, m.cap) / 3.6;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const t = {
     z, lane, target: lane, v: v0 * (0.92 + Math.random() * 0.08), v0,
-    shape: m.shape, paint: RC_PAINT[Math.floor(Math.random() * RC_PAINT.length)],
+    shape: m.shape, paint: pick(m.shape === 'bike' ? RC_BIKE_PAINT : m.shape === 'tuner' ? RC_TUNER_PAINT : RC_PAINT),
     brake: 0, wait: Math.random() * 3,
     mood: rcMood(m.shape), flashes: 0, check: 0
-  });
+  };
+  if (m.shape === 'tuner') {
+    t.tuner = pick(RC_TUNERS);
+    t.stage = { aero: 1 + Math.floor(Math.random() * 3), weight: Math.floor(Math.random() * 4) };
+  }
+  if (m.shape === 'bike') { t.weave = Math.random() * 6.3; t.weaveRate = 1.2 + Math.random() * 1.6; t.rider = pick(['#15171b', '#2a2f37', '#5b1f1f', '#1f2f5b']); }
+  RC.cars.push(t);
 }
 
 /* What the car in front does about being flashed. Most people move over if
@@ -6963,7 +6985,9 @@ function rcSpawn(z) {
    over usually cannot, at least not quickly. */
 function rcMood(shape) {
   const r = Math.random(), stroppy = rcLevel().stroppy;
-  if (shape === 'truck' || shape === 'bus') return r < 0.3 ? 'polite' : 'deaf';
+  if (rcHeavy(shape)) return r < 0.3 ? 'polite' : 'deaf';
+  if (shape === 'bike') return 'polite';
+  if (shape === 'tuner') return r < 0.25 ? 'polite' : 'stroppy';
   return r < 0.52 ? 'polite' : r < 1 - stroppy ? 'deaf' : 'stroppy';
 }
 
@@ -7006,15 +7030,16 @@ function rcTrafficStep(dt) {
           if (shut && Math.round(t) === shut.lane) continue;
           const [l2, b2] = rcNeighbours(all, c.z, t, c);
           const gA = l2 ? l2.z - c.z : 1e4, gB = b2 ? c.z - b2.z : 1e4;
-          if (gA < (45 + c.v * 0.9) * D.gap
-              || gB < (22 + (b2 ? Math.max(0, b2.v - c.v) * 2.4 : 0)) * D.gap) continue;
+          const squeeze = c.shape === 'bike' ? 0.45 : c.shape === 'tuner' ? 0.7 : 1;   // they take gaps nobody else would
+          if (gA < (45 + c.v * 0.9) * D.gap * squeeze
+              || gB < (22 + (b2 ? Math.max(0, b2.v - c.v) * 2.4 : 0)) * D.gap * squeeze) continue;
           const a2 = rcIdm(c.v, c.v0, gA - RC_SHAPES[c.shape].len, l2 ? c.v - l2.v : 0);
           if (a2 > a + 0.28) { c.target = t; c.wait = 3 + Math.random() * 4; break; }
         }
-      } else if (Math.random() < dt * D.wander) {
+      } else if (Math.random() < dt * D.wander * (c.shape === 'bike' ? 7 : c.shape === 'tuner' ? 3 : 1)) {
         // somebody moving for no reason anyone else can see
         const to = Math.round(c.lane) + (Math.random() < 0.5 ? -1 : 1);
-        if (to >= 0 && to <= lanes - 1.1) { c.target = to; c.wait = 2 + Math.random() * 3; }
+        if (to >= 0 && to <= lanes - 1.1) { c.target = to; c.wait = c.shape === 'bike' ? 0.6 + Math.random() * 1.2 : 2 + Math.random() * 3; }
       } else if (c.lane > 0 && Math.random() < dt * 0.10) {
         // and back over once past, rather than sitting in the fast lane
         const [l2, b2] = rcNeighbours(all, c.z, c.lane + 1, c);
@@ -7025,7 +7050,7 @@ function rcTrafficStep(dt) {
       }
     }
     if (c.lane !== c.target) {
-      const step = (c.cop ? 1.9 : 1.1) * dt;        // about a second a lane
+      const step = (c.cop ? 1.9 : c.shape === 'bike' ? 2.4 : c.shape === 'tuner' ? 1.6 : 1.1) * dt;        // about a second a lane
       c.lane += rcClamp(c.target - c.lane, -step, step);
     }
 
@@ -7040,6 +7065,7 @@ function rcTrafficStep(dt) {
     c.brake = a < -0.6 || c.check > 0 ? 1 : Math.max(0, c.brake - dt * 3);
     c.v = Math.max(3, c.v + a * dt);
     c.z += c.v * dt;
+    if (c.weave !== undefined) c.weave += dt * c.weaveRate;   // a bike never quite holds a line
   }
 
   RC.cars = RC.cars.filter(c => c.cop
@@ -7190,7 +7216,8 @@ function rcDrive(dt) {
     if (Math.abs(rcLaneX(c.lane) - RC.x) < (s.w + mine.w) / 2 * 0.88)
       return rcCrash(c.parked ? 'into a parked patrol car'
         : c.cop ? 'into the back of a patrol car'
-        : c.shape === 'truck' || c.shape === 'bus' ? 'into the back of a lorry' : 'into traffic');
+        : c.shape === 'bus' ? 'into the back of a bus' : rcHeavy(c.shape) ? 'into the back of a lorry'
+        : c.shape === 'bike' ? 'into a motorbike' : 'into traffic');
   }
   rcScore(dt);
   rcCopStep(dt);
@@ -7779,8 +7806,18 @@ const RC_ENGINE = {
   lfa: { fire: rcFiring(10, 72, [0, 1]), pipeA: 1.55, pipeB: 1.55, fb: 0.5, damp: 0.68, tone: 7400, pw: 0.40, noise: 0.14, gain: 0.82,
     intake: { gain: 0.9, res: [[2, 9, 0, 1.0], [4, 11, 0, 0.7], [0, 3.2, 1150, 0.55], [6, 14, 0, 0.3]] },
     valve: 3800, whine: [10, 0.012] },
-  mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.4, pipeB: 2.5, fb: 0.50, damp: 0.56, tone: 3600, pw: 0.9, noise: 0.34, gain: 0.85 },
-  f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.8, pipeB: 2.0, fb: 0.56, damp: 0.62, tone: 6400, pw: 0.6, noise: 0.22, gain: 0.8 },
+  /* The two of them sounded like each other and like nothing much: the same
+     engine with a different tone knob. Now the McLaren is the gruff one: wider
+     pulses, longer pipes, a lot of rasp in the noise, its intake leaning on
+     the third harmonic, which is the odd, tearing one, and a low airbox
+     chamber; its valves open late. The Ferrari is the scream: needle pulses
+     through the shortest pipes on the road, the intake on the second and
+     fourth harmonics like the LFA's but with its own vowel higher up, the
+     valves open from 5,200, and a thread of cam whine on top. */
+  mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.6, pipeB: 2.75, fb: 0.52, damp: 0.50, tone: 3000, pw: 1.0, noise: 0.40, gain: 0.88,
+    intake: { gain: 0.55, res: [[2, 5, 0, 0.6], [3, 7, 0, 0.45], [0, 2.2, 640, 0.5]] }, valve: 4200 },
+  f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.5, pipeB: 1.65, fb: 0.55, damp: 0.66, tone: 7800, pw: 0.45, noise: 0.18, gain: 0.82,
+    intake: { gain: 0.8, res: [[2, 8, 0, 0.9], [4, 10, 0, 0.55], [0, 3.0, 1450, 0.5], [3, 9, 0, 0.22]] }, valve: 5200, whine: [8, 0.008] },
   // crossplane, long pipes and a big resonance: the deepest thing here bar the Land Cruiser
   amggtr: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.9, pipeB: 4.4, fb: 0.60, damp: 0.40, tone: 1700, pw: 2.1, noise: 0.24, gain: 0.9 }
 };
@@ -9037,7 +9074,13 @@ function rcDraw() {
      the road through its mount. The buzz is tied to distance travelled, not
      to time, so it quickens with the speed the way the real thing does. */
   const fast = rcClamp((RC.v - 15) / 60, 0, 1);
-  const FOC = w * 0.92 * (1 - 0.13 * rcSmooth(fast));
+  /* It kept widening only up to about 270 km/h and by 13%, so between there
+     and 300 and more nothing changed and the traffic you were passing at
+     twice its speed seemed to hang in front of you. Now it keeps going to
+     about 330, by a fifth in all: the near road and the cars on it stream
+     past the edges the faster you go. */
+  const vast = rcClamp((RC.v - 15) / 77, 0, 1);
+  const FOC = w * 0.92 * (1 - 0.20 * rcSmooth(vast));
   const camH = rcCamH();
   const camZ = RC.z - RC_CAMB;
   const shake = RC.shake * (RC.state === 'crash' ? 9 : 1.6);
@@ -9152,15 +9195,52 @@ function rcDraw() {
     const p = proj(t.x !== undefined ? t.x : rcLaneX(t.lane), t.z - camZ, atZ(t.z));
     if (p.y > h + 60) continue;
     if (!t.shape) { rcCone(c, p.x, p.y, p.s, P, t.board); continue; }
-    const m = RC_SHAPES[t.shape];
-    const lx = t.x !== undefined ? t.x : rcLaneX(t.lane);
-    const paint = P === RC_NIGHT ? rcMix(t.paint, 0, 0.42) : t.paint;
+    const lx = (t.x !== undefined ? t.x : rcLaneX(t.lane)) + (t.weave ? Math.sin(t.weave) * 0.32 : 0);
     // rigid too: along the road's direction at the car, plus its drift across lanes
     const o0 = atZ(t.z), sl = (atZ(t.z + 4) - o0) / 4;
-    const head = t.target !== undefined && t.lane !== t.target ? Math.sign(t.target - t.lane) * 0.06 : 0;
-    rcVolume(c, RC_PROF[t.shape], m.w, m.h, m.len, d => proj(lx + head * d, t.z - camZ + d, o0 + sl * d), paint, P, vx);
+    const head = (t.target !== undefined && t.lane !== t.target ? Math.sign(t.target - t.lane) * (t.shape === 'bike' ? 0.10 : 0.06) : 0)
+      + (t.weave ? Math.cos(t.weave) * 0.05 : 0);
+    /* Near enough to see, they are drawn the way your own car is: a body in
+       3D, through the same projection, pointing where they point. Further out
+       a car is a few pixels across, and the cheap drawing does. */
+    const id3 = t.tuner || RC_TRAF3[t.shape];
+    if (t.shape === 'bike' || (id3 && p.s > 6.5)) {
+      const zr = t.z - camZ, cH = Math.cos(head), sH = Math.sin(head);
+      const V = { pt: (x, y, z) => {
+        const X = lx + x * cH + z * sH, Zd = zr + z * cH - x * sH;
+        const q = proj(X, Zd, o0 + sl * (Zd - zr));
+        return { x: q.x, y: q.y - y * q.s, s: q.s };
+      } };
+      { const cl = RC.camX - (lx + o0 - sl * zr), cz = -zr; V.cam = [cl * cH - cz * sH, camH, cl * sH + cz * cH]; }
+      if (t.shape === 'bike') { rcBike3(c, t, V, P); continue; }
+      t.car3 = t.car3 || { id: id3, paint: t.cop ? '#edf0f3' : t.paint, stage: t.stage || null, trim: '#3a3e44' };
+      rcCar3(c, t.car3, V, P, t.brake > 0, 0);
+      if (t.cop && !t.parked) {                 // the bar, blue then red
+        const beat = Math.floor(RC.t * 5.5) % 2;
+        for (const [sx, col, lit] of [[-1, '#3b78ff', beat === 0], [1, '#ff3b3b', beat === 1]]) {
+          const q = V.pt(sx * 0.34, 1.53, 2.30);
+          c.fillStyle = lit ? col : rcMix(col, 0, 0.62);
+          c.beginPath(); c.ellipse(q.x, q.y, q.s * 0.2, q.s * 0.06, 0, 0, 7); c.fill();
+          if (lit) {
+            const g = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.s * 1.4);
+            g.addColorStop(0, col + 'aa'); g.addColorStop(1, col + '00');
+            c.fillStyle = g; c.beginPath(); c.ellipse(q.x, q.y, q.s * 1.4, q.s * 0.7, 0, 0, 7); c.fill();
+          }
+        }
+      }
+      if (t === RC.lampAt && RC.lamp > 0) {     // your flash, lighting up the back of them
+        const q = V.pt(0, 0.9, -0.05);
+        c.fillStyle = 'rgba(255,245,220,' + (0.22 * RC.lamp).toFixed(3) + ')';
+        c.beginPath(); c.ellipse(q.x, q.y, q.s * 1.2, q.s * 0.6, 0, 0, 7); c.fill();
+      }
+      continue;
+    }
+    const shp = t.shape === 'semi' ? 'truck' : t.tuner ? (RC_CARS.find(k => k.id === t.tuner) || {}).shape || 'coupe' : t.shape;
+    const m = RC_SHAPES[shp];
+    const paint = P === RC_NIGHT ? rcMix(t.paint, 0, 0.42) : t.paint;
+    rcVolume(c, RC_PROF[shp], m.w, m.h, m.len, d => proj(lx + head * d, t.z - camZ + d, o0 + sl * d), paint, P, vx);
     rcBarDark = !!t.parked;
-    rcSprite(c, t.shape, p.x, p.y, p.s, t.paint, P, t.brake > 0, false, null,
+    rcSprite(c, shp, p.x, p.y, p.s, t.paint, P, t.brake > 0, false, null,
       t === RC.lampAt ? RC.lamp : 0);
     rcBarDark = false;
   }
@@ -10803,6 +10883,19 @@ function rc3Build(m) {
       else { p[1] += f * 0.05; p[0] *= 1 - f * 0.05; }
     });
   }
+  /* The nose rolls off the same way: the top edge drops and pulls in over the
+     last few per cent, so the front is a rounded snout rather than a wall. */
+  const nroll = m.noseRoll || 0.06;
+  for (const s of st) {
+    const f = rcSS(1 - nroll, 1, s.u);
+    if (f <= 0) continue;
+    s.pts.forEach((p, j) => {
+      if (j >= 4) { p[1] -= f * (m.noseDrop != null ? m.noseDrop : 0.05); p[0] *= 1 - f * 0.10; }
+      else if (j === 3) p[0] *= 1 - f * 0.07;
+      else if (j >= 1) p[0] *= 1 - f * 0.04;
+      else { p[1] += f * 0.03; p[0] *= 1 - f * 0.06; }
+    });
+  }
   // the height of the top of the body along its length, for seating parts on it
   m.deckAt = z => {
     const u = rcClamp(z / L, 0, 1);
@@ -10838,6 +10931,8 @@ function rc3Mat(m, a, b, j) {
   if (j === 1) return rcIn(um, m.intake) ? 'dark' : 'body';
   if (j === 2) return 'body';
   if (m.open && a.cut && b.cut) return j === 3 ? 'body' : 'interior';
+  if (j === 4 && rcIn(um, m.bed)) return 'interior';         // a pickup's load bed, seen from above
+  if (rcIn(um, m.glassOff)) return 'body';                    // a van's load area, a lorry's box: no windows
   const top = a.pts.length - 1, steep = Math.abs(b.pts[top][1] - a.pts[top][1]) / (b.z - a.z) > 0.24;
   if (j === 3) return a.k > 0.55 && b.k > 0.55 && !rcIn(um, m.pillar) ? 'glass' : 'body';
   if (rcIn(um, m.glassDeck)) return 'glass';
@@ -10971,8 +11066,9 @@ function rcCar3(c, car, V, P, braking, flame) {
   // the front pair turn about their own centres with the steering
   const steerA = V.steer || 0, cS = Math.cos(steerA), sS = Math.sin(steerA);
   const turnW = (front, xc, zc) => (p => front && steerA ? [xc + (p[0] - xc) * cS + (p[2] - zc) * sS, p[1], zc + (p[2] - zc) * cS - (p[0] - xc) * sS] : p);
-  for (const [zc, ax] of [[m.rax, m.ru], [m.fax, m.fu]]) {
-    const outer = m.hwAt(ax) - 0.035, inner = outer - m.tw, front = zc > m.len / 2;
+  const axleList = [[m.rax, m.ru], [m.fax, m.fu]].concat((m.axles || []).map(z => [z, z / m.len]));
+  for (const [zc, ax] of axleList) {
+    const outer = m.hwAt(ax) - 0.035, inner = outer - m.tw, front = zc === m.fax;
     for (const sx of [1, -1]) {
       const ring = [], tw = turnW(front, sx * (inner + outer) / 2, zc), wc = front ? cS : 1, ws = front ? sS : 0;
       for (let i = 0; i < 10; i++) { const t = i / 10 * Math.PI * 2; ring.push([zc + Math.cos(t) * m.tr, m.tr + Math.sin(t) * m.tr]); }
@@ -11089,12 +11185,80 @@ function rcCar3(c, car, V, P, braking, flame) {
   nose.sort((a, b) => b.d - a.d).forEach(draw);
   faces.sort((a, b) => b.d - a.d).forEach(draw);
 
+  /* The flanks. A lofted side is one smooth sheet, and lit as one it read as
+     a flat slab: no shoulder, no doors, nothing to catch the eye between the
+     arches. On each side the camera can see, the shoulder gets its crease (a
+     line of light with its shadow under it), the door its shut lines and a
+     handle, and the sill a dark edge. */
+  {
+    const at = (u, j, sx) => {
+      let i = 0; while (i < st.length - 2 && st[i + 1].u < u) i++;
+      const a = st[i], b = st[i + 1], t = rcClamp((u - a.u) / ((b.u - a.u) || 1), 0, 1);
+      const x = rcLerp(a.pts[j][0], b.pts[j][0], t), y = rcLerp(a.pts[j][1], b.pts[j][1], t);
+      return [sx * (x + 0.004), y, u * m.len];
+    };
+    const yAt = (u, j0, j1, f, sx) => { const p = at(u, j0, sx), q = at(u, j1, sx); return [rcLerp(p[0], q[0], f), rcLerp(p[1], q[1], f), p[2]]; };
+    const line = (pts, col, wpx) => {
+      c.beginPath();
+      for (const p of pts) { const q = V.pt(p[0], p[1], p[2]); c.lineTo(q.x, q.y); }
+      c.strokeStyle = col; c.lineWidth = wpx; c.stroke();
+    };
+    const sc = V.pt(0, 0, m.len / 2).s;
+    if (sc > 6) for (const sx of [1, -1]) {
+      const xm = m.hwAt(0.5);
+      if ((cam[0] - sx * xm) * sx <= 0.05) continue;
+      const lw = Math.max(0.6, sc * 0.012);
+      const us = []; for (let u = 0.04; u <= 0.94; u += 0.03) us.push(u);
+      // the shoulder: the light along the crease and the shadow just under it
+      line(us.map(u => yAt(u, 3, 4, 0.55, sx)), rcMix(paint, 255, night ? 0.12 : 0.38), lw);
+      line(us.map(u => { const p = yAt(u, 3, 4, 0.40, sx); return p; }), rcMix(paint, 0, 0.30), lw * 0.8);
+      // the sill
+      line(us.map(u => yAt(u, 0, 1, 0.85, sx)), 'rgba(0,0,0,.35)', lw);
+      if (!hatch || m.cab[1] - m.cab[0] > 0.3) {
+        // the door, from just behind the front arch back to the cabin's rear pillar
+        const u1 = rcClamp(m.fu - 0.10, 0.3, 0.9), u0 = Math.max(m.ru + 0.12, u1 - (m.doorLen || 0.27));
+        const top = (u) => yAt(u, 4, 5, 0.9, sx), bot = (u) => yAt(u, 0, 1, 0.95, sx);
+        for (const u of [u0, u1]) line([bot(u), yAt(u, 2, 3, 0.5, sx), top(u)], 'rgba(0,0,0,.40)', lw * 0.9);
+        const hu = u0 + 0.04, h0 = yAt(hu, 3, 4, 0.15, sx), h1 = yAt(hu + 0.035, 3, 4, 0.15, sx);
+        line([h0, h1], 'rgba(0,0,0,.45)', lw * 2.2);
+      }
+    }
+  }
+
+  /* The nose, when it is towards us: lamps at its upper corners and the
+     intake below, drawn on the front face in its own metres the way the tail
+     used to be. It was a bare panel of paint, which is what made every car
+     look like a brick from the front. */
+  if (cam[2] > m.len + 0.2) {
+    const sN = st[st.length - 1], ln = m.len + 0.003;
+    const q0 = V.pt(0, 0, ln), qx = V.pt(1, 0, ln), qy = V.pt(0, 1, ln);
+    c.save();
+    c.transform(qx.x - q0.x, qx.y - q0.y, -(qy.x - q0.x), -(qy.y - q0.y), q0.x, q0.y);
+    c.beginPath();
+    for (const p of cap(sN, 0)) c.lineTo(p[0], -p[1]);
+    c.closePath(); c.clip();
+    const hwN = Math.max(...sN.pts.map(p => p[0])), topN = Math.max(...sN.pts.map(p => p[1])), gcN = sN.pts[0][1];
+    const hgt = topN - gcN;
+    // the intake: a dark mouth across the lower half
+    c.fillStyle = '#0f1114';
+    rcPath(c, rcSym([[hwN * 0.70, -(gcN + hgt * 0.55), 0.03], [hwN * 0.82, -(gcN + hgt * 0.08), 0.03], [0.2, -(gcN + hgt * 0.08), 0]])); c.fill();
+    // the lamps: a slim dark-rimmed lens at each upper corner
+    for (const sx of [-1, 1]) {
+      c.fillStyle = '#1a1d22';
+      rcPath(c, rcSide([[hwN * 0.40, -(gcN + hgt * 0.92), 0.02], [hwN * 0.96, -(gcN + hgt * 0.96), 0.03], [hwN * 0.96, -(gcN + hgt * 0.66), 0.03], [hwN * 0.52, -(gcN + hgt * 0.70), 0.02]], sx)); c.fill();
+      c.fillStyle = night ? '#fff6dc' : '#dfe7ef';
+      rcPath(c, rcSide([[hwN * 0.46, -(gcN + hgt * 0.88), 0.015], [hwN * 0.92, -(gcN + hgt * 0.92), 0.02], [hwN * 0.92, -(gcN + hgt * 0.73), 0.02], [hwN * 0.55, -(gcN + hgt * 0.75), 0.015]], sx)); c.fill();
+    }
+    if (m.nose) m.nose(c, hwN, gcN, topN, night);
+    c.restore();
+  }
+
   /* Wheel arches. The body runs down to the sills, so without these the wheels
      were hidden inside it and every car was a hull on four little feet. On
      each side the camera can see, an arch is cut into the flank and the wheel
      is drawn in it: tyre, rim, spokes, and a lip of body colour round the top. */
-  for (const [zc, ax] of [[m.rax, m.ru], [m.fax, m.fu]]) {
-    const side = m.hwAt(ax) + 0.004, face = side - 0.03, R = m.tr + 0.045, front = zc > m.len / 2;
+  for (const [zc, ax] of axleList) {
+    const side = m.hwAt(ax) + 0.004, face = side - 0.03, R = m.tr + 0.045, front = zc === m.fax;
     for (const sx of [1, -1]) {
       if ((cam[0] - sx * side) * sx <= 0) continue;
       const tw = turnW(front, sx * (face - m.tw / 2), zc);
@@ -11174,7 +11338,7 @@ function rcCar3(c, car, V, P, braking, flame) {
     else {
     tex = document.createElement('canvas'); tex.width = TW; tex.height = TH;
     rcTailTex.set(key, tex);
-    if (rcTailTex.size > 8) rcTailTex.delete(rcTailTex.keys().next().value);
+    if (rcTailTex.size > 48) rcTailTex.delete(rcTailTex.keys().next().value);
     const tc = tex.getContext('2d');
     tc.save();
     tc.setTransform(R, 0, 0, R, bx * R, (top + 0.02) * R);
@@ -11197,35 +11361,55 @@ function rcCar3(c, car, V, P, braking, flame) {
       if (p0.s > 26) rcFins(tc, 7, -S.hw * 0.66, S.hw * 0.66, rcY(m.gc + 0.13), rcY(m.gc - 0.05));
     }
     tc.restore();
-    /* The light is baked into the texture, pixel by pixel, from the slope of
-       the shell under each one. The light does not move with the camera, so
-       this is done once per cached texture. Shading each triangle on screen
-       instead left a fine white mesh where neighbouring triangles met. */
-    const L = RC_L3, hx = L[0], hy = L[1] + 0.25, hz = L[2] - 0.9, hl = Math.hypot(hx, hy, hz);
-    const img = tc.getImageData(0, 0, TW, TH), px_ = img.data, e = 1 / R;
-    const zr = new Float32Array(TW + 1), zn = new Float32Array(TW + 1);
-    const fillRow = (arr, y) => { for (let i = 0; i <= TW; i++) arr[i] = zAt(i / R - bx, y); };
-    fillRow(zr, top + 0.02);
-    for (let j = 0; j < TH; j++) {
-      const y = top + 0.02 - (j + 1) / R;
-      fillRow(zn, y);
-      for (let i = 0; i < TW; i++) {
-        const k = (j * TW + i) * 4;
-        if (!px_[k + 3]) continue;
-        // the slope across and down, from the corners of this pixel
-        const dzx = ((zr[i + 1] - zr[i]) + (zn[i + 1] - zn[i])) * 0.5 / e;
-        const dzy = ((zr[i] - zn[i]) + (zr[i + 1] - zn[i + 1])) * 0.5 / e;
-        // the outward normal of z(x, y), pointing back along -z
-        let nx = dzx, ny = dzy, nz = -1;
-        const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
-        const dif = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
-        const dk = 0.42 * (1 - dif);
-        const sp = Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), 5) * (night ? 0.12 : 0.26) + (ny > 0 ? ny * ny * (night ? 0.05 : 0.16) : 0);
-        for (let ch = 0; ch < 3; ch++) { const v0 = px_[k + ch] * (1 - dk); px_[k + ch] = v0 + (255 - v0) * Math.min(1, sp); }
+    /* The light is baked into the texture from the slope of the shell under
+       each pixel. The light does not move with the camera, and it does not
+       care what colour the car is, so it is worked out once per shape and
+       size, as two greys: one to multiply the tail by for the shade, one to
+       screen over it for the shine. Each new paint or set of lights then
+       only costs two draws. Shading each triangle on screen instead left a
+       fine white mesh where neighbouring triangles met. */
+    const lkey = [car.id, car.roofDown ? 1 : 0, night ? 1 : 0, R.toFixed(1)].join('|');
+    let lm = rcTailLight.get(lkey);
+    if (!lm) {
+      const L = RC_L3, hx = L[0], hy = L[1] + 0.25, hz = L[2] - 0.9, hl = Math.hypot(hx, hy, hz);
+      const mk = () => { const cv = document.createElement('canvas'); cv.width = TW; cv.height = TH; return cv; };
+      const dC = mk(), sC = mk(), dX = dC.getContext('2d'), sX = sC.getContext('2d');
+      const dI = dX.createImageData(TW, TH), sI = sX.createImageData(TW, TH), e = 1 / R;
+      const zr = new Float32Array(TW + 1), zn = new Float32Array(TW + 1);
+      const fillRow = (arr, y) => { for (let i = 0; i <= TW; i++) arr[i] = zAt(i / R - bx, y); };
+      fillRow(zr, top + 0.02);
+      for (let j = 0; j < TH; j++) {
+        fillRow(zn, top + 0.02 - (j + 1) / R);
+        for (let i = 0; i < TW; i++) {
+          const k = (j * TW + i) * 4;
+          // the slope across and down, from the corners of this pixel, and the outward normal from it
+          const dzx = ((zr[i + 1] - zr[i]) + (zn[i + 1] - zn[i])) * 0.5 / e;
+          const dzy = ((zr[i] - zn[i]) + (zr[i + 1] - zn[i + 1])) * 0.5 / e;
+          let nx = dzx, ny = dzy, nz = -1;
+          const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+          const dif = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
+          const sp = Math.min(1, Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), 5) * (night ? 0.12 : 0.26) + (ny > 0 ? ny * ny * (night ? 0.05 : 0.16) : 0));
+          const dv = 255 * (1 - 0.42 * (1 - dif)), sv = 255 * sp;
+          dI.data[k] = dI.data[k + 1] = dI.data[k + 2] = dv; dI.data[k + 3] = 255;
+          sI.data[k] = sI.data[k + 1] = sI.data[k + 2] = sv; sI.data[k + 3] = 255;
+        }
+        zr.set(zn);
       }
-      zr.set(zn);
+      dX.putImageData(dI, 0, 0); sX.putImageData(sI, 0, 0);
+      lm = [dC, sC];
+      rcTailLight.set(lkey, lm);
+      if (rcTailLight.size > 40) rcTailLight.delete(rcTailLight.keys().next().value);
     }
-    tc.putImageData(img, 0, 0);
+    tc.save();
+    tc.globalCompositeOperation = 'multiply'; tc.drawImage(lm[0], 0, 0);
+    tc.globalCompositeOperation = 'screen'; tc.drawImage(lm[1], 0, 0);
+    // both of those filled the corners outside the outline too: cut it back out
+    tc.globalCompositeOperation = 'destination-in';
+    tc.setTransform(R, 0, 0, R, bx * R, (top + 0.02) * R);
+    tc.beginPath();
+    for (const p of rear) tc.lineTo(p[0], -p[1]);
+    tc.closePath(); tc.fillStyle = '#000'; tc.fill();
+    tc.restore();
     }
     // lay it over the shell, a triangle at a time, lit by the normal at each one
     const tu = p => [(p[0] + bx) * R, (top + 0.02 - p[1]) * R];
@@ -11301,6 +11485,7 @@ function rcCar3(c, car, V, P, braking, flame) {
 // the shared bits of a tail, in rear face metres
 const rcY = v => -v;
 const rcTailTex = new Map();   // tails drawn flat, by car, paint, lights and size, before they are laid over their shells
+const rcTailLight = new Map(); // the light over each shell, by shape and size: a shade to multiply and a shine to screen
 function rcTailBits(c, S, fine) {
   if (!fine) return;
   // shut line of the boot or tailgate, and the bumper line under it
@@ -11616,45 +11801,70 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
       rcDiffuser(c, S, 0.36, 0.66, 7, fine);
     } },
-  mclaren: { box: 0.05, lampY: [0.66, 0.93], noBumper: true, len: 4.54, w: 0.93, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
-    beltR: 0.98, beltF: 0.66, deckR: 1.04, deck0: 1.10, deck1: 0.78, noseH: 0.50,
-    cab: [0.36, 0.72], roof: 1.30, rs: 0.12, fs: 0.18, roofW: 0.58, crown: 0.17,
-    crease: 0.03, tumble: 0.2, hip: 0.11, fender: 0.02, tailIn: 0.08, tailLen: 0.10, noseIn: 0.27, noseLen: 0.34, noseCurve: 1.6,
-    glassDeck: [0.10, 0.38], intake: [0.24, 0.40], rim: '#202327',
-    parts: [{ x: [-0.82, 0.82], y: [0.99, 1.03], z: [0.02, 0.30], col: 'paint' }],
-    pipes: [[-0.13, -0.66], [0.13, -0.66]],
+  mclaren: { box: 0.45, lampY: [0.78, 0.90], noBumper: true, len: 4.54, w: 0.965, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
+    beltR: 0.84, beltF: 0.64, deckR: 0.95, deck0: 1.06, deck1: 0.76, noseH: 0.44, tailCurve: 0.7,
+    cab: [0.38, 0.71], roof: 1.20, rs: 0.17, fs: 0.20, roofW: 0.48, crown: 0.06,
+    crease: 0.04, tumble: 0.26, hip: 0.15, fender: 0.05, tailIn: 0.07, tailLen: 0.10, noseIn: 0.30, noseLen: 0.36, noseCurve: 1.35,
+    noseDrop: 0.08, tailBulge: 0.08, tailLean: 0.05,
+    glassDeck: [0.24, 0.38], intake: [0.27, 0.41], rim: '#202327', doorLen: 0.30,
+    parts: [{ x: [-0.80, 0.80], y: [0.93, 0.965], z: [0.02, 0.22], col: 'paint' }],
+    pipes: [[-0.12, -0.60], [0.12, -0.60]], pipeR: 0.05,
+    /* 720S: the tail is mostly open, a black mesh with the gearbox behind it,
+       framed by lamps as thin as a pencil line that run along the top and
+       turn down the outer edge; the two pipes sit high in the middle, and the
+       diffuser takes up everything below. */
     tail(c, S, car, on, braking, fine) {
-      c.fillStyle = '#121418'; rcPath(c, rcSym([[S.hw * 0.92, -0.86, 0.05], [S.hw * 0.92, -0.42, 0.03], [0.3, -0.42, 0]])); c.fill();
+      const hw = S.hw;
+      c.fillStyle = '#0e1013'; rcPath(c, rcSym([[hw - 0.10, -0.82, 0.08], [hw - 0.06, -0.46, 0.04], [0.3, -0.46, 0]])); c.fill();
       if (fine) {
-        c.fillStyle = 'rgba(255,255,255,.05)'; let row = 0;
-        for (let y = -0.83; y < -0.45; y += 0.045, row++) for (let x = -0.78; x < 0.76; x += 0.06) c.fillRect(x + (row & 1 ? 0.03 : 0), y, 0.026, 0.018);
+        c.fillStyle = 'rgba(255,255,255,.06)'; let row = 0;
+        for (let y = -0.80; y < -0.48; y += 0.036, row++) for (let x = -hw + 0.12; x < hw - 0.12; x += 0.05) c.fillRect(x + (row & 1 ? 0.025 : 0), y, 0.022, 0.014);
       }
-      c.lineCap = 'round'; c.strokeStyle = rcLensTone(on, braking); c.lineWidth = 0.045;
-      for (const sx of [-1, 1]) { c.beginPath(); c.moveTo(sx * 0.32, -0.92); c.quadraticCurveTo(sx * 0.78, -0.92, sx * (S.hw - 0.02), -0.66); c.stroke(); rcGlow(c, sx * 0.68, -0.86, 0.5, on || braking); }
+      c.lineCap = 'round'; c.lineJoin = 'round'; c.strokeStyle = braking ? '#ff3a2c' : on ? '#e2402f' : '#b8352b'; c.lineWidth = 0.046;
+      for (const sx of [-1, 1]) {
+        c.beginPath(); c.moveTo(sx * 0.22, -0.86); c.lineTo(sx * (hw - 0.14), -0.86);
+        c.quadraticCurveTo(sx * (hw - 0.04), -0.86, sx * (hw - 0.05), -0.74); c.lineTo(sx * (hw - 0.08), -0.56); c.stroke();
+        if (fine) { c.strokeStyle = braking ? 'rgba(255,230,220,.9)' : on ? 'rgba(255,190,170,.7)' : 'rgba(255,190,180,.3)'; c.lineWidth = 0.010;
+          c.beginPath(); c.moveTo(sx * 0.24, -0.86); c.lineTo(sx * (hw - 0.15), -0.86); c.stroke(); c.strokeStyle = braking ? '#ff3a2c' : on ? '#e2402f' : '#b8352b'; c.lineWidth = 0.046; }
+        rcGlow(c, sx * (hw - 0.2), -0.84, 0.5, on || braking);
+      }
       c.lineCap = 'butt';
-      c.fillStyle = '#1b1d21'; c.beginPath(); c.roundRect(-0.26, -0.75, 0.52, 0.18, 0.06); c.fill();
-      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.075, 0.06);
-      if (fine) rcPlateAt(c, -0.53, 0.30);
-      rcDiffuser(c, S, 0.40, 0.70, 8, fine);
+      if (fine) { c.fillStyle = 'rgba(230,232,236,.75)'; c.font = '700 0.05px sans-serif'; c.textAlign = 'center'; c.fillText('McLAREN', 0, -0.885); }
+      rcDiffuser(c, S, 0.40, 0.72, 9, fine);
+      if (fine) rcPlateAt(c, -0.40, 0.30);
+      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
     } },
 
-  f458: { box: 0.1, lampY: [0.74, 0.93], noBumper: true, len: 4.53, w: 0.95, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
-    beltR: 1.02, beltF: 0.70, deckR: 1.06, deck0: 1.12, deck1: 0.82, noseH: 0.54,
-    cab: [0.38, 0.70], roof: 1.30, rs: 0.13, fs: 0.16, roofW: 0.58, crown: 0.13,
-    crease: 0.04, tumble: 0.12, hip: 0.15, fender: 0.05, tailIn: 0.1, tailLen: 0.16, noseIn: 0.24, noseLen: 0.30,
-    glassDeck: [0.14, 0.40], intake: [0.30, 0.40],
-    parts: [{ x: [-0.66, 0.66], y: [1.00, 1.025], z: [0.0, 0.08], col: 'paint' }],
-    pipes: [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]],
+  f458: { box: 0.40, lampY: [0.76, 0.90], noBumper: true, len: 4.53, w: 0.97, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
+    beltR: 0.86, beltF: 0.68, deckR: 0.96, deck0: 1.07, deck1: 0.80, noseH: 0.48, tailCurve: 0.75,
+    cab: [0.39, 0.70], roof: 1.21, rs: 0.16, fs: 0.19, roofW: 0.50, crown: 0.07,
+    crease: 0.05, tumble: 0.22, hip: 0.17, fender: 0.07, tailIn: 0.09, tailLen: 0.14, noseIn: 0.27, noseLen: 0.33, noseCurve: 1.3,
+    noseDrop: 0.08, tailBulge: 0.09, tailLean: 0.05,
+    glassDeck: [0.20, 0.39], intake: [0.30, 0.40], doorLen: 0.30,
+    parts: [{ x: [-0.62, 0.62], y: [0.95, 0.975], z: [0.0, 0.08], col: 'paint' }],
+    pipes: [[-0.12, -0.36], [0.12, -0.36], [0, -0.27]], pipeR: 0.05,
+    /* 458 Italia: one big round lamp high on each corner, set into the body
+       rather than a strip, a black grille between them, the prancing horse in
+       its yellow shield, the three pipes clustered in the middle of the
+       diffuser like a triangle. */
     tail(c, S, car, on, braking, fine) {
-      c.fillStyle = '#121418'; rcPath(c, rcSym([[S.hw * 0.94, -0.68, 0.05], [S.hw * 0.94, -0.44, 0.03], [0.3, -0.44, 0]])); c.fill();
+      const hw = S.hw;
+      c.fillStyle = '#121418'; rcPath(c, rcSym([[hw - 0.30, -0.74, 0.05], [hw - 0.24, -0.52, 0.04], [0.3, -0.52, 0]])); c.fill();
+      if (fine) { c.fillStyle = 'rgba(255,255,255,.07)'; for (let x = -hw + 0.34; x < hw - 0.34; x += 0.05) c.fillRect(x, -0.72, 0.02, 0.18); }
       for (const sx of [-1, 1]) {
-        rcLens(c, rcSide([[0.60, -0.93, 0.095], [0.79, -0.93, 0.095], [0.79, -0.74, 0.095], [0.60, -0.74, 0.095]], sx), on, braking, fine);
-        if (fine) { c.strokeStyle = on || braking ? 'rgba(255,215,200,.65)' : 'rgba(255,255,255,.18)'; c.lineWidth = 0.016; c.beginPath(); c.arc(sx * 0.695, -0.835, 0.065, 0, 7); c.stroke(); }
-        rcGlow(c, sx * 0.695, -0.835, 0.45, on || braking);
+        const cx = sx * (hw - 0.17), cy = -0.83;
+        c.fillStyle = 'rgba(0,0,0,.35)'; c.beginPath(); c.arc(cx, cy, 0.105, 0, 7); c.fill();
+        c.fillStyle = rcLensTone(on, braking); c.beginPath(); c.arc(cx, cy, 0.088, 0, 7); c.fill();
+        if (fine) {
+          c.strokeStyle = on || braking ? 'rgba(255,215,200,.75)' : 'rgba(255,255,255,.25)'; c.lineWidth = 0.014;
+          c.beginPath(); c.arc(cx, cy, 0.058, 0, 7); c.stroke();
+          c.fillStyle = 'rgba(255,255,255,.22)'; c.beginPath(); c.ellipse(cx - 0.02, cy - 0.04, 0.04, 0.018, -0.3, 0, 7); c.fill();
+        }
+        rcGlow(c, cx, cy, 0.45, on || braking);
       }
-      if (fine) { c.fillStyle = '#e8c63a'; c.beginPath(); c.roundRect(-0.035, -0.92, 0.07, 0.09, 0.01); c.fill(); rcPlateAt(c, -0.62, 0.34); }
-      rcDiffuser(c, S, 0.44, 0.62, 6, fine);
-      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.068, 0.055);
+      if (fine) { c.fillStyle = '#e8c63a'; c.beginPath(); c.roundRect(-0.03, -0.90, 0.06, 0.08, 0.012); c.fill(); rcPlateAt(c, -0.66, 0.32); }
+      rcDiffuser(c, S, 0.42, 0.66, 7, fine);
+      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
     } },
 
   amggtr: { box: 0.2, lampY: [0.86, 0.96], noBumper: true, flatPipes: true, len: 4.55, w: 0.985, gc: 0.11, rax: 0.88, fax: 3.51, tr: 0.34, tw: 0.31,
@@ -11701,6 +11911,186 @@ RC_M3.is350c_open = Object.assign({}, RC_M3.is350c, {
     ];
   })
 });
+
+/* The traffic, built the same way as the cars you drive: lofted bodies with
+   real arches, glass and a tail that bulges, rather than the flat drawing on a
+   box they were. None of them is any car in particular; each is the shape of
+   its kind. The tails are made from one recipe: where the lamps sit and how
+   tall they are, a plate, a dark bumper or step for the heavy ones. */
+function rcTrafTail(o) {
+  return function (c, S, car, on, braking, fine) {
+    const hw = S.hw, [y0, y1] = o.lampY, Y = v => -v;
+    for (const sx of [-1, 1]) {
+      const iw = o.lampIn != null ? o.lampIn : 0.34;          // how far in from the corner the lamp reaches
+      if (o.tall) rcLens(c, rcSide([[hw - iw, Y(y1), 0.02], [hw - 0.015, Y(y1), 0.02], [hw - 0.015, Y(y0), 0.02], [hw - iw, Y(y0), 0.02]], sx), on, braking, fine);
+      else rcLens(c, rcSide([[hw - iw, Y(y1 - 0.01), 0.03], [hw - 0.01, Y(y1), 0.04], [hw - 0.005, Y(y0), 0.03], [hw - iw * 0.55, Y(y0 + 0.01), 0.02], [hw - iw, Y((y0 + y1) / 2), 0.02]], sx), on, braking, fine);
+      rcGlow(c, sx * (hw - iw / 2), Y((y0 + y1) / 2), 0.45, on || braking);
+    }
+    if (o.bar) {           // a band of lamp or trim right across
+      c.fillStyle = o.bar === 'lamp' ? rcLensTone(on, braking) : 'rgba(30,32,36,.85)';
+      c.fillRect(-hw + 0.30, Y(o.lampY[1] - 0.02), hw * 2 - 0.60, 0.035);
+    }
+    if (o.doors && fine) {   // a van's or a lorry's back doors: the split down the middle and the handles
+      c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 0.014;
+      c.beginPath(); c.moveTo(0, Y(o.doors[1])); c.lineTo(0, Y(o.doors[0])); c.stroke();
+      c.strokeRect(-hw + 0.08, Y(o.doors[1]), hw * 2 - 0.16, o.doors[1] - o.doors[0]);
+      c.fillStyle = 'rgba(200,204,210,.8)';
+      for (const sx of [-1, 1]) c.fillRect(sx * 0.10 - 0.02, Y((o.doors[0] + o.doors[1]) / 2), 0.04, 0.14);
+    }
+    if (o.window) {          // the back window of a bus
+      c.fillStyle = on ? '#0a0e14' : '#22303c';
+      rcPath(c, rcSym([[hw - 0.12, Y(o.window[1]), 0.05], [hw - 0.12, Y(o.window[0]), 0.05], [0.2, Y(o.window[0]), 0]])); c.fill();
+    }
+    if (o.step) {            // the under-run bar on a lorry
+      c.fillStyle = '#1a1c20'; c.fillRect(-hw + 0.06, Y(o.step[1]), hw * 2 - 0.12, o.step[1] - o.step[0]);
+      if (fine) { c.fillStyle = 'rgba(230,60,40,.8)'; for (let i = -3; i <= 3; i++) c.fillRect(i * 0.26 - 0.06, Y(o.step[1] - 0.01), 0.12, 0.03); }
+    }
+    if (o.bumper) { c.fillStyle = 'rgba(24,26,30,.55)'; c.fillRect(-hw, Y(o.bumper[1]), hw * 2, o.bumper[1] - o.bumper[0]); }
+    if (fine) rcPlateAt(c, Y(o.plate), 0.36);
+    for (const [x, y] of o.pipes || []) rcPipe(c, x, -y, 0.04, 0.035);
+    if (o.extra) o.extra(c, S, on, braking, fine);
+  };
+}
+Object.assign(RC_M3, {
+  t_sedan: { box: 0.45, lampY: [0.80, 0.95], len: 4.86, w: 0.91, gc: 0.15, rax: 1.02, fax: 3.82, tr: 0.33, tw: 0.22,
+    beltR: 0.98, beltF: 0.90, deckR: 1.01, deck0: 1.04, deck1: 0.94, noseH: 0.74,
+    cab: [0.25, 0.66], roof: 1.46, rs: 0.13, fs: 0.16, roofW: 0.66, crown: 0.06,
+    crease: 0.03, tumble: 0.06, hip: 0.03, fender: 0.02, tailIn: 0.06, tailLen: 0.10, noseIn: 0.15, noseLen: 0.20,
+    parts: [], pipes: [[-0.55, 0.24]], flatPipes: true,
+    tail: rcTrafTail({ lampY: [0.80, 0.95], bar: 'trim', plate: 0.66, pipes: [[-0.55, 0.24]] }) },
+  t_hatch: { box: 0.5, lampY: [0.86, 1.04], len: 4.28, w: 0.89, gc: 0.14, rax: 0.82, fax: 3.42, tr: 0.32, tw: 0.22,
+    beltR: 0.98, beltF: 0.90, deckR: 1.06, deck0: 1.10, deck1: 0.94, noseH: 0.76,
+    cab: [0.04, 0.66], roof: 1.48, rs: 0.07, fs: 0.17, roofW: 0.68, crown: 0.05,
+    crease: 0.03, tumble: 0.06, hip: 0.03, fender: 0.02, tailIn: 0.05, tailLen: 0.08, noseIn: 0.15, noseLen: 0.20,
+    glassDeck: [0.02, 0.07], parts: [], pipes: [[0.50, 0.24]], flatPipes: true,
+    tail: rcTrafTail({ lampY: [0.86, 1.04], lampIn: 0.28, plate: 0.62, pipes: [[0.50, 0.24]] }) },
+  t_suv: { box: 0.7, lampY: [0.98, 1.16], len: 4.72, w: 0.95, gc: 0.21, rax: 0.98, fax: 3.74, tr: 0.37, tw: 0.26,
+    beltR: 1.13, beltF: 1.05, deckR: 1.19, deck0: 1.21, deck1: 1.10, noseH: 0.95,
+    cab: [0.04, 0.70], roof: 1.72, rs: 0.07, fs: 0.16, roofW: 0.78, crown: 0.03,
+    crease: 0.02, tumble: 0.04, hip: 0.03, fender: 0.03, tailIn: 0.04, tailLen: 0.06, noseIn: 0.10, noseLen: 0.14,
+    glassDeck: [0.02, 0.06], pipes: [[-0.56, 0.30]], flatPipes: true,
+    parts: [{ x: [-0.66, -0.62], y: [1.72, 1.77], z: [0.7, 3.0], col: 'dark' }, { x: [0.62, 0.66], y: [1.72, 1.77], z: [0.7, 3.0], col: 'dark' }],
+    tail: rcTrafTail({ lampY: [0.98, 1.16], lampIn: 0.30, plate: 0.74, bumper: [0.24, 0.44], pipes: [[-0.56, 0.30]] }) },
+  t_van: { box: 1, lampY: [0.55, 1.05], len: 5.93, w: 1.00, gc: 0.20, rax: 1.30, fax: 4.95, tr: 0.36, tw: 0.24,
+    beltR: 1.15, beltF: 1.12, deckR: 1.20, deck0: 1.20, deck1: 1.16, noseH: 1.02, noseCurve: 2.2,
+    cab: [0.01, 0.78], roof: 2.58, rs: 0.02, fs: 0.13, roofW: 0.93, crown: 0.01,
+    crease: 0.01, tumble: 0.02, hip: 0.01, fender: 0.02, tailIn: 0.01, tailLen: 0.03, noseIn: 0.10, noseLen: 0.14,
+    glassOff: [0, 0.62], tailBulge: 0.04, tailLean: 0.02, pipes: [], flatPipes: true, parts: [],
+    tail: rcTrafTail({ lampY: [0.55, 1.05], tall: true, lampIn: 0.12, plate: 0.42, doors: [0.30, 2.45], bumper: [0.22, 0.40] }) },
+  t_pickup: { box: 0.85, lampY: [0.82, 1.20], len: 5.70, w: 0.99, gc: 0.24, rax: 1.18, fax: 4.65, tr: 0.40, tw: 0.27,
+    beltR: 1.24, beltF: 1.16, deckR: 1.26, deck0: 1.28, deck1: 1.20, noseH: 1.08, noseCurve: 2,
+    cab: [0.40, 0.74], roof: 1.92, rs: 0.03, fs: 0.15, roofW: 0.84, crown: 0.02,
+    crease: 0.01, tumble: 0.03, hip: 0.02, fender: 0.03, tailIn: 0.01, tailLen: 0.03, noseIn: 0.07, noseLen: 0.12,
+    bed: [0.0, 0.39], tailBulge: 0.03, tailLean: 0.02, pipes: [[0.62, 0.32]], flatPipes: true, parts: [],
+    tail: rcTrafTail({ lampY: [0.82, 1.20], tall: true, lampIn: 0.10, plate: 0.52, bumper: [0.28, 0.48], pipes: [[0.62, 0.32]],
+      extra(c, S, on, braking, fine) { if (fine) { c.strokeStyle = 'rgba(0,0,0,.35)'; c.lineWidth = 0.014; c.strokeRect(-S.hw + 0.16, -1.20, S.hw * 2 - 0.32, 0.56); } } }) },
+  // a box lorry: a flat-fronted cab, the box behind it taller than the cab
+  t_box: { box: 1, lampY: [0.55, 0.80], len: 8.20, w: 1.24, gc: 0.42, rax: 1.80, fax: 6.80, tr: 0.50, tw: 0.32,
+    beltR: 1.30, beltF: 1.30, deckR: 2.65, deck0: 2.65, deck1: 2.65, noseH: 1.55, noseCurve: 3,
+    cab: [0.005, 0.73], roof: 3.55, rs: 0.01, fs: 0.012, roofW: 1.20, crown: 0.0,
+    crease: 0.0, tumble: 0.0, hip: 0.0, fender: 0.0, tailIn: 0, tailLen: 0.01, noseIn: 0.05, noseLen: 0.06, tailRoll: 0.004,
+    glassOff: [0, 0.74], tailBulge: 0.0, tailLean: 0.0, noBumper: true, pipes: [], flatPipes: true, parts: [], rim: '#7d848c',
+    axles: [], noMirrors: false,
+    tail: rcTrafTail({ lampY: [0.55, 0.80], tall: true, lampIn: 0.22, plate: 0.80, doors: [0.95, 3.45], step: [0.42, 0.56] }) },
+  // an articulated lorry: tractor at the front, a long trailer, two axles under its tail
+  t_semi: { box: 1, lampY: [0.70, 0.92], len: 16.4, w: 1.27, gc: 0.62, rax: 1.30, fax: 15.2, tr: 0.52, tw: 0.36,
+    beltR: 1.30, beltF: 1.40, deckR: 3.15, deck0: 3.15, deck1: 3.15, noseH: 1.70, noseCurve: 3.5,
+    cab: [0.003, 0.80], roof: 4.00, rs: 0.006, fs: 0.006, roofW: 1.24, crown: 0.0,
+    crease: 0.0, tumble: 0.0, hip: 0.0, fender: 0.0, tailIn: 0, tailLen: 0.005, noseIn: 0.04, noseLen: 0.03, tailRoll: 0.002,
+    glassOff: [0, 0.81], tailBulge: 0.0, tailLean: 0.0, noBumper: true, pipes: [], flatPipes: true, rim: '#8a9198',
+    axles: [2.65, 11.4, 12.7],
+    parts: [{ x: [-1.20, 1.20], y: [0.35, 0.62], z: [12.6, 14.2], col: 'dark' }],
+    tail: rcTrafTail({ lampY: [0.70, 0.92], tall: true, lampIn: 0.24, plate: 0.90, doors: [1.15, 3.92], step: [0.48, 0.66] }) },
+  t_bus: { box: 1, lampY: [0.55, 1.15], len: 12.0, w: 1.27, gc: 0.30, rax: 2.90, fax: 9.60, tr: 0.50, tw: 0.30,
+    beltR: 1.30, beltF: 1.30, deckR: 1.32, deck0: 1.32, deck1: 1.30, noseH: 1.20, noseCurve: 4,
+    cab: [0.004, 0.99], roof: 3.15, rs: 0.006, fs: 0.02, roofW: 1.22, crown: 0.01,
+    crease: 0.0, tumble: 0.01, hip: 0.0, fender: 0.0, tailIn: 0.01, tailLen: 0.01, noseIn: 0.02, noseLen: 0.02, tailRoll: 0.003,
+    tailBulge: 0.0, tailLean: 0.0, noBumper: true, pipes: [], flatPipes: true, rim: '#9aa1a8', parts: [],
+    tail: rcTrafTail({ lampY: [0.55, 1.15], tall: true, lampIn: 0.16, plate: 0.60, window: [2.05, 2.90], bar: 'trim', bumper: [0.30, 0.55] }) },
+  t_police: null
+});
+RC_M3.t_police = Object.assign({}, RC_M3.t_sedan, {
+  roofCol: '#e9ecef',
+  parts: [{ x: [-0.56, 0.56], y: [1.46, 1.56], z: [2.15, 2.45], col: 'dark', layer: 'over' }],
+  tail: rcTrafTail({ lampY: [0.80, 0.95], bar: 'trim', plate: 0.66,
+    extra(c, S, on, braking, fine) {
+      if (!fine) return;
+      c.fillStyle = 'rgba(20,22,26,.8)'; c.font = '700 0.085px sans-serif'; c.textAlign = 'center'; c.fillText('POLICE', 0, -0.74);
+    } })
+});
+/* A motorbike and its rider, from the same sort of boxes and drums as the
+   cars and lit the same way: two wheels, a tank and seat, a tail with its
+   lamp, a can on the right, and the rider tucked over the tank in a helmet. */
+function rcBike3(c, t, V, P) {
+  const night = P === RC_NIGHT, cam = V.cam, faces = [];
+  const paint = night ? rcMix(t.paint, 0, 0.42) : t.paint, rider = night ? rcMix(t.rider, 0, 0.3) : t.rider;
+  const face = (pts, col, n) => {
+    const cx = pts.reduce((a, p) => a + p[0], 0) / pts.length, cy = pts.reduce((a, p) => a + p[1], 0) / pts.length, cz = pts.reduce((a, p) => a + p[2], 0) / pts.length;
+    if (n && n[0] * (cam[0] - cx) + n[1] * (cam[1] - cy) + n[2] * (cam[2] - cz) <= 0) return;
+    faces.push({ pts, col, n, d: Math.hypot(cam[0] - cx, cam[1] - cy, cam[2] - cz) });
+  };
+  const box = (x0, x1, y0, y1, z0, z1, col, lean) => {
+    const L = lean || 0, v = (x, y, z) => [x, y, z + (y - y0) * L];
+    face([v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], col, [0, 1, 0]);
+    face([v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], col, [0, 0, -1]);
+    face([v(x0, y0, z1), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z1)], col, [0, 0, 1]);
+    face([v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0)], col, [1, 0, 0]);
+    face([v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], col, [-1, 0, 0]);
+  };
+  const wheel = (zc, r) => {
+    const ring = [];
+    for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; ring.push([zc + Math.cos(a) * r, r + Math.sin(a) * r]); }
+    for (let i = 0; i < 12; i++) {
+      const p = ring[i], q = ring[(i + 1) % 12], a = (i + 0.5) / 12 * Math.PI * 2;
+      face([[-0.07, p[1], p[0]], [0.07, p[1], p[0]], [0.07, q[1], q[0]], [-0.07, q[1], q[0]]], '#121418', [0, Math.sin(a), Math.cos(a)]);
+    }
+    for (const sx of [-1, 1]) face(ring.map(p => [sx * 0.07, p[1], p[0]]), '#1b1e23', [sx, 0, 0]);
+  };
+  wheel(0.36, 0.31); wheel(1.78, 0.31);
+  box(-0.06, 0.06, 0.30, 0.62, 0.30, 0.60, '#2a2d33');            // swing arm
+  box(-0.17, 0.17, 0.42, 0.80, 0.55, 1.55, paint);                // engine and fairing
+  box(-0.20, 0.20, 0.80, 0.98, 1.05, 1.55, paint);                // tank
+  box(-0.13, 0.13, 0.78, 0.94, 0.12, 0.75, paint);                // tail
+  box(-0.10, 0.10, 0.80, 0.90, 0.10, 0.12, t.brake > 0 ? '#ff3a2c' : night ? '#d63a2e' : '#8a2b26');   // the lamp
+  box(0.15, 0.25, 0.44, 0.58, 0.18, 0.62, '#b9bfc6');             // the can
+  box(-0.21, 0.21, 0.82, 1.05, 1.50, 1.62, paint, 0.6);           // screen and nose
+  box(-0.34, 0.34, 1.02, 1.06, 1.48, 1.52, '#2a2d33');            // bars
+  box(-0.18, 0.18, 0.92, 1.16, 0.62, 0.98, rider);                // hips
+  box(-0.20, 0.20, 1.12, 1.42, 0.86, 1.08, rider, 1.0);           // back, leaning over the tank
+  for (const sx of [-1, 1]) {
+    box(sx < 0 ? -0.27 : 0.17, sx < 0 ? -0.17 : 0.27, 0.55, 0.95, 0.70, 1.00, rider);   // legs
+    box(sx < 0 ? -0.33 : 0.21, sx < 0 ? -0.21 : 0.33, 1.05, 1.32, 1.12, 1.30, rider, 0.9); // arms
+  }
+  // shadow first, then the parts furthest first, each lit by its normal
+  c.save();
+  c.beginPath();
+  for (const [x, z] of [[-0.35, -0.1], [0.35, -0.1], [0.35, 2.2], [-0.35, 2.2]]) { const q = V.pt(x, 0, z); c.lineTo(q.x, q.y); }
+  c.closePath(); c.fillStyle = 'rgba(0,0,0,' + (night ? 0.22 : 0.16) + ')'; c.fill();
+  c.lineJoin = 'round'; c.lineWidth = 0.8;
+  for (const f of faces.sort((a, b) => b.d - a.d)) {
+    c.beginPath();
+    for (const p of f.pts) { const q = V.pt(p[0], p[1], p[2]); c.lineTo(q.x, q.y); }
+    c.closePath();
+    const dif = f.n ? Math.max(0, f.n[0] * RC_L3[0] + f.n[1] * RC_L3[1] + f.n[2] * RC_L3[2]) : 0.6;
+    const col = rcMix(f.col, 0, 1 - (0.58 + 0.42 * dif));
+    c.fillStyle = col; c.strokeStyle = col; c.fill(); c.stroke();
+  }
+  // the helmet, last, on top of the rider
+  const hq = V.pt(0, 1.50, 1.18);
+  const hr = Math.max(1, hq.s * 0.16);
+  const hg = c.createRadialGradient(hq.x - hr * 0.35, hq.y - hr * 0.4, hr * 0.1, hq.x, hq.y, hr);
+  hg.addColorStop(0, rcMix(t.paint, 255, 0.45)); hg.addColorStop(1, rcMix(t.paint, 0, 0.35));
+  c.fillStyle = hg; c.beginPath(); c.arc(hq.x, hq.y, hr, 0, 7); c.fill();
+  if (t.brake > 0 || night) {                  // the lamp's glow
+    const q = V.pt(0, 0.85, 0.08);
+    const g = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, q.s * 0.5);
+    g.addColorStop(0, 'rgba(255,60,46,' + (t.brake > 0 ? 0.45 : 0.25) + ')'); g.addColorStop(1, 'rgba(255,60,46,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(q.x, q.y, q.s * 0.5, 0, 7); c.fill();
+  }
+  c.restore();
+}
+// the traffic shapes, by the name the traffic code uses, and how far away a 3D body is still worth drawing
+const RC_TRAF3 = { sedan: 't_sedan', hatch: 't_hatch', suv: 't_suv', van: 't_van', pickup: 't_pickup', truck: 't_box', semi: 't_semi', bus: 't_bus', police: 't_police' };
 // the body numbers are the cars' own; keep the collision sizes in step with them
 for (const id in RC_M3) {
   const m = RC_M3[id];
@@ -12055,8 +12445,10 @@ function lbRunEnd() {
   lbOffer(peak, RC.runLevel || RC.level, RC.stock && RC.stock.id, best ? 'New personal best' : 'That makes the top 5');
 }
 
+let lbRunId = 0;
+const lbSent = new Set();
 function lbOffer(score, level, car, lead) {
-  lbPending = { score, level, car };
+  lbPending = { score, level, car, id: ++lbRunId };
   lbLead.textContent = lead;
   lbScoreEl.textContent = rcNum(score);
   try { lbName.value = localStorage.getItem('raceName') || ''; } catch {}
@@ -12068,9 +12460,17 @@ lbForm.addEventListener('submit', async e => {
   e.preventDefault();
   const name = lbClean(lbName.value);
   if (!name || !lbPending) { lbName.focus(); return; }
-  try { localStorage.setItem('raceName', name); localStorage.setItem('raceSkip', String(lbPending.score)); } catch {}
-  lbMine = await LB.add({ name, score: lbPending.score, level: lbPending.level, car: lbPending.car, at: Date.now() });
+  /* One run, one row. The pending score is taken and cleared before the
+     upload starts: it used to be cleared after, so a second click, or Enter
+     then a click, while the first was still on its way sent the same run
+     again. The run is also remembered once sent, so it cannot be offered
+     a second time. */
+  const run = lbPending;
   lbPending = null; lbForm.hidden = true;
+  if (lbSent.has(run.id)) return;
+  lbSent.add(run.id);
+  try { localStorage.setItem('raceName', name); localStorage.setItem('raceSkip', String(run.score)); } catch {}
+  lbMine = await LB.add({ name, score: run.score, level: run.level, car: run.car, at: Date.now() });
   lbName.blur();
   await lbRender();
   rcTab('top');                         // show where it went
