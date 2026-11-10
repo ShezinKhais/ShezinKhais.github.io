@@ -6449,6 +6449,7 @@ const RC_CAMH = 2.00;        // camera height, metres
    of the view, so you cannot see the gap you are aiming for. High enough, too,
    to see over the roof of whatever is in front. */
 const RC_CAMB = 11;
+const RC_YAW_SHOW = 0.5;      // how much of the car's heading is drawn (see rcDraw)
 const RC_WHEELBASE = 2.8;
 
 const rcHash = n => {
@@ -7150,7 +7151,7 @@ function rcDrive(dt) {
      about four metres a second whatever the grip, and aero, which raised the
      settling as well, half cancelled its own downforce. Held steering now
      fights only a third of it, so the limit is the tyres, as it should be. */
-  RC.yaw *= Math.max(0, 1 - car.damp * dt * (Math.abs(want) > 0.05 ? 0.3 : 1));
+  RC.yaw *= Math.max(0, 1 - car.damp * dt * (Math.abs(want) > 0.05 ? 0.5 : 1));
   RC.x += RC.v * RC.yaw * dt;
   RC.z += RC.v * dt;
 
@@ -7532,7 +7533,7 @@ function rcStep(dt) {
   RC.camX += (RC.x - RC.camX) * Math.min(1, dt * 7);
   /* The camera turns with the car a beat behind it, the way a chase camera on
      a boom does, so a turn shows as the nose swinging into it. */
-  RC.camYaw += (RC.yaw - RC.camYaw) * Math.min(1, dt * 5);
+  RC.camYaw += (RC.yaw * RC_YAW_SHOW - RC.camYaw) * Math.min(1, dt * 6);
   rcAudioUpdate();
 }
 
@@ -9137,7 +9138,11 @@ function rcDraw() {
      bend, and the camera, which turns with the car a beat late, sees the nose
      swing into a corner. */
   const off0 = atZ(RC.z), slope0 = (atZ(RC.z + 4) - off0) / 4;
-  const hH = RC.yaw, cH = Math.cos(hH), sH = Math.sin(hH);
+  /* The heading drawn is half the heading driven. The road gives no sense of
+     scale for a yaw angle, so the true figure on a hard lane change, ten
+     degrees and more, read as the car spinning; half of it reads as a car
+     turning in. Where the car goes is untouched. */
+  const hH = RC.yaw * RC_YAW_SHOW, cH = Math.cos(hH), sH = Math.sin(hH);
   const V3 = { pt: (x, y, z) => {
     const X = RC.x + x * cH + z * sH, Zd = RC_CAMB + z * cH - x * sH;
     const q = proj(X, Zd, off0 + slope0 * (Zd - RC_CAMB));
@@ -10655,7 +10660,9 @@ const rcIn = (u, r) => r && u >= r[0] && u <= r[1];
 
 function rc3Build(m) {
   const L = m.len, ru = m.rax / L, fu = m.fax / L;
-  const hw = u => m.w * (1 - m.tailIn * (1 - rcSS(0, m.tailLen, u)) - m.noseIn * rcSS(1 - m.noseLen, 1, u))
+  // the plan: full width almost to the bumpers, the corners rounded off in the
+  // last few per cent. Tapering over a quarter of the length made every nose a bow.
+  const hw = u => m.w * (1 - m.tailIn * 0.6 * (1 - rcSS(0, m.tailLen * 0.6, u)) - m.noseIn * 0.45 * rcSS(1 - m.noseLen * 0.45, 1, u))
     + m.hip * rcBump(u, ru, 0.17) + m.fender * rcBump(u, fu, 0.14);
   const belt = u => rcLerp(m.beltR, m.beltF, u) + (m.beltKick || 0) * rcBump(u, ru, 0.2);
   const deck = u => {
@@ -10682,7 +10689,7 @@ function rc3Build(m) {
     const rw = Math.min(w * 0.9, m.roofW) * (0.86 + 0.14 * k);
     const cut = m.open && u > m.cab[0] && u < m.cab[1] - m.fs;
     st.push({ u, z: u * L, k, cut, pts: [
-      [w * 0.84, m.gc],
+      [w * 0.95, m.gc],
       [w, m.gc + (b - m.gc) * (m.hipH || 0.45)],
       [w * (1 - m.crease), b],
       [w * (0.955 - m.crease) - (m.tumble || 0.06) * k, d + 0.01],
@@ -10865,6 +10872,41 @@ function rcCar3(c, car, V, P, braking, flame) {
   tyres.sort((a, b) => b.d - a.d).forEach(draw);
   nose.sort((a, b) => b.d - a.d).forEach(draw);
   faces.sort((a, b) => b.d - a.d).forEach(draw);
+
+  /* Wheel arches. The body runs down to the sills, so without these the wheels
+     were hidden inside it and every car was a hull on four little feet. On
+     each side the camera can see, an arch is cut into the flank and the wheel
+     is drawn in it: tyre, rim, spokes, and a lip of body colour round the top. */
+  for (const [zc, ax] of [[m.rax, m.ru], [m.fax, m.fu]]) {
+    const side = m.hwAt(ax) + 0.004, face = side - 0.03, R = m.tr + 0.045;
+    for (const sx of [1, -1]) {
+      if ((cam[0] - sx * side) * sx <= 0) continue;
+      const ring = (x, r, n, a0, a1) => {
+        c.beginPath();
+        for (let i = 0; i <= n; i++) {
+          const t = a0 + (a1 - a0) * i / n, q = V.pt(sx * x, m.tr + Math.sin(t) * r, zc + Math.cos(t) * r);
+          c.lineTo(q.x, q.y);
+        }
+      };
+      ring(side, R, 18, -0.35, Math.PI + 0.35); c.closePath();
+      c.fillStyle = '#08090b'; c.fill();
+      ring(face, m.tr, 20, 0, Math.PI * 2); c.closePath();
+      c.fillStyle = shadeOf({ mat: 'tyre', n: [sx, 0, 0] }); c.fill();
+      ring(face + 0.004, m.tr * 0.66, 20, 0, Math.PI * 2); c.closePath();
+      c.fillStyle = rcMix(cols.rim, 0, night ? 0.5 : 0.18); c.fill();
+      c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 1.1;
+      c.beginPath();
+      const hub = V.pt(sx * (face + 0.006), m.tr, zc);
+      for (let i = 0; i < 5; i++) {
+        const t = i / 5 * Math.PI * 2 + 0.3, q = V.pt(sx * (face + 0.006), m.tr + Math.sin(t) * m.tr * 0.62, zc + Math.cos(t) * m.tr * 0.62);
+        c.moveTo(hub.x, hub.y); c.lineTo(q.x, q.y);
+      }
+      c.stroke();
+      c.fillStyle = '#2a2d32'; c.beginPath(); c.arc(hub.x, hub.y, Math.max(1, hub.s * 0.045), 0, 7); c.fill();
+      ring(side + 0.006, R, 18, -0.35, Math.PI + 0.35);
+      c.strokeStyle = rcMix(paint, 255, night ? 0.05 : 0.18); c.lineWidth = Math.max(1, V.pt(0, 0, zc).s * 0.025); c.stroke();
+    }
+  }
 
   // the tail, painted onto the rear face in its own metres (y negative is up)
   const p0 = V.pt(0, 0, -0.002), px = V.pt(1, 0, -0.002), py = V.pt(0, 1, -0.002);
