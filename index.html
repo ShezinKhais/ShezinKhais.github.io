@@ -6897,7 +6897,7 @@ function rcReset(keepCar) {
   const banked = rcPullOff();
   const lanes = rcLanes(0);
   RC.state = 'ready';
-  RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0;
+  RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0; RC.lat = 0;
   RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
   RC.heat = 0; RC.cop = null; RC.lurk = null; RC.heli = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
@@ -7165,6 +7165,8 @@ function rcDrive(dt) {
   const dMax = Math.min(0.55, car.mu * (load / car.mass) * RC_WHEELBASE / (v * v));
   const delta = rcClamp(RC.steer, -1, 1) * dMax * (off ? 0.55 : 1);
   RC.yaw += (v / RC_WHEELBASE * delta - RC.v * rcCurve(RC.z)) * dt;
+  // cornering load in g, eased, for the body to lean on
+  RC.lat = (RC.lat || 0) + (RC.v * v / RC_WHEELBASE * delta / 9.81 - (RC.lat || 0)) * Math.min(1, dt * 5);
   /* It settles if you let go. That settling used to run while you were
      steering too, which capped how fast the car could move across the road at
      about four metres a second whatever the grip, and aero, which raised the
@@ -7551,8 +7553,11 @@ function rcStep(dt) {
   }
   RC.camX += (RC.x - RC.camX) * Math.min(1, dt * 7);
   /* The camera turns with the car a beat behind it, the way a chase camera on
-     a boom does, so a turn shows as the nose swinging into it. */
-  RC.camYaw += (RC.yaw * RC_YAW_SHOW - RC.camYaw) * Math.min(1, dt * 6);
+     a boom does, so a turn shows as the nose swinging into it. It used to
+     catch up in about a sixth of a second, which is quicker than the car
+     turns, so the car always pointed straight up the screen and slid across
+     the road like a crab. Now it takes about half a second. */
+  RC.camYaw += (RC.yaw * RC_YAW_SHOW - RC.camYaw) * Math.min(1, dt * 2.2);
   rcAudioUpdate();
 }
 
@@ -9210,7 +9215,11 @@ function rcDraw() {
      degrees and more, read as the car spinning; half of it reads as a car
      turning in. Where the car goes is untouched. */
   const hH = RC.yaw * RC_YAW_SHOW, cH = Math.cos(hH), sH = Math.sin(hH);
-  const V3 = { pt: (x, y, z) => {
+  /* The body leans out of a corner on its springs, about two degrees at a g,
+     while the wheels stay on the road: the lean fades in from the sills up. */
+  const rl = rcClamp((RC.lat || 0) * 0.04, -0.06, 0.06);
+  const V3 = { steer: rcClamp(RC.steer, -1, 1) * 0.32, pt: (x, y, z) => {
+    if (rl && y > 0.12) { const f = Math.min(1, (y - 0.12) / 0.4) * rl; x -= y * f; y += x * f; }
     const X = RC.x + x * cH + z * sH, Zd = RC_CAMB + z * cH - x * sH;
     const q = proj(X, Zd, off0 + slope0 * (Zd - RC_CAMB));
     return { x: q.x, y: q.y - y * q.s, s: q.s };
@@ -10959,17 +10968,20 @@ function rcCar3(c, car, V, P, braking, flame) {
   add(faces, rear, 'body', [0, 0, -1]);
   add(faces, cap(st[st.length - 1], m.len), 'body', [0, 0, 1]);
   // wheels: ten sided drums, tread and both faces
+  // the front pair turn about their own centres with the steering
+  const steerA = V.steer || 0, cS = Math.cos(steerA), sS = Math.sin(steerA);
+  const turnW = (front, xc, zc) => (p => front && steerA ? [xc + (p[0] - xc) * cS + (p[2] - zc) * sS, p[1], zc + (p[2] - zc) * cS - (p[0] - xc) * sS] : p);
   for (const [zc, ax] of [[m.rax, m.ru], [m.fax, m.fu]]) {
-    const outer = m.hwAt(ax) - 0.035, inner = outer - m.tw;
+    const outer = m.hwAt(ax) - 0.035, inner = outer - m.tw, front = zc > m.len / 2;
     for (const sx of [1, -1]) {
-      const ring = [];
+      const ring = [], tw = turnW(front, sx * (inner + outer) / 2, zc), wc = front ? cS : 1, ws = front ? sS : 0;
       for (let i = 0; i < 10; i++) { const t = i / 10 * Math.PI * 2; ring.push([zc + Math.cos(t) * m.tr, m.tr + Math.sin(t) * m.tr]); }
       for (let i = 0; i < 10; i++) {
         const p = ring[i], q = ring[(i + 1) % 10];
-        add(tyres, [[sx * inner, p[1], p[0]], [sx * outer, p[1], p[0]], [sx * outer, q[1], q[0]], [sx * inner, q[1], q[0]]], 'tyre', null, [sx * (inner + outer) / 2, m.tr, zc]);
+        add(tyres, [[sx * inner, p[1], p[0]], [sx * outer, p[1], p[0]], [sx * outer, q[1], q[0]], [sx * inner, q[1], q[0]]].map(tw), 'tyre', null, [sx * (inner + outer) / 2, m.tr, zc]);
       }
-      add(tyres, ring.map(p => [sx * outer, p[1], p[0]]), 'wheel', [sx, 0, 0]);
-      add(tyres, ring.map(p => [sx * inner, p[1], p[0]]), 'tyre', [-sx, 0, 0]);
+      add(tyres, ring.map(p => tw([sx * outer, p[1], p[0]])), 'wheel', [sx * wc, 0, -sx * ws]);
+      add(tyres, ring.map(p => tw([sx * inner, p[1], p[0]])), 'tyre', [-sx * wc, 0, sx * ws]);
     }
   }
   // wings, rails, headrests: boxes
@@ -11082,27 +11094,29 @@ function rcCar3(c, car, V, P, braking, flame) {
      each side the camera can see, an arch is cut into the flank and the wheel
      is drawn in it: tyre, rim, spokes, and a lip of body colour round the top. */
   for (const [zc, ax] of [[m.rax, m.ru], [m.fax, m.fu]]) {
-    const side = m.hwAt(ax) + 0.004, face = side - 0.03, R = m.tr + 0.045;
+    const side = m.hwAt(ax) + 0.004, face = side - 0.03, R = m.tr + 0.045, front = zc > m.len / 2;
     for (const sx of [1, -1]) {
       if ((cam[0] - sx * side) * sx <= 0) continue;
-      const ring = (x, r, n, a0, a1) => {
+      const tw = turnW(front, sx * (face - m.tw / 2), zc);
+      const at = (x, y, z, steer) => { const p = steer ? tw([x, y, z]) : [x, y, z]; return V.pt(p[0], p[1], p[2]); };
+      const ring = (x, r, n, a0, a1, steer) => {
         c.beginPath();
         for (let i = 0; i <= n; i++) {
-          const t = a0 + (a1 - a0) * i / n, q = V.pt(sx * x, m.tr + Math.sin(t) * r, zc + Math.cos(t) * r);
+          const t = a0 + (a1 - a0) * i / n, q = at(sx * x, m.tr + Math.sin(t) * r, zc + Math.cos(t) * r, steer);
           c.lineTo(q.x, q.y);
         }
       };
       ring(side, R, 18, -0.35, Math.PI + 0.35); c.closePath();
       c.fillStyle = '#08090b'; c.fill();
-      ring(face, m.tr, 20, 0, Math.PI * 2); c.closePath();
+      ring(face, m.tr, 20, 0, Math.PI * 2, true); c.closePath();
       c.fillStyle = shadeOf({ mat: 'tyre', n: [sx, 0, 0] }); c.fill();
-      ring(face + 0.004, m.tr * 0.66, 20, 0, Math.PI * 2); c.closePath();
+      ring(face + 0.004, m.tr * 0.66, 20, 0, Math.PI * 2, true); c.closePath();
       c.fillStyle = rcMix(cols.rim, 0, night ? 0.5 : 0.18); c.fill();
       c.strokeStyle = 'rgba(0,0,0,.5)'; c.lineWidth = 1.1;
       c.beginPath();
-      const hub = V.pt(sx * (face + 0.006), m.tr, zc);
+      const hub = at(sx * (face + 0.006), m.tr, zc, true);
       for (let i = 0; i < 5; i++) {
-        const t = i / 5 * Math.PI * 2 + 0.3, q = V.pt(sx * (face + 0.006), m.tr + Math.sin(t) * m.tr * 0.62, zc + Math.cos(t) * m.tr * 0.62);
+        const t = i / 5 * Math.PI * 2 + 0.3, q = at(sx * (face + 0.006), m.tr + Math.sin(t) * m.tr * 0.62, zc + Math.cos(t) * m.tr * 0.62, true);
         c.moveTo(hub.x, hub.y); c.lineTo(q.x, q.y);
       }
       c.stroke();
@@ -11183,6 +11197,35 @@ function rcCar3(c, car, V, P, braking, flame) {
       if (p0.s > 26) rcFins(tc, 7, -S.hw * 0.66, S.hw * 0.66, rcY(m.gc + 0.13), rcY(m.gc - 0.05));
     }
     tc.restore();
+    /* The light is baked into the texture, pixel by pixel, from the slope of
+       the shell under each one. The light does not move with the camera, so
+       this is done once per cached texture. Shading each triangle on screen
+       instead left a fine white mesh where neighbouring triangles met. */
+    const L = RC_L3, hx = L[0], hy = L[1] + 0.25, hz = L[2] - 0.9, hl = Math.hypot(hx, hy, hz);
+    const img = tc.getImageData(0, 0, TW, TH), px_ = img.data, e = 1 / R;
+    const zr = new Float32Array(TW + 1), zn = new Float32Array(TW + 1);
+    const fillRow = (arr, y) => { for (let i = 0; i <= TW; i++) arr[i] = zAt(i / R - bx, y); };
+    fillRow(zr, top + 0.02);
+    for (let j = 0; j < TH; j++) {
+      const y = top + 0.02 - (j + 1) / R;
+      fillRow(zn, y);
+      for (let i = 0; i < TW; i++) {
+        const k = (j * TW + i) * 4;
+        if (!px_[k + 3]) continue;
+        // the slope across and down, from the corners of this pixel
+        const dzx = ((zr[i + 1] - zr[i]) + (zn[i + 1] - zn[i])) * 0.5 / e;
+        const dzy = ((zr[i] - zn[i]) + (zr[i + 1] - zn[i + 1])) * 0.5 / e;
+        // the outward normal of z(x, y), pointing back along -z
+        let nx = dzx, ny = dzy, nz = -1;
+        const nl = Math.hypot(nx, ny, nz); nx /= nl; ny /= nl; nz /= nl;
+        const dif = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
+        const dk = 0.42 * (1 - dif);
+        const sp = Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), 5) * (night ? 0.12 : 0.26) + (ny > 0 ? ny * ny * (night ? 0.05 : 0.16) : 0);
+        for (let ch = 0; ch < 3; ch++) { const v0 = px_[k + ch] * (1 - dk); px_[k + ch] = v0 + (255 - v0) * Math.min(1, sp); }
+      }
+      zr.set(zn);
+    }
+    tc.putImageData(img, 0, 0);
     }
     // lay it over the shell, a triangle at a time, lit by the normal at each one
     const tu = p => [(p[0] + bx) * R, (top + 0.02 - p[1]) * R];
@@ -11197,12 +11240,7 @@ function rcCar3(c, car, V, P, braking, flame) {
       const a = G[r][k], b = G[r][k + 1], d = G[r + 1][k], e = G[r + 1][k + 1];
       tris.push([a, b, e], [a, e, d]);
     }
-    const L = RC_L3, hx = L[0], hy = L[1] + 0.25, hz = L[2] - 0.9, hl = Math.hypot(hx, hy, hz);
-    /* Two passes. The texture first, each triangle grown by half a pixel so
-       the seams close up; then the light, triangle by triangle, grown only a
-       little. Doing both in one pass let each triangle's unlit edge show
-       through its neighbour's shade as a fine white mesh. */
-    const lit = [];
+    // the texture, lit already, over the shell; each triangle grown by half a pixel so the seams close up
     for (const [A, B, C] of tris) {
       const ux = B[0] - A[0], uy = B[1] - A[1], uz = B[2] - A[2], vx = C[0] - A[0], vy = C[1] - A[1], vz = C[2] - A[2];
       let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
@@ -11225,14 +11263,6 @@ function rcCar3(c, car, V, P, braking, flame) {
       triPath(Q, 0.6 / dpr); c.clip();
       c.transform(ta, tb, tcc, td, te, tf); c.drawImage(tex, 0, 0);
       c.restore();
-      const dif = Math.max(0, nx * L[0] + ny * L[1] + nz * L[2]);
-      const sp = Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), 5) * (night ? 0.12 : 0.26) + (ny > 0 ? ny * ny * (night ? 0.05 : 0.16) : 0);
-      lit.push([Q, 0.42 * (1 - dif), sp]);
-    }
-    for (const [Q, dk, sp] of lit) {
-      triPath(Q, 0.15 / dpr);
-      c.fillStyle = 'rgba(0,0,0,' + dk.toFixed(3) + ')'; c.fill();
-      if (sp > 0.01) { c.fillStyle = 'rgba(255,255,255,' + sp.toFixed(3) + ')'; c.fill(); }
     }
     // the pipes as short tubes standing out of the shell, not circles on it
     let flameZ = -0.002;
