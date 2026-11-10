@@ -6325,6 +6325,12 @@ const RC_CARS = [
     aero: -0.03, agile: 0.70, damp: 1.1,
     cyl: 8, turbo: false, crackle: 0.05,
     paint: '#e8e4dc', trim: '#5d5a52', shape: 'suv' },
+  { id: 'lfa', name: 'Lexus LFA', tag: 'V10 to 9,000, its voice tuned by Yamaha',
+    kw: 412, peak: 7800, redline: 9000, mass: 1480, vmax: 325, ng: 6, mu: 1.24,
+    drive: 0.84, shift: 0.15,
+    aero: 0.18, agile: 1.30, damp: 2.4,
+    cyl: 10, turbo: false, crackle: 0.5,
+    paint: '#e8662a', trim: '#2a2d32', shape: 'wedge' },
   { id: 'mclaren', name: 'McLaren 720S', tag: 'twin turbo flat-plane V8, carbon tub',
     kw: 530, peak: 7500, redline: 8100, mass: 1419, vmax: 341, ng: 7, mu: 1.30,
     drive: 0.90, shift: 0.08,
@@ -7597,6 +7603,8 @@ class RcEngine extends AudioWorkletProcessor {
     // up to eight pulses in flight: [age, width, amplitude, bank, noise]
     this.P = []; for (let i = 0; i < 8; i++) this.P.push([1, 1, 0, 0, 0]);
     this.lastThr = 0; this.loaded = 0; this.liftT = 9; this.budget = 0;
+    // intake resonators (biquad band-pass state) and the valvetrain's phase
+    this.rz = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]; this.vt = 0; this.vopen = 0;
     this.port.onmessage = e => { this.cfg = e.data; this.idx = 0; this.phase = 0; };
   }
   rnd() {
@@ -7633,8 +7641,29 @@ class RcEngine extends AudioWorkletProcessor {
     const n = out.length, sr = sampleRate, ev = c.fire;
     const dA = Math.min(8000, Math.round(c.pipeA * sr / 1000));
     const dB = Math.min(8000, Math.round(c.pipeB * sr / 1000));
-    const toneHz = c.tone * (0.5 + 0.5 * thr);
+    /* The exhaust valve: shut and quiet low down, open above its rpm, which is
+       a louder pipe with more of the top end let through. Eased, so it opens
+       like a flap rather than a switch. */
+    const vRpm = c.valve || 0;
+    this.vopen += ((vRpm && target > vRpm ? 1 : vRpm ? 0 : 1) - this.vopen) * Math.min(1, n / sr * 6);
+    const vg = vRpm ? 0.62 + 0.38 * this.vopen : 1;
+    const toneHz = c.tone * (0.5 + 0.5 * thr) * (vRpm ? 0.7 + 0.45 * this.vopen : 1);
     const a1 = 1 - Math.exp(-2 * Math.PI * toneHz / sr);
+    /* The intake. What sets some engines apart is not the pipes but the
+       airbox: a resonance that follows the firing frequency and lifts its
+       harmonics, which is the scream, and a fixed chamber resonance, which is
+       the vowel in it. Each is a band-pass, retuned once a block. */
+    const res = c.intake ? c.intake.res : null, coef = [];
+    if (res) {
+      const fireHz = target / 120 * ev.length;
+      for (let r = 0; r < res.length; r++) {
+        const f = Math.min(sr * 0.45, res[r][2] || fireHz * res[r][0]), q = res[r][1];
+        const w0 = 2 * Math.PI * f / sr, al = Math.sin(w0) / (2 * q), a0 = 1 + al;
+        coef.push([al / a0, -al / a0, -2 * Math.cos(w0) / a0, (1 - al) / a0, res[r][3] || 1]);
+      }
+    }
+    const ig = c.intake ? c.intake.gain * (0.35 + 0.65 * thr) : 0;
+    const vtHz = c.whine ? target / 60 * c.whine[0] : 0, vtG = c.whine ? c.whine[1] * (0.4 + 0.6 * thr) * Math.min(1, target / 7000) : 0;
     const r0 = this.rpm;
     // how long the throttle has been open, and whether it has just been shut
     if (thr > 0.5) { this.loaded += n / sr; this.liftT = 9; }
@@ -7674,7 +7703,20 @@ class RcEngine extends AudioWorkletProcessor {
       this.py = x - this.px + 0.995 * this.py; this.px = x;
       this.t1 += (this.py - this.t1) * a1;
       this.t2 += (this.t1 - this.t2) * a1;
-      const y = this.t2 * c.gain;
+      let y = this.t2 * c.gain * vg;
+      if (res) {
+        // the raw pulses through the airbox resonances
+        const src = xa + xb;
+        let iy = 0;
+        for (let r = 0; r < coef.length; r++) {
+          const [b0, b2, a1r, a2r, g] = coef[r], z = this.rz[r];
+          const o = b0 * src + b2 * z[1] - a1r * z[2] - a2r * z[3];
+          z[1] = z[0]; z[0] = src; z[3] = z[2]; z[2] = o;
+          iy += o * g;
+        }
+        y += iy * ig;
+      }
+      if (vtG) { this.vt += vtHz / sr; if (this.vt > 1) this.vt -= 1; y += Math.sin(this.vt * 6.2832) * vtG; }
       out[i] = y / (1 + Math.abs(y));                  // a soft edge rather than a clip
     }
     this.rpm = target;
@@ -7722,6 +7764,16 @@ const RC_ENGINE = {
      turbos and short pipes give it a hard, raspy edge; the Ferrari is the same
      layout with no turbos in the way, shorter pipes still, and a lot more
      treble: it screams. */
+  /* The LFA. An even-firing V10, so every firing 72 degrees apart and the
+     note pure; very short pulses through two equal, short pipes for the
+     clean, almost turbine-smooth top end; and the part that makes it the LFA,
+     the intake Yamaha tuned: resonances on the second and fourth harmonics of
+     the firing rate, which is the scream, and an airbox chamber around 1.1
+     kHz, which is the vowel. The exhaust valve opens at 3,800, and there is a
+     thread of valvetrain whine under it all. */
+  lfa: { fire: rcFiring(10, 72, [0, 1]), pipeA: 1.55, pipeB: 1.55, fb: 0.5, damp: 0.68, tone: 7400, pw: 0.40, noise: 0.14, gain: 0.82,
+    intake: { gain: 0.9, res: [[2, 9, 0, 1.0], [4, 11, 0, 0.7], [0, 3.2, 1150, 0.55], [6, 14, 0, 0.3]] },
+    valve: 3800, whine: [10, 0.012] },
   mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.4, pipeB: 2.5, fb: 0.50, damp: 0.56, tone: 3600, pw: 0.9, noise: 0.34, gain: 0.85 },
   f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.8, pipeB: 2.0, fb: 0.56, damp: 0.62, tone: 6400, pw: 0.6, noise: 0.22, gain: 0.8 },
   // crossplane, long pipes and a big resonance: the deepest thing here bar the Land Cruiser
@@ -10088,6 +10140,7 @@ const RC_HERO = {
   /* AMG GT R: a long fastback window, a fixed wing on two struts, lamps as
      thin slits that run from the badge out round the corners, and the two big
      trapezoid pipes in the middle of the diffuser. */
+  lfa: { w: 1.895, len: 4.505, h: 1.24, pipes: [[-0.085, -0.56], [0.085, -0.56], [0, -0.45]], prof: [], body: [], draw() {} },
   amggtr: { w: 2.007, len: 4.55, h: 1.284, pipes: [[-0.13, -0.25], [0.13, -0.25]],
     prof: [[0, .94, .66, 'roof'], [.12, .94, .76, 'roof'], [.30, 1, .70, 'roof'], [.46, .97, .64, 'glass'], [.56, .70, .96, 'bonnet'], [.93, .64, .88, 'nose'], [1, .52, .70]],
     body: rcSym([[0.56, -1.28, 0.08], [0.82, -1.12, 0.24], [0.97, -0.80, 0.14], [0.965, -0.42, 0.05], [0.93, -0.15, 0.06], [0.40, -0.15, 0]]),
@@ -10830,6 +10883,13 @@ function rcCar3(c, car, V, P, braking, flame) {
         layer: sx * cam[0] < 0 ? 'under' : 'over' });
     }
   }
+  if (m.activeWing) {
+    // the LFA's wing, flush at a crawl and standing up from about 80 km/h
+    const up = car === RC.car ? rcClamp((RC.v * 3.6 - 80) / 40, 0, 1) : 1;
+    const y0 = m.deckR + 0.01 + up * 0.10;
+    xp.push({ x: [-(m.w - 0.20), m.w - 0.20], y: [y0, y0 + 0.035], z: [0.04, 0.30], col: 'carbon', layer: 'over' });
+    if (up > 0.05) for (const sx of [-1, 1]) xp.push({ x: sx < 0 ? [-0.34, -0.31] : [0.31, 0.34], y: [m.deckR, y0], z: [0.12, 0.18], col: 'carbon', layer: 'over' });
+  }
   const allParts = (m.parts || []).concat(xp);
   const add = (list, P3, mat, fixedN, ref, meta) => {
     let cx = 0, cy = 0, cz = 0, nx = 0, ny = 0, nz = 0;
@@ -11332,6 +11392,39 @@ const RC_M3 = {
       rcPipe(c, 0.62, -0.26, 0.07, 0.06);
     } },
 
+  /* LFA: front-engined, so a long bonnet and the cabin set back, a fastback
+     roof onto a short tail; slim dart lamps at the upper corners, the radiator
+     vents under them, the three pipes in a triangle in the middle over a big
+     diffuser, and the wing that rises at speed. */
+  lfa: { box: 0.35, len: 4.505, w: 0.945, gc: 0.11, rax: 0.84, fax: 3.45, tr: 0.34, tw: 0.30,
+    beltR: 0.96, beltF: 0.78, deckR: 1.00, deck0: 1.04, deck1: 0.86, noseH: 0.60,
+    cab: [0.22, 0.56], roof: 1.26, rs: 0.22, fs: 0.15, roofW: 0.56, crown: 0.10,
+    crease: 0.05, tumble: 0.12, hip: 0.11, fender: 0.06, tailIn: 0.06, tailLen: 0.10, noseIn: 0.16, noseLen: 0.22,
+    intake: [0.24, 0.30], rim: '#c8ccd2', activeWing: true,
+    pipes: [[-0.085, -0.56], [0.085, -0.56], [0, -0.45]],
+    tail(c, S, car, on, braking, fine) {
+      const hw = S.hw;
+      // the lamps: slim darts at the upper corners, pointing in
+      for (const sx of [-1, 1]) {
+        rcLens(c, rcSide([[0.40, -0.90, 0.01], [hw - 0.05, -0.97, 0.03], [hw - 0.01, -0.90, 0.03], [hw - 0.04, -0.85, 0.02], [0.52, -0.865, 0.01]], sx), on, braking, fine);
+        if (fine) { c.strokeStyle = braking ? 'rgba(255,225,210,.95)' : on ? 'rgba(255,170,150,.75)' : 'rgba(255,190,180,.3)'; c.lineWidth = 0.012;
+          c.beginPath(); c.moveTo(sx * 0.45, -0.895); c.lineTo(sx * (hw - 0.06), -0.945); c.stroke(); }
+        rcGlow(c, sx * 0.68, -0.91, 0.5, on || braking);
+        // the radiator outlets under them, black mesh
+        c.fillStyle = '#101215';
+        rcPath(c, rcSide([[0.56, -0.80, 0.02], [hw - 0.03, -0.82, 0.03], [hw - 0.04, -0.52, 0.03], [0.62, -0.52, 0.02]], sx)); c.fill();
+        if (fine) { c.fillStyle = 'rgba(255,255,255,.05)'; for (let y = -0.78; y < -0.54; y += 0.04) for (let x = 0.60; x < hw - 0.06; x += 0.05) c.fillRect(sx * x - 0.015, y, 0.03, 0.018); }
+      }
+      if (fine) {
+        c.fillStyle = 'rgba(235,238,242,.85)'; c.font = '700 0.06px sans-serif'; c.textAlign = 'center'; c.fillText('LFA', 0, -0.84);
+        rcPlateAt(c, -0.78, 0.34);
+      }
+      // a hexagonal surround and the three pipes in a triangle
+      c.fillStyle = '#16181c';
+      rcPath(c, rcSym([[0.10, -0.62, 0.02], [0.19, -0.54, 0.02], [0.12, -0.38, 0.02]])); c.fill();
+      for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
+      rcDiffuser(c, S, 0.36, 0.66, 7, fine);
+    } },
   mclaren: { box: 0.05, len: 4.54, w: 0.93, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
     beltR: 0.98, beltF: 0.66, deckR: 1.04, deck0: 1.10, deck1: 0.78, noseH: 0.50,
     cab: [0.36, 0.72], roof: 1.30, rs: 0.12, fs: 0.18, roofW: 0.58, crown: 0.17,
