@@ -10852,7 +10852,7 @@ function rcCar3(c, car, V, P, braking, flame) {
     glass: night ? '#0a0e14' : '#22303c', interior: '#0c0e11', dark: '#14161a',
     tyre: '#101215', rim: m.rim || '#a9b0b8', carbon: '#1b1d21', chrome: '#c9ced4',
     trim: rcMix(car.trim || '#444', 0, night ? 0.5 : 0.2),
-    tow: '#d0302a', seat: night ? '#16181c' : '#2b2e34', lexan: night ? '#141c26' : '#46576a'
+    lamp: braking ? '#ff3a2c' : night ? '#d63a2e' : '#8a2b26', tow: '#d0302a', seat: night ? '#16181c' : '#2b2e34', lexan: night ? '#141c26' : '#46576a'
   };
   const faces = [], parts = [], tyres = [], nose = [];
   /* What the garage has fitted, made visible. Aero: a lip, then a wing with
@@ -10934,6 +10934,11 @@ function rcCar3(c, car, V, P, braking, flame) {
     for (let jj = 0; jj < a.pts.length - 1; jj++) {
       const j = RC_ROLE[jj];
       let mat = rc3Mat(m, a, b, j);
+      // the tail lamps carry on round the corners rather than stopping at the back
+      if (a.u < 0.03 && jj === 3) {
+        const yc = (a.pts[jj][1] + a.pts[jj + 1][1]) / 2, ly = m.lampY || [0.72, 0.95];
+        if (yc > ly[0] && yc < ly[1]) mat = 'lamp';
+      }
       if (sA >= 2 && j === 0) mat = 'carbon';                                   // side skirts
       if (sW >= 1 && j === 4 && mat === 'body' && a.k > 0.5 && b.k > 0.5) mat = 'carbon';   // roof
       if (sW >= 2 && j === 4 && mat === 'body' && (b.u <= m.cab[0] + 0.001 || a.u >= m.cab[1] - 0.001)) mat = 'carbon';  // bonnet, boot
@@ -10951,6 +10956,19 @@ function rcCar3(c, car, V, P, braking, flame) {
     return out;
   };
   const rear = cap(st[0], 0);
+  /* A bumper that stands proud of the tail, so the back has a ledge with a lit
+     top and a shadow under it instead of being one painted plane. Cars whose
+     lower tail is all diffuser keep it flat. */
+  if (!m.noBumper) {
+    const bw = st[0].pts[2][0] * 0.97, bt = m.bumperTop || m.gc + (m.beltR - m.gc) * 0.42;
+    for (const b of [{ x: [-bw, bw], y: [m.gc + 0.04, bt], z: [-0.05, 0.06] }]) {
+      const [x0, x1] = b.x, [y0, y1] = b.y, [z0, z1] = b.z, v = (x, y, z) => [x, y, z];
+      add(faces, [v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], 'body', [0, 1, 0]);
+      add(faces, [v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], 'body', [0, 0, -1]);
+      add(faces, [v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0)], 'body', [1, 0, 0]);
+      add(faces, [v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], 'body', [-1, 0, 0]);
+    }
+  }
   add(faces, rear, 'body', [0, 0, -1]);
   add(faces, cap(st[st.length - 1], m.len), 'body', [0, 0, 1]);
   // wheels: ten sided drums, tread and both faces
@@ -10973,6 +10991,30 @@ function rcCar3(c, car, V, P, braking, flame) {
     // parts at the far end are behind the body from here, so they go under it
     const parts_ = b.layer === 'under' ? nose : b.layer === 'over' ? parts : z0 > m.len * 0.6 ? nose : parts;
     const v = (x, y, z) => [x, y, z];
+    /* A wing is a wing, not a plank: a section thick at the leading edge and
+       thin at the trailing one, cambered, with the trailing edge kicked up,
+       swept across the span, and a shaped plate closing each end. */
+    if (x1 - x0 > 1.0 && z1 - z0 >= 0.08 && y1 - y0 <= 0.07) {
+      const cz = z1 - z0, t = Math.max(0.03, (y1 - y0) * 1.5), kick = 0.05 * cz, n = 6, sec = [];
+      for (let i = 0; i <= n; i++) {                              // upper surface, leading edge to trailing
+        const s = i / n;
+        sec.push([z1 - s * cz, y0 + t * (0.45 + 0.6 * Math.sqrt(Math.sin(Math.PI * Math.min(s, 0.999))) * (1 - 0.55 * s)) + kick * s * s]);
+      }
+      for (let i = n - 1; i >= 1; i--) {                          // lower surface back to the front
+        const s = i / n;
+        sec.push([z1 - s * cz, y0 + t * (0.42 - 0.22 * Math.sin(Math.PI * s)) + kick * s * s]);
+      }
+      const ref = [(x0 + x1) / 2, y0 + t * 0.5, (z0 + z1) / 2];
+      for (let i = 0; i < sec.length; i++) {
+        const a = sec[i], b2 = sec[(i + 1) % sec.length];
+        add(parts_, [v(x0, a[1], a[0]), v(x1, a[1], a[0]), v(x1, b2[1], b2[0]), v(x0, b2[1], b2[0])], mat, null, ref);
+      }
+      for (const [xe, sx] of [[x0, -1], [x1, 1]]) {               // the endplates, a little bigger than the section
+        const pl = sec.map(([z, y]) => v(xe, ref[1] + (y - ref[1]) * 1.9, ref[2] + (z - ref[2]) * 1.12));
+        add(parts_, pl, mat, [sx, 0, 0]);
+      }
+      continue;
+    }
     add(parts_, [v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], mat, [0, 1, 0]);
     add(parts_, [v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], mat, [0, 0, -1]);
     add(parts_, [v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0)], mat, [1, 0, 0]);
@@ -11122,6 +11164,26 @@ function rcCar3(c, car, V, P, braking, flame) {
     c.restore();
     if (flame > 0) rcFlame(c, { pipes: m.pipes, w: m.w * 2 }, flame, P, RC.flameK);
     c.restore();
+    // the pipes as short tubes standing out of the tail, not circles on it
+    if (!m.flatPipes) for (const [px, py] of m.pipes) {
+      const y = -py, r = m.pipeR || 0.055, L = 0.07, nS = 14, ring = z => {
+        const out = [];
+        for (let i = 0; i < nS; i++) { const t = i / nS * Math.PI * 2; out.push(V.pt(px + Math.cos(t) * r, y + Math.sin(t) * r * 0.8, z)); }
+        return out;
+      };
+      const r0 = ring(-0.005), r1 = ring(-L);
+      for (let i = 0; i < nS; i++) {
+        const a = r0[i], b2 = r0[(i + 1) % nS], c2 = r1[(i + 1) % nS], d = r1[i];
+        const t = (i + 0.5) / nS * Math.PI * 2, lit = 0.55 + 0.35 * Math.max(0, Math.sin(t));
+        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b2.x, b2.y); c.lineTo(c2.x, c2.y); c.lineTo(d.x, d.y); c.closePath();
+        c.fillStyle = rcMix('#c9ced4', 0, 1 - lit * (night ? 0.6 : 1)); c.fill();
+      }
+      c.beginPath(); r1.forEach(q => c.lineTo(q.x, q.y)); c.closePath();
+      c.fillStyle = night ? '#6d737a' : '#d8dde2'; c.fill();
+      const inner = r1.map(q => q), cx = inner.reduce((s2, q) => s2 + q.x, 0) / nS, cy = inner.reduce((s2, q) => s2 + q.y, 0) / nS;
+      c.beginPath(); inner.forEach(q => c.lineTo(cx + (q.x - cx) * 0.74, cy + (q.y - cy) * 0.74)); c.closePath();
+      c.fillStyle = '#0b0c0e'; c.fill();
+    }
   }
   parts.sort((a, b) => b.d - a.d).forEach(draw);
   c.restore();
@@ -11142,7 +11204,7 @@ function rcDiffuser(c, S, top, inner, fins, fine) {
 }
 
 const RC_M3 = {
-  is350c: { len: 4.64, w: 0.86, gc: 0.13, rax: 0.95, fax: 3.64, tr: 0.32, tw: 0.24,
+  is350c: { lampY: [0.66, 0.94], len: 4.64, w: 0.86, gc: 0.13, rax: 0.95, fax: 3.64, tr: 0.32, tw: 0.24,
     beltR: 0.96, beltF: 0.86, deckR: 0.98, deck0: 1.00, deck1: 0.92, noseH: 0.66,
     cab: [0.30, 0.64], roof: 1.40, rs: 0.13, fs: 0.15, roofW: 0.64, crown: 0.07,
     crease: 0.03, tumble: 0.05, hip: 0.03, fender: 0.02, tailIn: 0.07, tailLen: 0.12, box: 0.30, noseIn: 0.18, noseLen: 0.25,
@@ -11199,7 +11261,7 @@ const RC_M3 = {
       for (const sx of [-1, 1]) rcPipe(c, sx * 0.68, Y(0.19), 0.07, 0.05);
     } },
 
-  huracan: { box: 0.75, len: 4.46, w: 0.93, gc: 0.10, rax: 0.90, fax: 3.52, tr: 0.34, tw: 0.31,
+  huracan: { box: 0.75, lampY: [0.78, 0.99], noBumper: true, flatPipes: true, len: 4.46, w: 0.93, gc: 0.10, rax: 0.90, fax: 3.52, tr: 0.34, tw: 0.31,
     beltR: 0.98, beltF: 0.66, deckR: 1.02, deck0: 1.05, deck1: 0.80, noseH: 0.46,
     cab: [0.40, 0.67], roof: 1.165, rs: 0.06, fs: 0.13, roofW: 0.50, crown: 0.02,
     crease: 0.13, tumble: 0.17, hip: 0.08, fender: 0.03, tailIn: 0.05, tailLen: 0.08, noseIn: 0.26, noseLen: 0.32, noseCurve: 1.7,
@@ -11227,7 +11289,7 @@ const RC_M3 = {
       c.fillStyle = '#16191d'; rcPath(c, rcSym([[0.09, -0.47, 0.01], [0.13, -0.41, 0.01], [0.09, -0.35, 0.01]])); c.fill();
     } },
 
-  typer: { box: 0.6, len: 4.59, w: 0.945, gc: 0.12, rax: 0.80, fax: 3.54, tr: 0.34, tw: 0.27,
+  typer: { box: 0.6, lampY: [0.80, 1.0], noBumper: true, len: 4.59, w: 0.945, gc: 0.12, rax: 0.80, fax: 3.54, tr: 0.34, tw: 0.27,
     beltR: 1.02, beltF: 0.92, deckR: 1.06, deck0: 1.08, deck1: 0.98, noseH: 0.74,
     cab: [0.05, 0.60], roof: 1.42, rs: 0.13, fs: 0.15, roofW: 0.62, crown: 0.05,
     crease: 0.09, tumble: 0.07, hip: 0.09, fender: 0.07, hipH: 0.55, tailIn: 0.04, tailLen: 0.06, noseIn: 0.16, noseLen: 0.22,
@@ -11253,7 +11315,7 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
     } },
 
-  r34: { box: 0.85, len: 4.60, w: 0.89, gc: 0.13, rax: 0.86, fax: 3.53, tr: 0.33, tw: 0.27,
+  r34: { box: 0.85, lampY: [0.73, 0.90], len: 4.60, w: 0.89, gc: 0.13, rax: 0.86, fax: 3.53, tr: 0.33, tw: 0.27,
     beltR: 0.99, beltF: 0.90, deckR: 1.00, deck0: 1.02, deck1: 0.94, noseH: 0.70,
     cab: [0.24, 0.62], roof: 1.36, rs: 0.09, fs: 0.12, roofW: 0.62, crown: 0.02,
     crease: 0.08, tumble: 0.05, hip: 0.05, fender: 0.03, tailIn: 0.01, tailLen: 0.05, noseIn: 0.12, noseLen: 0.2,
@@ -11276,7 +11338,7 @@ const RC_M3 = {
       rcPipe(c, 0.50, -0.19, 0.09, 0.07);
     } },
 
-  supra: { box: 0, len: 4.52, w: 0.905, gc: 0.12, rax: 0.86, fax: 3.41, tr: 0.33, tw: 0.27,
+  supra: { box: 0, lampY: [0.70, 0.90], len: 4.52, w: 0.905, gc: 0.12, rax: 0.86, fax: 3.41, tr: 0.33, tw: 0.27,
     beltR: 0.92, beltF: 0.80, deckR: 0.94, deck0: 0.98, deck1: 0.88, noseH: 0.58,
     cab: [0.26, 0.60], roof: 1.275, rs: 0.12, fs: 0.14, roofW: 0.60, crown: 0.15,
     crease: 0.0, tumble: 0.10, hip: 0.07, fender: 0.04, tailIn: 0.15, tailLen: 0.22, noseIn: 0.20, noseLen: 0.30,
@@ -11298,7 +11360,7 @@ const RC_M3 = {
       rcPipe(c, 0.55, -0.22, 0.10, 0.075);
     } },
 
-  m3: { box: 0.45, len: 4.49, w: 0.89, gc: 0.12, rax: 0.80, fax: 3.53, tr: 0.32, tw: 0.26,
+  m3: { box: 0.45, lampY: [0.74, 0.94], len: 4.49, w: 0.89, gc: 0.12, rax: 0.80, fax: 3.53, tr: 0.32, tw: 0.26,
     beltR: 0.95, beltF: 0.86, deckR: 0.98, deck0: 0.99, deck1: 0.92, noseH: 0.68,
     cab: [0.27, 0.64], roof: 1.37, rs: 0.07, fs: 0.13, roofW: 0.62, crown: 0.06,
     crease: 0.06, tumble: 0.06, hip: 0.07, fender: 0.06, tailIn: 0.05, tailLen: 0.10, noseIn: 0.15, noseLen: 0.20,
@@ -11320,7 +11382,7 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.05, 0.045);
     } },
 
-  carrera: { box: 0, len: 4.52, w: 0.86, gc: 0.11, rax: 1.02, fax: 3.47, tr: 0.34, tw: 0.31,
+  carrera: { box: 0, lampY: [0.74, 0.83], len: 4.52, w: 0.86, gc: 0.11, rax: 1.02, fax: 3.47, tr: 0.34, tw: 0.31,
     beltR: 0.84, beltF: 0.70, deckR: 0.92, deck0: 1.00, deck1: 0.80, noseH: 0.60,
     cab: [0.05, 0.62], roof: 1.30, rs: 0.40, fs: 0.14, roofW: 0.55, crown: 0.15,
     crease: 0, tumble: 0.15, hip: 0.15, fender: 0.07, hipH: 0.62, tailIn: 0.15, tailLen: 0.24, noseIn: 0.22, noseLen: 0.30, noseCurve: 1.1,
@@ -11341,7 +11403,7 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.075, 0.05);
     } },
 
-  stang: { box: 0.5, len: 4.81, w: 0.955, gc: 0.13, rax: 0.95, fax: 3.72, tr: 0.34, tw: 0.28,
+  stang: { box: 0.5, lampY: [0.72, 0.94], len: 4.81, w: 0.955, gc: 0.13, rax: 0.95, fax: 3.72, tr: 0.34, tw: 0.28,
     beltR: 0.99, beltF: 0.92, deckR: 1.00, deck0: 1.02, deck1: 0.97, noseH: 0.78,
     cab: [0.20, 0.55], roof: 1.38, rs: 0.17, fs: 0.14, roofW: 0.60, crown: 0.05,
     crease: 0.09, tumble: 0.07, hip: 0.11, fender: 0.03, tailIn: 0.03, tailLen: 0.05, noseIn: 0.10, noseLen: 0.18,
@@ -11362,7 +11424,7 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.055, 0.05);
     } },
 
-  rs6: { box: 0.65, len: 4.995, w: 0.975, gc: 0.12, rax: 0.98, fax: 3.91, tr: 0.35, tw: 0.30,
+  rs6: { box: 0.65, lampY: [0.86, 0.98], flatPipes: true, len: 4.995, w: 0.975, gc: 0.12, rax: 0.98, fax: 3.91, tr: 0.35, tw: 0.30,
     beltR: 1.02, beltF: 0.92, deckR: 1.04, deck0: 1.06, deck1: 0.98, noseH: 0.74,
     cab: [0.02, 0.62], roof: 1.46, rs: 0.06, fs: 0.14, roofW: 0.66, crown: 0.03,
     crease: 0.05, tumble: 0.07, hip: 0.1, fender: 0.08, tailIn: 0.03, tailLen: 0.04, noseIn: 0.12, noseLen: 0.18, rim: '#3a3e44',
@@ -11389,7 +11451,7 @@ const RC_M3 = {
       }
     } },
 
-  cruiser: { box: 1, len: 4.98, w: 0.99, gc: 0.22, rax: 1.08, fax: 3.93, tr: 0.40, tw: 0.30,
+  cruiser: { box: 1, lampY: [0.92, 1.30], len: 4.98, w: 0.99, gc: 0.22, rax: 1.08, fax: 3.93, tr: 0.40, tw: 0.30,
     beltR: 1.25, beltF: 1.18, deckR: 1.30, deck0: 1.32, deck1: 1.26, noseH: 1.12,
     cab: [0.02, 0.74], roof: 1.95, rs: 0.04, fs: 0.12, roofW: 0.84, crown: 0.01,
     crease: 0.01, tumble: 0.02, hip: 0.03, fender: 0.02, tailIn: 0, tailLen: 0.03, noseIn: 0.05, noseLen: 0.10,
@@ -11415,7 +11477,7 @@ const RC_M3 = {
      roof onto a short tail; slim dart lamps at the upper corners, the radiator
      vents under them, the three pipes in a triangle in the middle over a big
      diffuser, and the wing that rises at speed. */
-  lfa: { box: 0.35, len: 4.505, w: 0.945, gc: 0.11, rax: 0.84, fax: 3.45, tr: 0.34, tw: 0.30,
+  lfa: { box: 0.35, lampY: [0.85, 0.97], noBumper: true, len: 4.505, w: 0.945, gc: 0.11, rax: 0.84, fax: 3.45, tr: 0.34, tw: 0.30,
     beltR: 0.96, beltF: 0.78, deckR: 1.00, deck0: 1.04, deck1: 0.86, noseH: 0.60,
     cab: [0.22, 0.56], roof: 1.26, rs: 0.22, fs: 0.15, roofW: 0.56, crown: 0.10,
     crease: 0.05, tumble: 0.12, hip: 0.11, fender: 0.06, tailIn: 0.06, tailLen: 0.10, noseIn: 0.16, noseLen: 0.22,
@@ -11444,7 +11506,7 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.06, 0.05);
       rcDiffuser(c, S, 0.36, 0.66, 7, fine);
     } },
-  mclaren: { box: 0.05, len: 4.54, w: 0.93, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
+  mclaren: { box: 0.05, lampY: [0.66, 0.93], noBumper: true, len: 4.54, w: 0.93, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
     beltR: 0.98, beltF: 0.66, deckR: 1.04, deck0: 1.10, deck1: 0.78, noseH: 0.50,
     cab: [0.36, 0.72], roof: 1.30, rs: 0.12, fs: 0.18, roofW: 0.58, crown: 0.17,
     crease: 0.03, tumble: 0.2, hip: 0.11, fender: 0.02, tailIn: 0.08, tailLen: 0.10, noseIn: 0.27, noseLen: 0.34, noseCurve: 1.6,
@@ -11466,7 +11528,7 @@ const RC_M3 = {
       rcDiffuser(c, S, 0.40, 0.70, 8, fine);
     } },
 
-  f458: { box: 0.1, len: 4.53, w: 0.95, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
+  f458: { box: 0.1, lampY: [0.74, 0.93], noBumper: true, len: 4.53, w: 0.95, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
     beltR: 1.02, beltF: 0.70, deckR: 1.06, deck0: 1.12, deck1: 0.82, noseH: 0.54,
     cab: [0.38, 0.70], roof: 1.30, rs: 0.13, fs: 0.16, roofW: 0.58, crown: 0.13,
     crease: 0.04, tumble: 0.12, hip: 0.15, fender: 0.05, tailIn: 0.1, tailLen: 0.16, noseIn: 0.24, noseLen: 0.30,
@@ -11485,7 +11547,7 @@ const RC_M3 = {
       for (const p of this.pipes) rcPipe(c, p[0], p[1], 0.068, 0.055);
     } },
 
-  amggtr: { box: 0.2, len: 4.55, w: 0.985, gc: 0.11, rax: 0.88, fax: 3.51, tr: 0.34, tw: 0.31,
+  amggtr: { box: 0.2, lampY: [0.86, 0.96], noBumper: true, flatPipes: true, len: 4.55, w: 0.985, gc: 0.11, rax: 0.88, fax: 3.51, tr: 0.34, tw: 0.31,
     beltR: 0.97, beltF: 0.80, deckR: 1.00, deck0: 1.04, deck1: 0.88, noseH: 0.64,
     cab: [0.12, 0.48], roof: 1.284, rs: 0.20, fs: 0.14, roofW: 0.58, crown: 0.1,
     crease: 0.04, tumble: 0.10, hip: 0.13, fender: 0.06, tailIn: 0.11, tailLen: 0.16, noseIn: 0.14, noseLen: 0.24,
