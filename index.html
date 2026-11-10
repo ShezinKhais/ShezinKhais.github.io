@@ -10709,6 +10709,23 @@ function rc3Build(m) {
     ] });
   }
   m.ru = ru; m.fu = fu; m.hwAt = hw;
+  /* Normals at the points, averaged from the strips around each one, so the
+     body can be shaded smoothly: a panel blends from the light at one edge to
+     the light at the other instead of being one flat tone, which is what made
+     every car look cut from card. */
+  const np = st[0].pts.length;
+  for (const s of st) s.vn = s.pts.map(() => [0, 0, 0]);
+  for (let i = 0; i < st.length - 1; i++) for (let j = 0; j < np - 1; j++) {
+    const a = st[i], b = st[i + 1];
+    const P = [[a.pts[j][0], a.pts[j][1], a.z], [a.pts[j + 1][0], a.pts[j + 1][1], a.z], [b.pts[j + 1][0], b.pts[j + 1][1], b.z], [b.pts[j][0], b.pts[j][1], b.z]];
+    let nx = 0, ny = 0, nz = 0;
+    for (let k = 0; k < 4; k++) { const p = P[k], q = P[(k + 1) % 4]; nx += (p[1] - q[1]) * (p[2] + q[2]); ny += (p[2] - q[2]) * (p[0] + q[0]); nz += (p[0] - q[0]) * (p[1] + q[1]); }
+    const cx = (P[0][0] + P[1][0] + P[2][0] + P[3][0]) / 4, cy = (P[0][1] + P[1][1] + P[2][1] + P[3][1]) / 4;
+    if (nx * cx + ny * (cy - (m.gc + (m.roof - m.gc) * 0.4)) < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    const l = Math.hypot(nx, ny, nz) || 1;
+    for (const [s, jj] of [[a, j], [a, j + 1], [b, j], [b, j + 1]]) { s.vn[jj][0] += nx / l; s.vn[jj][1] += ny / l; s.vn[jj][2] += nz / l; }
+  }
+  for (const s of st) for (const v of s.vn) { const l = Math.hypot(...v) || 1; v[0] /= l; v[1] /= l; v[2] /= l; }
   return st;
 }
 
@@ -10771,8 +10788,18 @@ function rcCar3(c, car, V, P, braking, flame) {
     xp.push({ x: [x - 0.10, x + 0.10].sort((a, b) => a - b), y: [m.noseH * 0.55, m.noseH * 0.55 + 0.02], z: [m.len - 0.20, m.len - 0.02] });
   }
   if (sW >= 3) xp.push({ x: [0.50, 0.58], y: [0.16, 0.30], z: [-0.03, 0.0], col: 'tow' });
+  // door mirrors, at the foot of the windscreen pillars
+  if (!m.noMirrors) {
+    const zm = m.len * (m.cab[1] - m.fs * 0.85), hwm = m.hwAt(zm / m.len), ym = rcLerp(m.beltR, m.beltF, zm / m.len) + 0.10;
+    for (const sx of [-1, 1]) {
+      const x0 = sx * (hwm - 0.02), x1 = sx * (hwm + 0.13);
+      // the far one is behind the cabin from here, so it goes under the body
+      xp.push({ x: [Math.min(x0, x1), Math.max(x0, x1)], y: [ym, ym + 0.11], z: [zm - 0.04, zm + 0.07], col: 'paint',
+        layer: sx * cam[0] < 0 ? 'under' : 'over' });
+    }
+  }
   const allParts = (m.parts || []).concat(xp);
-  const add = (list, P3, mat, fixedN, ref) => {
+  const add = (list, P3, mat, fixedN, ref, meta) => {
     let cx = 0, cy = 0, cz = 0, nx = 0, ny = 0, nz = 0;
     for (let i = 0; i < P3.length; i++) {
       const a = P3[i], b = P3[(i + 1) % P3.length];
@@ -10788,7 +10815,7 @@ function rcCar3(c, car, V, P, braking, flame) {
     const nl = Math.hypot(nx, ny, nz) || 1;
     nx /= nl; ny /= nl; nz /= nl;
     if (nx * (cam[0] - cx) + ny * (cam[1] - cy) + nz * (cam[2] - cz) <= 0) return;
-    list.push({ P3, mat, n: [nx, ny, nz], d: Math.hypot(cam[0] - cx, cam[1] - cy, cam[2] - cz) });
+    list.push({ P3, mat, n: [nx, ny, nz], d: Math.hypot(cam[0] - cx, cam[1] - cy, cam[2] - cz), meta });
   };
   // the body: both sides, strip by strip
   for (let i = 0; i < st.length - 1; i++) {
@@ -10802,7 +10829,7 @@ function rcCar3(c, car, V, P, braking, flame) {
       if (sW >= 3 && mat === 'glass' && j === 4 && (a.u + b.u) / 2 < 0.5) mat = 'lexan';
       for (const sx of [1, -1]) {
         add(faces, [[sx * a.pts[jj][0], a.pts[jj][1], a.z], [sx * a.pts[jj + 1][0], a.pts[jj + 1][1], a.z],
-          [sx * b.pts[jj + 1][0], b.pts[jj + 1][1], b.z], [sx * b.pts[jj][0], b.pts[jj][1], b.z]], mat);
+          [sx * b.pts[jj + 1][0], b.pts[jj + 1][1], b.z], [sx * b.pts[jj][0], b.pts[jj][1], b.z]], mat, null, null, { i, jj, sx });
       }
     }
   }
@@ -10833,7 +10860,7 @@ function rcCar3(c, car, V, P, braking, flame) {
   for (const b of allParts) {
     const [x0, x1] = b.x, [y0, y1] = b.y, [z0, z1] = b.z, mat = b.col || 'carbon';
     // parts at the far end are behind the body from here, so they go under it
-    const parts_ = z0 > m.len * 0.6 ? nose : parts;
+    const parts_ = b.layer === 'under' ? nose : b.layer === 'over' ? parts : z0 > m.len * 0.6 ? nose : parts;
     const v = (x, y, z) => [x, y, z];
     add(parts_, [v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], mat, [0, 1, 0]);
     add(parts_, [v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], mat, [0, 0, -1]);
@@ -10864,7 +10891,21 @@ function rcCar3(c, car, V, P, braking, flame) {
     for (const p of f.P3) { const q = V.pt(p[0], p[1], p[2]); c.lineTo(q.x, q.y); }
     c.closePath();
     const col = shadeOf(f);
-    c.fillStyle = col; c.strokeStyle = col; c.fill(); c.stroke();
+    const smooth = f.meta && f.mat !== 'glass' && f.mat !== 'lexan' && f.mat !== 'interior';
+    if (smooth) {
+      // blend across the strip from one row of point normals to the next
+      const { i, jj, sx } = f.meta, a = st[i], b = st[i + 1];
+      const vn = k => { const p = a.vn[k], q = b.vn[k]; return [sx * (p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2]; };
+      const c0 = shadeOf({ mat: f.mat, n: vn(jj) }), c1 = shadeOf({ mat: f.mat, n: vn(jj + 1) });
+      const m0 = V.pt(sx * (a.pts[jj][0] + b.pts[jj][0]) / 2, (a.pts[jj][1] + b.pts[jj][1]) / 2, (a.z + b.z) / 2);
+      const m1 = V.pt(sx * (a.pts[jj + 1][0] + b.pts[jj + 1][0]) / 2, (a.pts[jj + 1][1] + b.pts[jj + 1][1]) / 2, (a.z + b.z) / 2);
+      if (Math.hypot(m1.x - m0.x, m1.y - m0.y) > 0.5) {
+        const g = c.createLinearGradient(m0.x, m0.y, m1.x, m1.y);
+        g.addColorStop(0, c0); g.addColorStop(1, c1);
+        c.fillStyle = g; c.strokeStyle = g;
+      } else { c.fillStyle = col; c.strokeStyle = col; }
+    } else { c.fillStyle = col; c.strokeStyle = col; }
+    c.fill(); c.stroke();
     if (f.mat === 'wheel') {                       // the rim, inside the tyre
       const sx = Math.sign(f.P3[0][0]), zc = f.P3[0][2] - m.tr, x = f.P3[0][0];
       c.beginPath();
@@ -10975,22 +11016,52 @@ const RC_M3 = {
     crease: 0.03, tumble: 0.05, hip: 0.03, fender: 0.02, tailIn: 0.07, tailLen: 0.12, noseIn: 0.18, noseLen: 0.25,
     parts: [],
     pipes: [[-0.62, -0.20], [0.62, -0.20]],
+    /* From photographs of the real one, from behind: a lip spoiler with the high
+       brake light let into it, lamps that wrap the corners and point in towards
+       the plate with three bars of LED across them, the L in its oval over a
+       chrome trapezoid round the plate, F SPORT and IS 350C either side of it, a
+       deep bumper with a small reflector low in each corner and the parking
+       sensors, and a round pipe under each corner. */
     tail(c, S, car, on, braking, fine) {
+      const hw = S.hw;
+      // the lip, and the brake light in it
+      c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-hw * 0.78, -S.top + 0.035, hw * 1.56, 0.012);
+      c.fillStyle = braking ? '#ff3a2c' : '#5a1416'; c.fillRect(-0.30, -S.top + 0.012, 0.60, 0.018);
       for (const sx of [-1, 1]) {
-        rcLens(c, rcSide([[0.30, -0.90, 0.02], [S.hw - 0.05, -0.92, 0.05], [S.hw - 0.01, -0.80, 0.05], [S.hw - 0.03, -0.70, 0.03], [0.56, -0.70, 0.03], [0.32, -0.76, 0.02]], sx), on, braking, fine);
-        if (fine) { c.fillStyle = 'rgba(255,255,255,.40)'; c.fillRect(sx * 0.40 - (sx < 0 ? 0.12 : 0), -0.85, 0.12, 0.09); }
-        rcGlow(c, sx * 0.62, -0.80, 0.5, on || braking);
+        rcLens(c, rcSide([[0.36, -0.79, 0.01], [0.46, -0.90, 0.02], [hw - 0.06, -0.94, 0.05], [hw - 0.005, -0.84, 0.05],
+          [hw - 0.03, -0.72, 0.03], [0.70, -0.70, 0.02], [0.50, -0.73, 0.01]], sx), on, braking, fine);
+        if (fine) {
+          c.strokeStyle = braking ? 'rgba(255,220,205,.9)' : on ? 'rgba(255,170,150,.7)' : 'rgba(255,190,180,.35)';
+          c.lineWidth = 0.014; c.lineCap = 'round';
+          for (let k = 0; k < 3; k++) {
+            const y = -0.88 + k * 0.045;
+            c.beginPath(); c.moveTo(sx * (0.52 + k * 0.03), y); c.lineTo(sx * (hw - 0.07 + k * 0.005), y - 0.012); c.stroke();
+          }
+          c.lineCap = 'butt';
+        }
+        rcGlow(c, sx * 0.66, -0.82, 0.55, on || braking);
       }
-      rcTailBits(c, S, fine);
       if (fine) {
-        c.fillStyle = 'rgba(235,238,242,.75)'; c.fillRect(-0.30, -0.80, 0.60, 0.022);
-        c.strokeStyle = 'rgba(235,238,242,.9)'; c.lineWidth = 0.018;
-        c.beginPath(); c.ellipse(0, -0.73, 0.075, 0.05, 0, 0, 7); c.stroke();
-        rcPlateAt(c, -0.60, 0.34);
+        // the chrome trapezoid round the plate
+        c.strokeStyle = 'rgba(235,238,242,.85)'; c.lineWidth = 0.02;
+        c.beginPath(); c.moveTo(-0.38, -0.76); c.lineTo(0.38, -0.76); c.lineTo(0.30, -0.53); c.lineTo(-0.30, -0.53); c.closePath(); c.stroke();
+        c.fillStyle = 'rgba(0,0,0,.10)'; c.fill();
+        rcPlateAt(c, -0.71, 0.34);
+        // the L in its oval
+        c.strokeStyle = 'rgba(235,238,242,.95)'; c.lineWidth = 0.016;
+        c.beginPath(); c.ellipse(0, -0.835, 0.065, 0.042, 0, 0, 7); c.stroke();
+        c.beginPath(); c.moveTo(-0.02, -0.865); c.lineTo(-0.03, -0.81); c.lineTo(0.035, -0.81); c.stroke();
+        c.font = '600 0.035px sans-serif'; c.textAlign = 'center'; c.fillStyle = 'rgba(40,44,50,.75)';
+        c.fillText('F SPORT', -0.52, -0.57); c.fillText('IS 350C', 0.52, -0.57);
+        // boot shut line, and the bumper below it
+        c.strokeStyle = 'rgba(0,0,0,.30)'; c.lineWidth = 0.012;
+        c.beginPath(); c.moveTo(-hw + 0.08, -0.62); c.quadraticCurveTo(0, -0.50, hw - 0.08, -0.62); c.stroke();
+        c.fillStyle = '#b3342b';
+        for (const sx of [-1, 1]) c.fillRect(sx * 0.70 - 0.05, -0.34, 0.10, 0.03);
+        c.fillStyle = 'rgba(0,0,0,.18)';
+        for (const x of [-0.42, -0.16, 0.16, 0.42]) { c.beginPath(); c.arc(x, -0.40, 0.012, 0, 7); c.fill(); }
       }
-      c.fillStyle = '#1c1f24';
-      rcPath(c, rcSym([[S.hw * 0.86, -0.32, 0.06], [S.hw * 0.86, rcY(S.gc), 0.02], [0.3, rcY(S.gc), 0]])); c.fill();
-      for (const sx of [-1, 1]) rcPipe(c, sx * 0.62, -0.20, 0.085, 0.055);
+      for (const sx of [-1, 1]) rcPipe(c, sx * 0.62, -0.17, 0.065, 0.05);
     } },
 
   huracan: { len: 4.46, w: 0.93, gc: 0.10, rax: 0.90, fax: 3.52, tr: 0.34, tw: 0.31,
