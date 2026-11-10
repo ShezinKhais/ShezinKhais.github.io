@@ -9977,7 +9977,7 @@ const RC_HERO = {
      flying buttresses either side of it, the airbrake spans the whole tail,
      the lamps are two thin blades along the upper edge, and the pipes sit
      high in the middle of an open mesh, over a diffuser as deep as the bumper. */
-  mclaren: { w: 1.93, len: 4.54, h: 1.196, pipes: [[-0.13, -0.66], [0.13, -0.66]],
+  mclaren: { w: 1.93, len: 4.54, h: 1.30, pipes: [[-0.13, -0.66], [0.13, -0.66]],
     prof: [[0, .94, .60, 'roof'], [.10, .90, .72, 'roof'], [.27, 1, .64, 'roof'], [.45, .97, .60, 'glass'], [.60, .64, .96, 'bonnet'], [.92, .58, .86, 'nose'], [1, .46, .64]],
     body: rcSym([[0.50, -1.19, 0.06], [0.78, -1.06, 0.22], [0.965, -0.74, 0.12], [0.965, -0.36, 0.05], [0.92, -0.12, 0.06], [0.40, -0.12, 0]]),
     draw(c, car, P, braking, fine) {
@@ -10034,7 +10034,7 @@ const RC_HERO = {
   /* 458 Italia: round lamps set high in the corners, a black mesh band under
      them, a lip of a spoiler on the deck, and the three pipes stacked in a
      triangle in the middle of the diffuser, which is the giveaway. */
-  f458: { w: 1.937, len: 4.53, h: 1.203, pipes: [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]],
+  f458: { w: 1.937, len: 4.53, h: 1.30, pipes: [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]],
     prof: [[0, .95, .62, 'roof'], [.10, .91, .74, 'roof'], [.27, 1, .66, 'roof'], [.45, .98, .62, 'glass'], [.61, .66, .96, 'bonnet'], [.92, .60, .88, 'nose'], [1, .48, .66]],
     body: rcSym([[0.58, -1.20, 0.06], [0.82, -1.07, 0.24], [0.965, -0.78, 0.14], [0.96, -0.40, 0.05], [0.92, -0.13, 0.06], [0.40, -0.13, 0]]),
     draw(c, car, P, braking, fine) {
@@ -10971,10 +10971,9 @@ function rcDiffuser(c, S, top, inner, fins, fine) {
 const RC_M3 = {
   is350c: { len: 4.64, w: 0.86, gc: 0.13, rax: 0.95, fax: 3.64, tr: 0.32, tw: 0.24,
     beltR: 0.96, beltF: 0.86, deckR: 0.98, deck0: 1.00, deck1: 0.92, noseH: 0.66,
-    cab: [0.34, 0.62], roof: 1.34, rs: 0.04, fs: 0.09, open: true, roofW: 0.66, crown: 0.06,
+    cab: [0.30, 0.64], roof: 1.40, rs: 0.13, fs: 0.15, roofW: 0.64, crown: 0.07,
     crease: 0.03, tumble: 0.05, hip: 0.03, fender: 0.02, tailIn: 0.07, tailLen: 0.12, noseIn: 0.18, noseLen: 0.25,
-    parts: [[-0.38, -0.24], [0.24, 0.38], [-0.36, -0.24], [0.24, 0.36]].map(([a, b], i) =>
-      ({ x: [a, b], y: [0.98, i < 2 ? 1.14 : 1.10], z: i < 2 ? [2.10, 2.17] : [1.66, 1.72], col: 'trim' })),
+    parts: [],
     pipes: [[-0.62, -0.20], [0.62, -0.20]],
     tail(c, S, car, on, braking, fine) {
       for (const sx of [-1, 1]) {
@@ -11207,9 +11206,9 @@ const RC_M3 = {
     } },
 
   mclaren: { len: 4.54, w: 0.93, gc: 0.10, rax: 0.92, fax: 3.59, tr: 0.34, tw: 0.31,
-    beltR: 0.90, beltF: 0.60, deckR: 0.98, deck0: 1.02, deck1: 0.74, noseH: 0.44,
-    cab: [0.38, 0.72], roof: 1.196, rs: 0.10, fs: 0.17, roofW: 0.54, crown: 0.10,
-    crease: 0.02, tumble: 0.15, hip: 0.07, fender: 0.02, tailIn: 0.06, tailLen: 0.10, noseIn: 0.27, noseLen: 0.34, noseCurve: 1.6,
+    beltR: 0.98, beltF: 0.66, deckR: 1.04, deck0: 1.10, deck1: 0.78, noseH: 0.50,
+    cab: [0.36, 0.72], roof: 1.30, rs: 0.12, fs: 0.18, roofW: 0.58, crown: 0.13,
+    crease: 0.03, tumble: 0.13, hip: 0.10, fender: 0.02, tailIn: 0.06, tailLen: 0.10, noseIn: 0.27, noseLen: 0.34, noseCurve: 1.6,
     glassDeck: [0.10, 0.38], intake: [0.24, 0.40], rim: '#202327',
     parts: [{ x: [-0.82, 0.82], y: [0.99, 1.03], z: [0.02, 0.30], col: 'paint' }],
     pipes: [[-0.13, -0.66], [0.13, -0.66]],
@@ -11229,9 +11228,9 @@ const RC_M3 = {
     } },
 
   f458: { len: 4.53, w: 0.95, gc: 0.11, rax: 0.94, fax: 3.59, tr: 0.34, tw: 0.30,
-    beltR: 0.95, beltF: 0.66, deckR: 1.00, deck0: 1.06, deck1: 0.78, noseH: 0.48,
-    cab: [0.40, 0.69], roof: 1.203, rs: 0.12, fs: 0.15, roofW: 0.54, crown: 0.07,
-    crease: 0.03, tumble: 0.13, hip: 0.09, fender: 0.05, tailIn: 0.07, tailLen: 0.10, noseIn: 0.24, noseLen: 0.30,
+    beltR: 1.02, beltF: 0.70, deckR: 1.06, deck0: 1.12, deck1: 0.82, noseH: 0.54,
+    cab: [0.38, 0.70], roof: 1.30, rs: 0.13, fs: 0.16, roofW: 0.58, crown: 0.11,
+    crease: 0.04, tumble: 0.12, hip: 0.12, fender: 0.05, tailIn: 0.07, tailLen: 0.10, noseIn: 0.24, noseLen: 0.30,
     glassDeck: [0.14, 0.40], intake: [0.30, 0.40],
     parts: [{ x: [-0.66, 0.66], y: [1.00, 1.025], z: [0.0, 0.08], col: 'paint' }],
     pipes: [[-0.13, -0.38], [0.13, -0.38], [0, -0.28]],
