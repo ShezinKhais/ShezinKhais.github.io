@@ -10794,6 +10794,14 @@ function rc3Build(m) {
       else { p[1] += f * 0.05; p[0] *= 1 - f * 0.05; }
     });
   }
+  // the height of the top of the body along its length, for seating parts on it
+  m.deckAt = z => {
+    const u = rcClamp(z / L, 0, 1);
+    let i = 0; while (i < st.length - 2 && st[i + 1].u < u) i++;
+    const a = st[i], b = st[i + 1], t = rcClamp((u - a.u) / ((b.u - a.u) || 1), 0, 1);
+    const h = s => Math.max(s.pts[5][1], s.k > 0.5 ? s.pts[5][1] : s.pts[8][1]);
+    return rcLerp(h(a), h(b), t);
+  };
   /* Normals at the points, averaged from the strips around each one, so the
      body can be shaded smoothly: a panel blends from the light at one edge to
      the light at the other instead of being one flat tone, which is what made
@@ -10886,11 +10894,22 @@ function rcCar3(c, car, V, P, braking, flame) {
   if (m.activeWing) {
     // the LFA's wing, flush at a crawl and standing up from about 80 km/h
     const up = car === RC.car ? rcClamp((RC.v * 3.6 - 80) / 40, 0, 1) : 1;
-    const y0 = m.deckR + 0.01 + up * 0.10;
+    const y0 = (m.deckAt ? m.deckAt(0.17) : m.deckR) + 0.004 + up * 0.10;
     xp.push({ x: [-(m.w - 0.20), m.w - 0.20], y: [y0, y0 + 0.035], z: [0.04, 0.30], col: 'carbon', layer: 'over' });
-    if (up > 0.05) for (const sx of [-1, 1]) xp.push({ x: sx < 0 ? [-0.34, -0.31] : [0.31, 0.34], y: [m.deckR, y0], z: [0.12, 0.18], col: 'carbon', layer: 'over' });
+    if (up > 0.05) for (const sx of [-1, 1]) xp.push({ x: sx < 0 ? [-0.34, -0.31] : [0.31, 0.34], y: [y0 - 0.1, y0], z: [0.12, 0.18], col: 'carbon', layer: 'over' });
   }
-  const allParts = (m.parts || []).concat(xp);
+  /* Seat everything on the body. Wings, lips and their struts were placed at
+     fixed heights, and with the tail rolled over they hovered above it: a
+     part that starts near the deck now starts on it, and a strut or endplate
+     reaches down to it. */
+  const allParts = (m.parts || []).concat(xp).map(b => {
+    if (b.col === 'seat' || b.col === 'trim' || b.col === 'tow' || b.layer === 'under' || b.z[0] > m.len * 0.5) return b;
+    const zm = (b.z[0] + b.z[1]) / 2, dk = m.deckAt(zm);
+    const narrow = b.x[1] - b.x[0] < 0.12 && b.z[1] - b.z[0] < 0.12;   // a strut, not an endplate
+    if (narrow && b.y[1] - b.y[0] > 0.05) return Object.assign({}, b, { y: [dk - 0.02, b.y[1]] });   // struts, endplates
+    if (Math.abs(b.y[0] - dk) < 0.08) return Object.assign({}, b, { y: [dk - 0.005, dk - 0.005 + (b.y[1] - b.y[0])] });  // lips
+    return b;
+  });
   const add = (list, P3, mat, fixedN, ref, meta) => {
     let cx = 0, cy = 0, cz = 0, nx = 0, ny = 0, nz = 0;
     for (let i = 0; i < P3.length; i++) {
@@ -10965,13 +10984,13 @@ function rcCar3(c, car, V, P, braking, flame) {
     const [nx, ny, nz] = f.n;
     const base = f.mat === 'wheel' ? cols.tyre : f.mat === 'paint' ? paint : (cols[f.mat] || paint);
     const dif = Math.max(0, nx * RC_L3[0] + ny * RC_L3[1] + nz * RC_L3[2]);
-    const lum = 0.52 + 0.48 * dif;
+    const lum = 0.58 + 0.42 * dif;
     let col = rcMix(base, 0, 1 - lum);
     // a highlight where the surface turns the light towards us: the shoulder and the hips catch it
     if (f.mat !== 'tyre' && f.mat !== 'wheel' && f.mat !== 'interior') {
       const hx = RC_L3[0], hy = RC_L3[1] + 0.25, hz = RC_L3[2] - 0.9, hl = Math.hypot(hx, hy, hz);
-      const sp = Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), 14);
-      if (sp > 0.01) col = rcMix(col, 255, sp * (night ? 0.18 : 0.38));
+      const sp = Math.pow(Math.max(0, (nx * hx + ny * hy + nz * hz) / hl), 5);
+      if (sp > 0.01) col = rcMix(col, 255, sp * (night ? 0.12 : 0.26));
     }
     if (f.mat === 'glass' || f.mat === 'lexan') col = rcMix(col, 255, (night ? 0.04 : 0.10) + Math.max(0, ny) * (night ? 0.06 : 0.22));
     else if (f.mat === 'carbon') col = rcMix(col, 255, 0.05 + Math.max(0, ny) * (night ? 0.05 : 0.14));
@@ -10983,20 +11002,20 @@ function rcCar3(c, car, V, P, braking, flame) {
     for (const p of f.P3) { const q = V.pt(p[0], p[1], p[2]); c.lineTo(q.x, q.y); }
     c.closePath();
     const col = shadeOf(f);
-    const smooth = f.meta && f.mat !== 'glass' && f.mat !== 'lexan' && f.mat !== 'interior';
-    if (smooth) {
-      // blend across the strip from one row of point normals to the next
+    /* One colour per panel, taken from the normals at its four corners averaged
+       together, so neighbouring panels differ by a sliver of a shade and the
+       body reads as one surface. Per-panel gradients looked smooth across a
+       strip but never matched the next one along, which drew streaks down the
+       flanks, and so did the outline stroked in them. */
+    let fillCol = col;
+    if (f.meta && f.mat !== 'glass' && f.mat !== 'lexan' && f.mat !== 'interior') {
       const { i, jj, sx } = f.meta, a = st[i], b = st[i + 1];
-      const vn = k => { const p = a.vn[k], q = b.vn[k]; return [sx * (p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2]; };
-      const c0 = shadeOf({ mat: f.mat, n: vn(jj) }), c1 = shadeOf({ mat: f.mat, n: vn(jj + 1) });
-      const m0 = V.pt(sx * (a.pts[jj][0] + b.pts[jj][0]) / 2, (a.pts[jj][1] + b.pts[jj][1]) / 2, (a.z + b.z) / 2);
-      const m1 = V.pt(sx * (a.pts[jj + 1][0] + b.pts[jj + 1][0]) / 2, (a.pts[jj + 1][1] + b.pts[jj + 1][1]) / 2, (a.z + b.z) / 2);
-      if (Math.hypot(m1.x - m0.x, m1.y - m0.y) > 0.5) {
-        const g = c.createLinearGradient(m0.x, m0.y, m1.x, m1.y);
-        g.addColorStop(0, c0); g.addColorStop(1, c1);
-        c.fillStyle = g; c.strokeStyle = g;
-      } else { c.fillStyle = col; c.strokeStyle = col; }
-    } else { c.fillStyle = col; c.strokeStyle = col; }
+      const v = [0, 0, 0];
+      for (const q of [a.vn[jj], a.vn[jj + 1], b.vn[jj], b.vn[jj + 1]]) { v[0] += q[0]; v[1] += q[1]; v[2] += q[2]; }
+      const l = Math.hypot(...v) || 1;
+      fillCol = shadeOf({ mat: f.mat, n: [sx * v[0] / l, v[1] / l, v[2] / l] });
+    }
+    c.fillStyle = fillCol; c.strokeStyle = fillCol;
     c.fill(); c.stroke();
     if (f.mat === 'wheel') {                       // the rim, inside the tyre
       const sx = Math.sign(f.P3[0][0]), zc = f.P3[0][2] - m.tr, x = f.P3[0][0];
