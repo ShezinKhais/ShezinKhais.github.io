@@ -283,6 +283,18 @@
   .code-note { font-size:12px; color:var(--muted); margin:8px 0 0; max-width:70ch; }
   .code-src { font-size:11px; margin:4px 0 0; }
   .code-src a { color:var(--num); }
+  /* count the work: what the run actually did, against what the text promises */
+  .countwork { margin-top:14px; }
+  .cw-read { font-size:12.5px; color:var(--muted); margin:0 0 8px; max-width:70ch; }
+  .cw-row { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  .cw-row button {
+    font:inherit; font-size:11.5px; color:var(--num); cursor:pointer; background:var(--bg);
+    border:1px solid var(--sn-mid); border-radius:0; padding:7px 14px;
+  }
+  .cw-row button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .cw-sub { font-size:11px; color:var(--dim); }
+  .countwork canvas { display:block; margin-top:10px; border:1px solid var(--line); background:var(--bg); width:100%; max-width:420px; height:auto; }
+  .cw-out { font-size:12.5px; color:var(--fg); margin:8px 0 0; max-width:70ch; }
   .printfig { display:none; }
   /* the evidence line under a project: written by the daily workflow, and
      simply absent until it has run once */
@@ -1308,6 +1320,12 @@
 
       <div class="demo-out" id="ccOut" aria-live="polite"></div>
 
+      <div class="countwork">
+        <p class="cw-read" id="ccCountRead"></p>
+        <div class="cw-row"><button type="button" id="ccScale">Scale it</button><span class="cw-sub">eight random graphs, counted rather than timed</span></div>
+        <canvas id="ccScaleCv" role="img" aria-label="Measured work against the predicted line" hidden></canvas>
+        <p class="cw-out" id="ccScaleOut" aria-live="polite"></p>
+      </div>
       <div class="codepane" id="ccCode">
         <div class="code-tabs" role="tablist" aria-label="Read the code">
           <button role="tab" id="ccCodeJsT" aria-selected="true" aria-controls="ccCodeJs">This page (JavaScript)</button>
@@ -1404,6 +1422,12 @@
 
       <div class="demo-out" id="hdOut" aria-live="polite"></div>
 
+      <div class="countwork">
+        <p class="cw-read" id="hdCountRead"></p>
+        <div class="cw-row"><button type="button" id="hdScale">Scale it</button><span class="cw-sub">eight pairs of random progressions, longer each time</span></div>
+        <canvas id="hdScaleCv" role="img" aria-label="Measured work against the predicted line" hidden></canvas>
+        <p class="cw-out" id="hdScaleOut" aria-live="polite"></p>
+      </div>
       <div class="codepane" id="hdCode">
         <div class="code-tabs" role="tablist" aria-label="Read the code">
           <button role="tab" id="hdCodeJsT" aria-selected="true" aria-controls="hdCodeJs">This page (JavaScript)</button>
@@ -6102,6 +6126,10 @@ function faReport() {
         : gap > 0 ? 'In plain terms: working together, the three banks caught fraud better than any one of them could alone'
         : 'In plain terms: here, working together did worse than the best bank working alone') +
       ', and no bank ever sent another a single customer record.'));
+    // what crossed the wire, against what stayed in each bank: 3 weights of 8 bytes, out and back, every round
+    const shared = FA_ROUNDS * 3 * 2 * 3 * 8, kept = FA_SIZES[faSize.value].reduce((a, b) => a + b, 0) * 3 * 8;
+    faOut.appendChild(plainLine(`Counted: over ${FA_ROUNDS} rounds the banks exchanged ${shared.toLocaleString('en-GB')} bytes of model weights in all, ` +
+      `while the ${(kept / 1e6).toFixed(2)} MB of transactions they trained on never left them. (This page's model has three weights; the repo's network has more, and the same is true of it.)`));
   }
   faCv.setAttribute('aria-label', `After ${FA_ROUNDS} rounds the federated model scores AUROC ${f3(last.auroc)} and F1 ${f3(last.f1)}; ` +
     `the three banks trained alone score between ${f3(worst)} and ${f3(best)} AUROC.`);
@@ -13013,6 +13041,111 @@ wireWalk('el', () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({
   'four steps, from signal to verdict');
 wireWalk('fa', () => { if (faDemo.hidden) faTry.click(); faDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
   'four steps, and no data moves');
+
+/* Count the work. The text says Tarjan is one pass, O(V+E), and that the
+   alignment fills every cell once. Rather than leave that as a claim, each demo
+   counts what it actually did, and "Scale it" runs the same algorithm on larger
+   random inputs, counting operations rather than timing them, and plots the
+   counts against the line the claim predicts. */
+function cwRng(seed) { let t = seed >>> 0; return () => { t = (t + 0x6D2B79F5) >>> 0; let x = Math.imul(t ^ (t >>> 15), 1 | t); x ^= x + Math.imul(x ^ (x >>> 7), 61 | x); return ((x ^ (x >>> 14)) >>> 0) / 4294967296; }; }
+// Tarjan without recording anything, counting each node visited and each edge looked at
+function tarjanCount(N, edges) {
+  const adj = Array.from({ length: N }, () => []);
+  for (const [a, b] of edges) adj[a].push(b);
+  const index = new Int32Array(N).fill(-1), low = new Int32Array(N), on = new Uint8Array(N), stack = [];
+  let counter = 0, ops = 0;
+  for (let s0 = 0; s0 < N; s0++) {
+    if (index[s0] !== -1) continue;
+    const work = [[s0, 0]];
+    index[s0] = low[s0] = counter++; stack.push(s0); on[s0] = 1; ops++;
+    while (work.length) {
+      const top = work[work.length - 1], v = top[0];
+      if (top[1] < adj[v].length) {
+        const w = adj[v][top[1]++]; ops++;
+        if (index[w] === -1) { index[w] = low[w] = counter++; stack.push(w); on[w] = 1; ops++; work.push([w, 0]); }
+        else if (on[w]) low[v] = Math.min(low[v], index[w]);
+      } else {
+        work.pop();
+        if (low[v] === index[v]) { let w; do { w = stack.pop(); on[w] = 0; } while (w !== v); }
+        if (work.length) { const u = work[work.length - 1][0]; low[u] = Math.min(low[u], low[v]); }
+      }
+    }
+  }
+  return ops;
+}
+function swCount(A, B) {
+  let prev = new Array(B.length + 1).fill(0), ops = 0;
+  for (let i = 1; i <= A.length; i++) {
+    const cur = new Array(B.length + 1).fill(0);
+    for (let j = 1; j <= B.length; j++) {
+      cur[j] = Math.max(0, prev[j - 1] + chordSim(A[i - 1], B[j - 1]), prev[j] + GAP, cur[j - 1] + GAP); ops++;
+    }
+    prev = cur;
+  }
+  return ops;
+}
+function cwPlot(cv, pts, xLabel, yLabel) {
+  const w = 420, h = 220, d = Math.min(devicePixelRatio || 1, 2);
+  cv.width = w * d; cv.height = h * d; cv.hidden = false;
+  const c = cv.getContext('2d'); c.setTransform(d, 0, 0, d, 0, 0);
+  c.fillStyle = css('--bg'); c.fillRect(0, 0, w, h);
+  const L = 54, R = 14, T = 14, B = 34, mx = Math.max(...pts.map(p => p.x)), my = Math.max(...pts.map(p => p.y));
+  const X = v => L + (w - L - R) * v / mx, Y = v => h - B - (h - T - B) * v / my;
+  c.strokeStyle = css('--line'); c.lineWidth = 1;
+  c.beginPath(); c.moveTo(L, T); c.lineTo(L, h - B); c.lineTo(w - R, h - B); c.stroke();
+  c.setLineDash([5, 4]); c.strokeStyle = css('--sn-mid');
+  c.beginPath(); c.moveTo(X(0), Y(0)); c.lineTo(X(mx), Y(mx)); c.stroke(); c.setLineDash([]);
+  c.fillStyle = css('--num');
+  for (const p of pts) { c.beginPath(); c.arc(X(p.x), Y(p.y), 3.5, 0, 7); c.fill(); }
+  c.fillStyle = css('--dim'); c.font = '10.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+  c.textAlign = 'center'; c.fillText(xLabel, L + (w - L - R) / 2, h - 10);
+  c.save(); c.translate(14, T + (h - T - B) / 2); c.rotate(-Math.PI / 2); c.fillText(yLabel, 0, 0); c.restore();
+  c.textAlign = 'right'; c.fillText(my.toLocaleString('en-GB'), L - 6, T + 8); c.fillText('0', L - 6, h - B);
+}
+const nf = v => v.toLocaleString('en-GB');
+function ccCountNow() {
+  const g = CC_GRAPHS[+ccPick.value], ops = tarjanCount(g.n.length, g.e);
+  document.getElementById('ccCountRead').textContent =
+    `This graph: ${g.n.length} modules and ${g.e.length} imports. Counted, the search visited each module once and looked along each import once: ${ops} steps, which is V + E = ${g.n.length + g.e.length}.`;
+}
+function hdCountNow() {
+  const A = TRACKS[+selA.value].seq, B = TRACKS[+selB.value].seq;
+  document.getElementById('hdCountRead').textContent =
+    `This pair: ${A.length} chords against ${B.length}. Counted, the fill computes each of the ${A.length} × ${B.length} = ${A.length * B.length} cells exactly once.`;
+}
+document.getElementById('ccScale').addEventListener('click', () => {
+  const r = cwRng(7), pts = []; let t0 = performance.now(), allExact = true;
+  for (let k = 1; k <= 8; k++) {
+    const N = 400 * k, E = 3 * N, edges = [];
+    for (let i = 0; i < E; i++) edges.push([Math.floor(r() * N), Math.floor(r() * N)]);
+    const ops = tarjanCount(N, edges);
+    if (ops !== N + E) allExact = false;
+    pts.push({ x: N + E, y: ops });
+  }
+  const ms = performance.now() - t0, last = pts[pts.length - 1];
+  cwPlot(document.getElementById('ccScaleCv'), pts, 'V + E', 'steps counted');
+  document.getElementById('ccScaleOut').textContent =
+    `Eight random graphs from 400 to 3,200 modules, three imports each on average. ` +
+    (allExact ? `Every one took exactly V + E steps` : `The counts sit on the V + E line`) +
+    `, up to ${nf(last.y)} for the largest: the dots lie on the dashed line, which is what O(V+E) means. All eight ran in ${ms.toFixed(1)} ms on your machine.`;
+});
+document.getElementById('hdScale').addEventListener('click', () => {
+  const r = cwRng(11), names = Object.keys(PCI).flatMap(p => [p + 'maj', p + 'min']), pts = [];
+  const seq = n => Array.from({ length: n }, () => names[Math.floor(r() * names.length)]);
+  const t0 = performance.now();
+  for (let k = 1; k <= 8; k++) {
+    const n = 20 * k, m = 15 * k, ops = swCount(seq(n), seq(m));
+    pts.push({ x: n * m, y: ops });
+  }
+  const ms = performance.now() - t0, last = pts[pts.length - 1];
+  cwPlot(document.getElementById('hdScaleCv'), pts, 'chords in A × chords in B', 'cells computed');
+  document.getElementById('hdScaleOut').textContent =
+    `Eight pairs of random progressions, from 20 × 15 chords to 160 × 120. Each took exactly n × m cell computations, ${nf(last.y)} for the largest, ` +
+    `so doubling both songs quadruples the work: that is the quadratic cost the project accepts for an exact local alignment. All eight ran in ${ms.toFixed(1)} ms on your machine.`;
+});
+ccCountNow(); hdCountNow();
+ccPick.addEventListener('change', ccCountNow);
+selA.addEventListener('change', hdCountNow); selB.addEventListener('change', hdCountNow);
 
 /* Read the code. Two listings beside each of the first two demos: the
    JavaScript actually running on this page, read straight from the function
