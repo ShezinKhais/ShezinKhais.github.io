@@ -71,7 +71,7 @@ const pass = msg => console.log('ok   ' + msg);
   await axe('reduced motion', { colorScheme: 'light', reducedMotion: 'reduce' });
 
   // every demo opens from its shared link without a script error
-  for (const d of ['cc', 'hd', 'el', 'fa']) {
+  for (const d of ['cc', 'hd', 'el', 'fa', 'am']) {
     const { ctx, page, errors } = await open({}, `#d=${d}`);
     const shown = await page.evaluate(k => !document.getElementById(k + 'Demo').hidden, d);
     if (!shown) fail(`demo ${d} did not open from its link`);
