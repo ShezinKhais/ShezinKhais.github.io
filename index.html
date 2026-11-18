@@ -684,7 +684,7 @@
   .brief dt { font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim); margin-bottom:3px; }
   .brief dd { margin:0; font-size:13px; color:var(--muted); }
   .brief dd b { color:var(--fg); font-weight:600; }
-  .brief .brief-links { display:flex; gap:22px; grid-column:1 / -1; padding-top:6px; border-top:0; }
+  .brief-links { display:flex; gap:22px; margin-top:6px; border-top:1px solid var(--line); padding-top:6px; }
   .brief-links a { font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--num); text-decoration:none; padding:6px 0; }
   .brief-links a:hover, .brief-links a:focus-visible { color:var(--fg); }
   @media (max-width:640px) { .brief { grid-template-columns:1fr; } }
@@ -976,7 +976,7 @@
   body.onsnake { cursor:pointer; }
 
   footer { margin:70px 0 60px; font-size:12.5px; color:var(--dim); border-top:1px solid var(--line); padding-top:22px; }
-  footer a { color:var(--muted); text-decoration:none; }
+  footer a { color:var(--muted); text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:3px; }
   footer a:hover { color:var(--accent); text-decoration:underline; }
 
   /* The 44px minimum is a touch rule, so it applies where there is a finger
@@ -1217,8 +1217,8 @@
       <div><dt>Based in</dt><dd>Dubai, and open to roles <b>anywhere in the UAE</b></dd></div>
       <div><dt>Strongest in</dt><dd><b>Python</b>: algorithms, machine learning, signal processing</dd></div>
       <div><dt>Proof</dt><dd>Four of the projects below run live in this page, and every project ships with a test suite</dd></div>
-      <div class="brief-links"><a href="cv.pdf">CV <span aria-hidden="true">PDF</span></a><a href="mailto:shezinkhais@gmail.com">Email</a></div>
     </dl>
+    <div class="brief-links"><a href="cv.pdf">CV <span aria-hidden="true">PDF</span></a><a href="mailto:shezinkhais@gmail.com">Email</a></div>
   </header>
 
   <main id="main" tabindex="-1">

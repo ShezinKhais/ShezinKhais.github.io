@@ -21,6 +21,7 @@ apart from the webfont, which is the only thing fetched from anywhere.
 | `.github/scripts/update-stats.js` | Writes those counters into `index.html`. |
 | `.github/scripts/collect-proof.sh` | Gathers each project's CI result, test count, last commit and licence. |
 | `.github/scripts/update-proof.js` | Writes that line under each project card. |
+| `.github/workflows/check.yml`, `.github/scripts/check-page.js`, `.htmlvalidate.json` | The checks every push and pull request runs. |
 | `.github/claims.json`, `.github/workflows/claims.yml`, `.github/scripts/verify-claims.js` | Re-derive every figure the page states about a project from its repo, weekly, and fail if they disagree. |
 
 ## The counters
@@ -49,15 +50,25 @@ python -m http.server 8000
 Then open `http://127.0.0.1:8000`. A plain file open works too, but serving it
 over localhost is closer to how it is actually delivered.
 
-There are no tests and no linter. The things most worth checking by hand after a
-change are that the page still renders with the webfont blocked, that it works
-at phone width, and that `node .github/scripts/update-stats.js` still finds all
-three counters:
+Every push and pull request runs `.github/workflows/check.yml`, which:
 
-```bash
-REPOS=0 CONTRIB=0 CI=0 node .github/scripts/update-stats.js index.html
-```
+- validates the HTML;
+- keeps the gzipped page under its size budget;
+- dry-runs every script that writes into the page, so a broken anchor fails
+  there rather than in the next day's stats run;
+- loads the page in Chromium and runs axe in both themes and with reduced
+  motion;
+- opens each demo from its shared link;
+- checks that printing with a demo open puts it on the sheet with a working
+  link;
+- checks the outbound links;
+- runs Lighthouse with phone throttling, and fails if accessibility drops below
+  90.
 
-That writes zeros, so discard the result with `git checkout index.html`. It is
-worth running after any edit near the counters, because the workflow failing is
-how you would otherwise find out, a day later.
+The tools are installed inside the job, so the repository still has no
+package manifest. To run the browser checks locally, install `playwright` and
+`axe-core` in a scratch folder, copy `.github/scripts/check-page.js` into it
+and run `node check-page.js /path/to/this/repo`.
+
+What still needs a person after a change: the page with the webfont blocked, and
+the page at phone width.

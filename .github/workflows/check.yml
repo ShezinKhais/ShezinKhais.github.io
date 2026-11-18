@@ -1,0 +1,83 @@
+name: check the site
+
+# Runs on every push and pull request, so a mistake is caught before it is live
+# rather than reported by a visitor. Every tool is installed inside this job;
+# the repository itself stays one HTML file with no package manifest.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Tools, installed outside the repository
+        run: |
+          mkdir -p "$RUNNER_TEMP/tools" && cd "$RUNNER_TEMP/tools"
+          npm init -y > /dev/null
+          npm install --silent html-validate@8.24.1 axe-core@4.10.2 playwright@1.48.2
+          npx playwright install --with-deps chromium
+
+      - name: The HTML is valid
+        run: "$RUNNER_TEMP/tools/node_modules/.bin/html-validate index.html 404.html"
+
+      - name: The page stays inside its size budget
+        run: |
+          size=$(gzip -9c index.html | wc -c)
+          echo "index.html is $size bytes gzipped (budget 260000)"
+          [ "$size" -le 260000 ]
+
+      - name: The scripts that write into the page still find their anchors
+        run: |
+          cp index.html "$RUNNER_TEMP/dry.html"
+          REPOS=1 CONTRIB=1 CI=1 node .github/scripts/update-stats.js "$RUNNER_TEMP/dry.html"
+          node -e '
+            const fs = require("fs");
+            const repos = [...fs.readFileSync("index.html", "utf8").matchAll(/<p class="receipt" data-repo="([^"]+)"/g)].map(m => m[1]);
+            const out = {};
+            for (const r of repos) out[r] = { ci: "passing", lastGreen: "", tests: "1", lastCommit: "2026-01-01T00:00:00Z", licence: "MIT" };
+            fs.writeFileSync(process.env.RUNNER_TEMP + "/proof.json", JSON.stringify(out));'
+          node .github/scripts/update-proof.js "$RUNNER_TEMP/proof.json" "$RUNNER_TEMP/dry.html"
+          bash -n .github/scripts/collect-proof.sh
+
+      - name: Accessibility, script errors, demo links and print
+        run: |
+          cp .github/scripts/check-page.js "$RUNNER_TEMP/tools/"
+          node "$RUNNER_TEMP/tools/check-page.js" .
+
+      - name: Links still go somewhere
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: >-
+            --no-progress --max-retries 2
+            --exclude 'linkedin\.com' --exclude '^mailto:'
+            index.html 404.html README.md
+          fail: true
+
+      - name: Lighthouse on a throttled phone
+        run: |
+          python3 -m http.server 8000 > /dev/null 2>&1 &
+          sleep 1
+          npx --yes lighthouse@12.2.1 http://localhost:8000/ --quiet --chrome-flags="--headless=new --no-sandbox" \
+            --only-categories=performance,accessibility,best-practices,seo \
+            --output=json --output=html --output-path="$RUNNER_TEMP/lighthouse"
+          node -e '
+            const r = require(process.env.RUNNER_TEMP + "/lighthouse.report.json");
+            const s = Object.fromEntries(Object.entries(r.categories).map(([k, v]) => [k, Math.round(v.score * 100)]));
+            console.log(s);
+            if (s.accessibility < 90) { console.error("accessibility below 90"); process.exit(1); }'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse
+          path: ${{ runner.temp }}/lighthouse.report.*
