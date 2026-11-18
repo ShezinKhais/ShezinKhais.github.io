@@ -263,6 +263,13 @@
     padding:20px 0 20px 20px; margin:4px 0 18px;
   }
   .how[hidden] { display:none; }
+  .printfig { display:none; }
+  /* while a printout is being prepared the demos redraw in the print palette */
+  :root[data-printing] {
+    --bg:#fff; --fg:#000; --muted:#333; --dim:#555; --line:#bbb;
+    --panel:transparent; --panel-hi:transparent; --accent:#000; --num:#000; --badge:#000;
+    --sn-mid:#666; --sn-lite:#888;
+  }
   /* decisions and limits: a short list in the same drawer as the walkthrough */
   .dec ul { margin:0; padding:0 20px 0 0; list-style:none; display:grid; gap:12px; max-width:72ch; }
   .dec li { font-size:13px; line-height:1.6; color:var(--muted); }
@@ -1006,6 +1013,10 @@
     }
     html, body { background:#fff !important; color:#000; }
     body { padding-bottom:0; }
+    .printfig { display:block !important; break-inside:avoid; margin:6px 0 14px 34px; }
+    .printfig img { max-width:110mm; border:1px solid #bbb; }
+    .printfig figcaption { font-size:9pt; color:#222; margin-top:4px; }
+    .printfig code { font-size:8.5pt; word-break:break-all; }
     #bg, #prog, .tools, .rail, #pal, #peek, .idwrap, .demo, .tryit,
     .how, .noscript-hero, .sig, #game, #race { display:none !important; }
     .wrap { max-width:none; margin:0; padding:0; }
@@ -12939,6 +12950,52 @@ wireWalk('el', () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({
   'four steps, from signal to verdict');
 wireWalk('fa', () => { if (faDemo.hidden) faTry.click(); faDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
   'four steps, and no data moves');
+
+/* On paper the demos were simply left out, so a printout carried every claim on
+   the page and none of the evidence. Each demo that is open when the page is
+   printed now goes onto the sheet as a figure: a still of it in the print
+   greys, what it found, and the address that rebuilds exactly that run. Demos
+   that were never opened print nothing. EchoLock prints its settings and its
+   verdict only, never a picture of a voice. */
+const PRINT_DEMOS = { cc: () => ccDraw(), hd: () => hdDraw(), el: () => elDraw(), fa: () => faDraw() };
+const PRINT_NAMES = { cc: 'Circular imports, Tarjan’s algorithm', hd: 'Smith-Waterman alignment of two chord progressions',
+  el: 'Voice check, MFCC pipeline', fa: 'Federated training across three banks' };
+addEventListener('beforeprint', () => {
+  document.querySelectorAll('.printfig').forEach(f => f.remove());
+  const open = Object.keys(PRINT_DEMOS).filter(k => !document.getElementById(k + 'Demo').hidden);
+  if (!open.length) return;
+  document.documentElement.setAttribute('data-printing', '');
+  for (const k of open) {
+    try { PRINT_DEMOS[k](); } catch (e) {}
+    const box = document.getElementById(k + 'Out');
+    const figs = [...box.querySelectorAll('div')].map(d => d.querySelector('b').textContent + ' ' + d.querySelector('span').textContent).join(', ');
+    const plain = box.querySelector('.plain');
+    const out = figs ? figs + '. ' + (plain ? plain.textContent.replace(/^In plain terms: /, '').replace(/^./, m => m.toUpperCase()) : '') : '';
+    const url = location.origin + location.pathname + '#' + demoParams(k).toString();
+    const fig = document.createElement('figure');
+    fig.className = 'printfig';
+    if (k !== 'el') {
+      const img = document.createElement('img');
+      img.src = document.getElementById(k + 'Cv').toDataURL('image/png');
+      img.alt = PRINT_NAMES[k] + (out ? ': ' + out : '');
+      fig.appendChild(img);
+    }
+    const cap = document.createElement('figcaption');
+    cap.append(PRINT_NAMES[k] + (out ? ': ' + out.trim() : ' (not yet run).') + ' Rebuild this run: ');
+    const code = document.createElement('code'); code.textContent = url;
+    cap.appendChild(code);
+    fig.appendChild(cap);
+    document.getElementById(k + 'Try').after(fig);
+  }
+});
+addEventListener('afterprint', () => {
+  document.querySelectorAll('.printfig').forEach(f => f.remove());
+  if (!document.documentElement.hasAttribute('data-printing')) return;
+  document.documentElement.removeAttribute('data-printing');
+  for (const k of Object.keys(PRINT_DEMOS)) {
+    if (!document.getElementById(k + 'Demo').hidden) try { PRINT_DEMOS[k](); } catch (e) {}
+  }
+});
 
 // decisions and limits: plain disclosures, nothing to run
 document.querySelectorAll('.dectog').forEach(b => {
