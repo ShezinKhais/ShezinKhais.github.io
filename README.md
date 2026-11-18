@@ -22,7 +22,7 @@ apart from the webfont, which is the only thing fetched from anywhere.
 
 ## The counters
 
-The three figures on the page, public repositories, contributions this year, and
+The three figures on the page, public repositories, contributions in the last year, and
 projects with CI suites, are not computed in the browser. A scheduled workflow
 queries the GitHub API at 04:17 UTC daily, writes the numbers into `index.html`
 and commits the result only if one of them moved. It can also be run by hand

@@ -595,6 +595,8 @@
   .demo-out div { border:1px solid var(--line); border-radius:0; padding:9px 11px; background:var(--bg); }
   .demo-out b { display:block; font-size:17px; color:var(--num); font-weight:600; line-height:1.3; }
   .demo-out span { font-size:10.5px; color:var(--dim); }
+  /* what the run means, in everyday words, under the figures */
+  .demo-out p.plain { grid-column:1 / -1; margin:2px 0 0; font-size:13px; color:var(--fg); max-width:62ch; }
   @media (max-width:560px){ .demo-out{grid-template-columns:repeat(2,1fr);} .demo-ctl .spd{margin-left:0;} }
 
   /* the passphrase prompt while the mic is open */
@@ -657,6 +659,18 @@
   .about { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:56px; align-items:start; }
   @media (max-width:900px) { .about { grid-template-columns:1fr; gap:34px; } }
   .about-lead { font-size:clamp(15px,1.9vw,18px); color:var(--fg); margin:6px 0 0; max-width:54ch; line-height:1.62; }
+  /* the brief under the hero: the facts a screener looks for first, as a row of
+     hairline cells on a wide screen and a plain list on a narrow one */
+  .brief { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:0 28px; margin:22px 0 0; }
+  .brief > div { padding:9px 0; border-top:1px solid var(--line); }
+  .brief dt { font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim); margin-bottom:3px; }
+  .brief dd { margin:0; font-size:13px; color:var(--muted); }
+  .brief dd b { color:var(--fg); font-weight:600; }
+  .brief .brief-links { display:flex; gap:22px; grid-column:1 / -1; padding-top:6px; border-top:0; }
+  .brief-links a { font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--num); text-decoration:none; padding:6px 0; }
+  .brief-links a:hover, .brief-links a:focus-visible { color:var(--fg); }
+  @media (max-width:640px) { .brief { grid-template-columns:1fr; } }
+
   .about-lead + p { font-size:13.5px; color:var(--muted); max-width:58ch; margin:15px 0 0; }
 
   .facts { margin:30px 0 0; display:grid; gap:0; }
@@ -1170,9 +1184,19 @@
 
     <div class="stats">
       <div class="stat"><b data-count="11">0</b><span>public repositories</span></div>
-      <div class="stat"><b data-count="706">0</b><span>contributions this year</span></div>
+      <div class="stat"><b data-count="706">0</b><span>contributions in the last year</span></div>
       <div class="stat"><b data-count="8">0</b><span>projects with CI suites</span></div>
     </div>
+
+    <!-- The thirty-second version, for whoever is screening: the same words as
+         the about section further down, where they are easy to miss. -->
+    <dl class="brief" aria-label="In brief">
+      <div><dt>Seeking</dt><dd>Internships <b>now</b>; full-time software engineering roles from <b>January 2027</b></dd></div>
+      <div><dt>Based in</dt><dd>Dubai, and open to roles <b>anywhere in the UAE</b></dd></div>
+      <div><dt>Strongest in</dt><dd><b>Python</b>: algorithms, machine learning, signal processing</dd></div>
+      <div><dt>Proof</dt><dd>Four of the projects below run live in this page, and every project ships with a test suite</dd></div>
+      <div class="brief-links"><a href="cv.pdf">CV <span aria-hidden="true">PDF</span></a><a href="mailto:shezinkhais@gmail.com">Email</a></div>
+    </dl>
   </header>
 
   <main id="main" tabindex="-1">
@@ -4568,6 +4592,15 @@ function alignResult() {
   return { score: best.v, identity, norm, verdict, al, matches, path };
 }
 
+/* One sentence per finished run that says what the result means rather than how
+   it was reached, so someone who does not know what a lowlink or an AUROC is can
+   still tell whether it worked and repeat it to somebody else. It goes inside
+   the readout that is already announced, and it says so when a result is poor. */
+function plainLine(text) {
+  const p = document.createElement('p');
+  p.className = 'plain'; p.textContent = text;
+  return p;
+}
 function finish() {
   const { identity, norm, verdict, al, matches } = alignResult();
   tb = traceback();
@@ -4576,6 +4609,16 @@ function finish() {
     `<div><b>${norm.toFixed(2)}</b><span>normalised</span></div>` +
     `<div><b>${Math.round(identity * 100)}%</b><span>identity</span></div>` +
     `<div><b>${verdict}</b><span>verdict</span></div>`;
+  {
+    const a = TRACKS[+selA.value].name, b = TRACKS[+selB.value].name;
+    hdOut.appendChild(plainLine(
+      norm >= .95 ? `In plain terms: “${a}” and “${b}” are harmonically the same piece of music.`
+      : norm >= .75 ? (identity > .99
+        ? `In plain terms: “${a}” and “${b}” share a long stretch of exactly the same chords.`
+        : `In plain terms: “${a}” and “${b}” share a long stretch that is close to the same chords, even where the chord names differ.`)
+      : norm >= .5 ? `In plain terms: “${a}” and “${b}” have something in common, but only in part.`
+      : `In plain terms: “${a}” and “${b}” have little in common harmonically; the tool would not call them related.`));
+  }
   hdRead.innerHTML = identity < 1 && best.v > 0
     ? `Traceback recovers <b>${al.length}</b> aligned positions, <b>${matches}</b> of them exact. ` +
       `The other ${al.length - matches} scored on harmonic relationship rather than on being the ` +
@@ -4973,6 +5016,10 @@ function ccReport() {
     ['modules', g.n.length], ['imports', g.e.length],
     ['components', ccTrace.comps.length], ['circular', cycles.length]
   ].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+  ccOut.appendChild(plainLine(cycles.length
+    ? `In plain terms: ${cycles.length === 1 ? 'one place' : cycles.length + ' places'} where parts of this program depend on each other in a loop, ` +
+      `which makes them hard to change or test one at a time. The tool names every module involved, so they can be untangled.`
+    : `In plain terms: no part of this program depends on itself through a loop, so each part can be loaded, changed and tested in order.`));
   ccRead.innerHTML = cycles.length
     ? `Found <b>${cycles.length}</b> circular import${cycles.length > 1 ? 's' : ''}, the largest spanning <b>${worst}</b> modules: ` +
       cycles.map(c => '<i>' + c.map(v => g.n[v]).join(' &rarr; ') + '</i>').join(', ')
@@ -5223,6 +5270,14 @@ function elDraw() {
     ['margin', (sim - thr >= 0 ? '+' : '') + (sim - thr).toFixed(3)],
     ['verdict', pass ? 'unlock' : 'denied']
   ].map(([k, v], i) => `<div><b class="${i === 3 ? (pass ? 'verdict-ok' : 'verdict-no') : ''}">${v}</b><span>${k}</span></div>`).join('');
+  {
+    // the slider starts at the project's own threshold, 0.970
+    const stricter = thr > 0.9705, looser = thr < 0.9695;
+    const set = stricter ? 'set stricter than the project’s default, so the owner is turned away more often and an impostor less'
+      : looser ? 'set looser than the project’s default, so the owner gets in more easily and so does an impostor'
+      : 'at the project’s own setting';
+    elOut.appendChild(plainLine(`In plain terms: the lock ${pass ? 'opened' : 'stayed shut'} for this voice, with the check ${set}.`));
+  }
 
   elRead.innerHTML = pass
     ? `Accepted at <b>${sim.toFixed(3)}</b>. The twelve coefficients line up closely enough with the enrolled vector to clear <b>${thr.toFixed(3)}</b>.`
@@ -5895,6 +5950,15 @@ function faReport() {
     [f3(last.auroc), 'AUROC, federated'], [f3(last.f1), 'F1, federated'],
     [f3(best), 'best bank alone'], [f3(worst), 'worst bank alone']
   ].map(([v, k]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+  {
+    const gap = last.auroc - best;
+    faOut.appendChild(plainLine(
+      (Math.abs(gap) < 0.01
+        ? 'In plain terms: working together, the three banks did about as well as the best of them working alone'
+        : gap > 0 ? 'In plain terms: working together, the three banks caught fraud better than any one of them could alone'
+        : 'In plain terms: here, working together did worse than the best bank working alone') +
+      ', and no bank ever sent another a single customer record.'));
+  }
   faCv.setAttribute('aria-label', `After ${FA_ROUNDS} rounds the federated model scores AUROC ${f3(last.auroc)} and F1 ${f3(last.f1)}; ` +
     `the three banks trained alone score between ${f3(worst)} and ${f3(best)} AUROC.`);
 }
