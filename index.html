@@ -263,6 +263,11 @@
     padding:20px 0 20px 20px; margin:4px 0 18px;
   }
   .how[hidden] { display:none; }
+  /* decisions and limits: a short list in the same drawer as the walkthrough */
+  .dec ul { margin:0; padding:0 20px 0 0; list-style:none; display:grid; gap:12px; max-width:72ch; }
+  .dec li { font-size:13px; line-height:1.6; color:var(--muted); }
+  .dec li b { color:var(--fg); font-weight:600; }
+  .dec a { color:var(--num); }
   .how-grid { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,300px); gap:34px; align-items:start; }
   @media (max-width:760px) { .how-grid { grid-template-columns:1fr; gap:20px; } }
   .how-num {
@@ -1222,6 +1227,19 @@
 
     <div class="how" id="ccHow" hidden></div>
 
+    <button class="tryit howto dectog" id="ccDecT" aria-expanded="false" aria-controls="ccDec">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Decisions and limits
+      <span class="sub">from the README</span>
+    </button>
+    <div class="how dec" id="ccDec" hidden>
+      <ul>
+        <li><b>Decided:</b> the graph traversals are iterative rather than recursive, so a large repository cannot run into Python&rsquo;s recursion limit.</li>
+        <li><b>Decided:</b> a file that will not parse is recorded on the result rather than raised, so one bad file cannot abort a run.</li>
+        <li><b>Limit:</b> <code>getattr</code>, reflection and monkey-patching are invisible to static analysis, so a function with no static callers is reported as a candidate to review, not as confirmed dead code. The report gives the share of calls it resolved as a check on the rest.</li>
+      </ul>
+    </div>
+
     <button class="tryit" id="ccTry" aria-expanded="false" aria-controls="ccDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
       Find the circular imports
@@ -1281,6 +1299,19 @@
     </button>
 
     <div class="how" id="hdHow" hidden></div>
+
+    <button class="tryit howto dectog" id="hdDecT" aria-expanded="false" aria-controls="hdDec">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Decisions and limits
+      <span class="sub">from the README</span>
+    </button>
+    <div class="how dec" id="hdDec" hidden>
+      <ul>
+        <li><b>Decided:</b> the scoring matrix pays for related chords, not only identical ones, so two passages with no chord in common can still align. That is why <i>identity</i> is always reported beside the score.</li>
+        <li><b>Limit:</b> the vocabulary is 24 chords, twelve roots major or minor. A seventh, a sus or a diminished chord is forced onto the nearest of them, so jazz comes back as plausible triads that are not what is being played.</li>
+        <li><b>Limit:</b> detection follows the beat tracker, which does not cope with rubato, heavy swing or music with no clear pulse.</li>
+      </ul>
+    </div>
 
     <button class="tryit" id="hdTry" aria-expanded="false" aria-controls="hdDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
@@ -1358,6 +1389,19 @@
     </button>
 
     <div class="how" id="elHow" hidden></div>
+
+    <button class="tryit howto dectog" id="elDecT" aria-expanded="false" aria-controls="elDec">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Decisions and limits
+      <span class="sub">measured, from the README</span>
+    </button>
+    <div class="how dec" id="elDec" hidden>
+      <ul>
+        <li><b>Decided on evidence:</b> cosine similarity was tried first and rejected. Against synthetic speakers it separated genuine from impostor scores by 0.016; a per-dimension normalised distance separated them by 0.63. The demo here keeps cosine because its arithmetic is easy to follow.</li>
+        <li><b>Decided on evidence:</b> the default threshold came from real recordings rather than synthetic ones. At 3.0 standard deviations, 2 of 24 impostor attempts got in; at the default of 2.0, none did, with no false rejects.</li>
+        <li><b>Limit:</b> a recording made the same day would pass. Asking for a fresh phrase on every attempt shrinks that window to one try, and the README says plainly that this is a demonstration, not a defence against a determined attacker.</li>
+      </ul>
+    </div>
 
     <button class="tryit" id="elTry" aria-expanded="false" aria-controls="elDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
@@ -1449,6 +1493,19 @@
       </div></div>
       <div class="chips"><span class="chip">FastAPI</span><span class="chip">React</span><span class="chip">PostgreSQL</span><span class="chip">local LLM</span></div>
     </a>
+
+    <button class="tryit howto dectog" id="clDecT" aria-expanded="false" aria-controls="clDec">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      My part
+      <span class="sub">one part of a team project</span>
+    </button>
+    <div class="how dec" id="clDec" hidden>
+      <ul>
+        <li><b>My part:</b> I wrote the live-event hub and its load test.</li>
+        <li>The hub numbers every event in a channel and keeps a bounded replay buffer, so a client that drops and comes back is replayed exactly what it missed, and a cursor from before a server restart is refused rather than trusted.</li>
+        <li>The load test connects 40 students at once and drops and restores them; in the latest recorded run every scenario passed. <a href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform/blob/9cf067581f8a8923cc1b86784f912c95a789ad4d/backend/app/realtime/hub.py">The hub</a> &middot; <a href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform/blob/9cf067581f8a8923cc1b86784f912c95a789ad4d/docs/load-and-recovery.md">the load test report</a></li>
+      </ul>
+    </div>
   </section>
 
   <section id="sec-other">
@@ -1485,6 +1542,19 @@
     </button>
 
     <div class="how" id="faHow" hidden></div>
+
+    <button class="tryit howto dectog" id="faDecT" aria-expanded="false" aria-controls="faDec">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Decisions and limits
+      <span class="sub">measured, from the README</span>
+    </button>
+    <div class="how dec" id="faDec" hidden>
+      <ul>
+        <li><b>Decided:</b> every transaction comes from one shared population and fraud is a shape stamped onto some of them, so no single column separates the classes: the best one alone reaches an AUROC of 0.754.</li>
+        <li><b>Measured:</b> each bank trained alone reaches an AUROC between 0.892 and 0.946; the federation reaches 0.962, and no bank shared a transaction to get there.</li>
+        <li><b>Limit:</b> the transactions are synthetic, so the result shows the pipeline and the aggregation work on a hard problem, not that the classifier would transfer to real anti-money-laundering data.</li>
+      </ul>
+    </div>
 
     <button class="tryit" id="faTry" aria-expanded="false" aria-controls="faDemo">
       <span class="ic" aria-hidden="true">&#9654;</span>
@@ -12869,6 +12939,16 @@ wireWalk('el', () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({
   'four steps, from signal to verdict');
 wireWalk('fa', () => { if (faDemo.hidden) faTry.click(); faDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
   'four steps, and no data moves');
+
+// decisions and limits: plain disclosures, nothing to run
+document.querySelectorAll('.dectog').forEach(b => {
+  const panel = document.getElementById(b.getAttribute('aria-controls'));
+  b.addEventListener('click', () => {
+    const open = b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', String(open));
+    panel.hidden = !open;
+  });
+});
 
 // a shared demo link opens the panel it names and restores the controls with it
 readState();
