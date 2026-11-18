@@ -22,6 +22,7 @@ apart from the webfont, which is the only thing fetched from anywhere.
 | `.github/scripts/collect-proof.sh` | Gathers each project's CI result, test count, last commit and licence. |
 | `.github/scripts/update-proof.js` | Writes that line under each project card. |
 | `.github/workflows/check.yml`, `.github/scripts/check-page.js`, `.htmlvalidate.json` | The checks every push and pull request runs. |
+| `.github/workflows/golden.yml`, `.github/scripts/extract-fixtures.js`, `golden.py`, `write-golden.js` | Run the projects' own Python on the demos' inputs and write the answers into the page, for its "Check against the repo" buttons. |
 | `.github/claims.json`, `.github/workflows/claims.yml`, `.github/scripts/verify-claims.js` | Re-derive every figure the page states about a project from its repo, weekly, and fail if they disagree. |
 
 ## The counters

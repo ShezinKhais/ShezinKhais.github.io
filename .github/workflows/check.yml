@@ -48,6 +48,9 @@ jobs:
             fs.writeFileSync(process.env.RUNNER_TEMP + "/proof.json", JSON.stringify(out));'
           node .github/scripts/update-proof.js "$RUNNER_TEMP/proof.json" "$RUNNER_TEMP/dry.html"
           bash -n .github/scripts/collect-proof.sh
+          node .github/scripts/extract-fixtures.js index.html > /dev/null
+          node -e 'const s=require("fs").readFileSync("index.html","utf8").match(/<script type="application\/json" id="golden">([^<]*)<\/script>/); require("fs").writeFileSync(process.env.RUNNER_TEMP+"/golden.json", s[1])'
+          node .github/scripts/write-golden.js "$RUNNER_TEMP/golden.json" "$RUNNER_TEMP/dry.html"
 
       - name: Accessibility, script errors, demo links and print
         run: |

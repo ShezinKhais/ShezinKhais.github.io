@@ -1322,6 +1322,7 @@
 
       <div class="countwork">
         <p class="cw-read" id="ccCountRead"></p>
+        <div class="cw-row"><button type="button" id="ccParity">Check against the repo</button><span class="cw-sub">the project’s own Python, run on these graphs</span></div>
         <div class="cw-row"><button type="button" id="ccScale">Scale it</button><span class="cw-sub">eight random graphs, counted rather than timed</span></div>
         <canvas id="ccScaleCv" role="img" aria-label="Measured work against the predicted line" hidden></canvas>
         <p class="cw-out" id="ccScaleOut" aria-live="polite"></p>
@@ -1424,6 +1425,7 @@
 
       <div class="countwork">
         <p class="cw-read" id="hdCountRead"></p>
+        <div class="cw-row"><button type="button" id="hdParity">Check against the repo</button><span class="cw-sub">the project’s own Python, run on these progressions</span></div>
         <div class="cw-row"><button type="button" id="hdScale">Scale it</button><span class="cw-sub">eight pairs of random progressions, longer each time</span></div>
         <canvas id="hdScaleCv" role="img" aria-label="Measured work against the predicted line" hidden></canvas>
         <p class="cw-out" id="hdScaleOut" aria-live="polite"></p>
@@ -1658,7 +1660,7 @@
 
     <div class="demo" id="faDemo" hidden>
       <div class="demo-head">
-        <label for="faHet">How different the banks are <b id="faHetV" class="demo-thr">1&times;, as in the repo</b>
+        <label for="faHet">How different the banks are <b id="faHetV" class="demo-thr">1&times;</b>
           <input type="range" id="faHet" min="0" max="8" step="1" value="1"></label>
         <label for="faSize">Bank sizes<select id="faSize">
           <option value="eq">Equal, as in the repo</option>
@@ -1684,10 +1686,16 @@
       </div>
 
       <div class="demo-out" id="faOut" aria-live="polite"></div>
+      <div class="countwork">
+        <div class="cw-row"><button type="button" id="faParity">Check against the repo</button><span class="cw-sub">the repo’s current data generator</span></div>
+        <p class="cw-out" id="faScaleOut" aria-live="polite"></p>
+      </div>
 
       <p class="demo-note">The same Federated Averaging, weighted loss, optimiser and threshold search as
         the repo, run on two of its nineteen features so the decision boundary can be drawn. A logistic
-        regression stands in for the repo's three-layer MLP, and the held-out set is pooled from the three banks.</p>
+        regression stands in for the repo's three-layer MLP, and the held-out set is pooled from the three banks.
+        The data comes from the repo's earlier generator, where banks differ by a shift; the repo now uses
+        laundering typologies, and the check below sets out the difference.</p>
     </div>
   </section>
 
@@ -1741,6 +1749,8 @@
   </footer>
 </div>
 
+<!-- written by .github/scripts/write-golden.js from the projects' own Python; do not edit by hand -->
+<script type="application/json" id="golden">{"commits":{"CodeCartographer":"a20682ce1dc93465af6a77296cbdfab7712650eb","HarmonicDNA":"6706c0bbf19e2b9903cd2390d839f3cd6ce4310e","federated-aml":"0d7da41ad12963c020a4cb7c66b4560e8fdd8ed3"},"cc":[{"graph":"Layered app, no cycles","components":[["app"],["cli"],["config"],["db"],["models"],["routes"],["service"],["utils"]]},{"graph":"One circular import","components":[["app"],["cli"],["config"],["db","models"],["routes"],["service"],["utils"]]},{"graph":"Tangled core","components":[["app","db","models","routes","service","utils"],["cli"],["config"]]}],"hd":[{"a":0,"b":1,"score":20.0,"identity":1.0},{"a":0,"b":2,"score":8.7,"identity":0.357},{"a":0,"b":3,"score":13.5,"identity":0.615},{"a":0,"b":4,"score":13.3,"identity":0.583},{"a":0,"b":5,"score":11.0,"identity":0.429},{"a":0,"b":6,"score":12.8,"identity":0.5},{"a":0,"b":7,"score":12.8,"identity":0.5},{"a":0,"b":8,"score":8.5,"identity":0.5},{"a":0,"b":9,"score":5.0,"identity":0.333},{"a":0,"b":10,"score":3.3,"identity":0.167},{"a":0,"b":11,"score":9.5,"identity":0.429},{"a":0,"b":12,"score":3.8,"identity":0.333},{"a":0,"b":13,"score":2.6,"identity":0.273},{"a":1,"b":0,"score":20.0,"identity":1.0},{"a":1,"b":2,"score":8.6,"identity":0.455},{"a":1,"b":3,"score":15.5,"identity":0.643},{"a":1,"b":4,"score":13.6,"identity":0.538},{"a":1,"b":5,"score":10.5,"identity":0.462},{"a":1,"b":6,"score":13.8,"identity":0.538},{"a":1,"b":7,"score":13.8,"identity":0.538},{"a":1,"b":8,"score":8.8,"identity":0.455},{"a":1,"b":9,"score":5.0,"identity":0.333},{"a":1,"b":10,"score":3.3,"identity":0.167},{"a":1,"b":11,"score":9.0,"identity":0.462},{"a":1,"b":12,"score":3.8,"identity":0.333},{"a":1,"b":13,"score":2.6,"identity":0.273},{"a":2,"b":0,"score":8.7,"identity":0.357},{"a":2,"b":1,"score":8.6,"identity":0.455},{"a":2,"b":3,"score":7.5,"identity":0.462},{"a":2,"b":4,"score":6.5,"identity":0.667},{"a":2,"b":5,"score":7.0,"identity":0.333},{"a":2,"b":6,"score":7.5,"identity":0.556},{"a":2,"b":7,"score":7.5,"identity":0.556},{"a":2,"b":8,"score":7.8,"identity":0.5},{"a":2,"b":9,"score":2.0,"identity":0.0},{"a":2,"b":10,"score":7.3,"identity":0.455},{"a":2,"b":11,"score":11.1,"identity":0.333},{"a":2,"b":12,"score":9.3,"identity":0.455},{"a":2,"b":13,"score":11.5,"identity":0.545},{"a":3,"b":0,"score":13.5,"identity":0.615},{"a":3,"b":1,"score":15.5,"identity":0.643},{"a":3,"b":2,"score":7.5,"identity":0.462},{"a":3,"b":4,"score":10.8,"identity":0.5},{"a":3,"b":5,"score":11.5,"identity":0.545},{"a":3,"b":6,"score":9.3,"identity":0.5},{"a":3,"b":7,"score":9.3,"identity":0.5},{"a":3,"b":8,"score":5.0,"identity":0.286},{"a":3,"b":9,"score":7.3,"identity":0.3},{"a":3,"b":10,"score":1.3,"identity":0.0},{"a":3,"b":11,"score":8.9,"identity":0.308},{"a":3,"b":12,"score":0.5,"identity":0.0},{"a":3,"b":13,"score":0.5,"identity":0.0},{"a":4,"b":0,"score":13.3,"identity":0.583},{"a":4,"b":1,"score":13.6,"identity":0.538},{"a":4,"b":2,"score":6.5,"identity":0.667},{"a":4,"b":3,"score":10.8,"identity":0.5},{"a":4,"b":5,"score":7.8,"identity":0.364},{"a":4,"b":6,"score":17.6,"identity":0.692},{"a":4,"b":7,"score":17.6,"identity":0.692},{"a":4,"b":8,"score":10.6,"identity":0.5},{"a":4,"b":9,"score":2.0,"identity":0.0},{"a":4,"b":10,"score":2.5,"identity":0.5},{"a":4,"b":11,"score":9.3,"identity":0.462},{"a":4,"b":12,"score":4.1,"identity":0.4},{"a":4,"b":13,"score":2.8,"identity":0.4},{"a":5,"b":0,"score":11.0,"identity":0.429},{"a":5,"b":1,"score":10.5,"identity":0.462},{"a":5,"b":2,"score":7.0,"identity":0.333},{"a":5,"b":3,"score":11.5,"identity":0.545},{"a":5,"b":4,"score":7.8,"identity":0.364},{"a":5,"b":6,"score":6.9,"identity":0.3},{"a":5,"b":7,"score":6.9,"identity":0.3},{"a":5,"b":8,"score":5.3,"identity":0.3},{"a":5,"b":9,"score":8.0,"identity":0.556},{"a":5,"b":10,"score":2.3,"identity":0.2},{"a":5,"b":11,"score":7.7,"identity":0.308},{"a":5,"b":12,"score":3.0,"identity":0.333},{"a":5,"b":13,"score":2.0,"identity":1.0},{"a":6,"b":0,"score":12.8,"identity":0.5},{"a":6,"b":1,"score":13.8,"identity":0.538},{"a":6,"b":2,"score":7.5,"identity":0.556},{"a":6,"b":3,"score":9.3,"identity":0.5},{"a":6,"b":4,"score":17.6,"identity":0.692},{"a":6,"b":5,"score":6.9,"identity":0.3},{"a":6,"b":7,"score":24.0,"identity":1.0},{"a":6,"b":8,"score":12.8,"identity":0.636},{"a":6,"b":9,"score":1.0,"identity":0.0},{"a":6,"b":10,"score":3.0,"identity":0.667},{"a":6,"b":11,"score":13.0,"identity":0.538},{"a":6,"b":12,"score":5.3,"identity":0.5},{"a":6,"b":13,"score":4.4,"identity":0.273},{"a":7,"b":0,"score":12.8,"identity":0.5},{"a":7,"b":1,"score":13.8,"identity":0.538},{"a":7,"b":2,"score":7.5,"identity":0.556},{"a":7,"b":3,"score":9.3,"identity":0.5},{"a":7,"b":4,"score":17.6,"identity":0.692},{"a":7,"b":5,"score":6.9,"identity":0.3},{"a":7,"b":6,"score":24.0,"identity":1.0},{"a":7,"b":8,"score":12.8,"identity":0.636},{"a":7,"b":9,"score":1.0,"identity":0.0},{"a":7,"b":10,"score":3.0,"identity":0.667},{"a":7,"b":11,"score":13.0,"identity":0.538},{"a":7,"b":12,"score":5.3,"identity":0.5},{"a":7,"b":13,"score":4.4,"identity":0.273},{"a":8,"b":0,"score":8.5,"identity":0.5},{"a":8,"b":1,"score":8.8,"identity":0.455},{"a":8,"b":2,"score":7.8,"identity":0.5},{"a":8,"b":3,"score":5.0,"identity":0.286},{"a":8,"b":4,"score":10.6,"identity":0.5},{"a":8,"b":5,"score":5.3,"identity":0.3},{"a":8,"b":6,"score":12.8,"identity":0.636},{"a":8,"b":7,"score":12.8,"identity":0.636},{"a":8,"b":9,"score":1.0,"identity":0.0},{"a":8,"b":10,"score":3.5,"identity":0.667},{"a":8,"b":11,"score":10.6,"identity":0.556},{"a":8,"b":12,"score":7.0,"identity":0.667},{"a":8,"b":13,"score":6.1,"identity":0.364},{"a":9,"b":0,"score":5.0,"identity":0.333},{"a":9,"b":1,"score":5.0,"identity":0.333},{"a":9,"b":2,"score":2.0,"identity":0.0},{"a":9,"b":3,"score":7.3,"identity":0.3},{"a":9,"b":4,"score":2.0,"identity":0.0},{"a":9,"b":5,"score":8.0,"identity":0.556},{"a":9,"b":6,"score":1.0,"identity":0.0},{"a":9,"b":7,"score":1.0,"identity":0.0},{"a":9,"b":8,"score":1.0,"identity":0.0},{"a":9,"b":10,"score":1.5,"identity":0.0},{"a":9,"b":11,"score":2.8,"identity":0.2},{"a":9,"b":12,"score":0.0,"identity":0.0},{"a":9,"b":13,"score":0.0,"identity":0.0},{"a":10,"b":0,"score":3.3,"identity":0.167},{"a":10,"b":1,"score":3.3,"identity":0.167},{"a":10,"b":2,"score":7.3,"identity":0.455},{"a":10,"b":3,"score":1.3,"identity":0.0},{"a":10,"b":4,"score":2.5,"identity":0.5},{"a":10,"b":5,"score":2.3,"identity":0.2},{"a":10,"b":6,"score":3.0,"identity":0.667},{"a":10,"b":7,"score":3.0,"identity":0.667},{"a":10,"b":8,"score":3.5,"identity":0.667},{"a":10,"b":9,"score":1.5,"identity":0.0},{"a":10,"b":11,"score":5.8,"identity":0.333},{"a":10,"b":12,"score":7.8,"identity":0.571},{"a":10,"b":13,"score":9.1,"identity":0.417},{"a":11,"b":0,"score":9.5,"identity":0.429},{"a":11,"b":1,"score":9.0,"identity":0.462},{"a":11,"b":2,"score":11.1,"identity":0.333},{"a":11,"b":3,"score":8.9,"identity":0.308},{"a":11,"b":4,"score":9.3,"identity":0.455},{"a":11,"b":5,"score":7.7,"identity":0.308},{"a":11,"b":6,"score":13.0,"identity":0.538},{"a":11,"b":7,"score":13.0,"identity":0.538},{"a":11,"b":8,"score":10.6,"identity":0.556},{"a":11,"b":9,"score":2.8,"identity":0.2},{"a":11,"b":10,"score":5.8,"identity":0.333},{"a":11,"b":12,"score":7.1,"identity":0.364},{"a":11,"b":13,"score":8.9,"identity":0.333},{"a":12,"b":0,"score":3.8,"identity":0.333},{"a":12,"b":1,"score":3.8,"identity":0.333},{"a":12,"b":2,"score":9.3,"identity":0.455},{"a":12,"b":3,"score":0.5,"identity":0.0},{"a":12,"b":4,"score":4.1,"identity":0.4},{"a":12,"b":5,"score":3.0,"identity":0.333},{"a":12,"b":6,"score":5.3,"identity":0.5},{"a":12,"b":7,"score":5.3,"identity":0.5},{"a":12,"b":8,"score":7.0,"identity":0.667},{"a":12,"b":9,"score":0.0,"identity":0.0},{"a":12,"b":10,"score":7.8,"identity":0.571},{"a":12,"b":11,"score":7.1,"identity":0.364},{"a":12,"b":13,"score":15.6,"identity":0.667},{"a":13,"b":0,"score":2.6,"identity":0.273},{"a":13,"b":1,"score":2.6,"identity":0.273},{"a":13,"b":2,"score":11.5,"identity":0.545},{"a":13,"b":3,"score":0.5,"identity":0.0},{"a":13,"b":4,"score":2.8,"identity":0.4},{"a":13,"b":5,"score":2.0,"identity":1.0},{"a":13,"b":6,"score":4.4,"identity":0.273},{"a":13,"b":7,"score":4.4,"identity":0.273},{"a":13,"b":8,"score":6.1,"identity":0.364},{"a":13,"b":9,"score":0.0,"identity":0.0},{"a":13,"b":10,"score":9.1,"identity":0.417},{"a":13,"b":11,"score":8.9,"identity":0.333},{"a":13,"b":12,"score":15.6,"identity":0.667}],"fa":{"banks":[{"fraud_rate":0.02,"home_typology":"structuring","home_share":0.92,"unpatterned_share":0.175},{"fraud_rate":0.02,"home_typology":"layering","home_share":0.92,"unpatterned_share":0.15},{"fraud_rate":0.02,"home_typology":"exfiltration","home_share":0.9,"unpatterned_share":0.17}],"features":19,"typologies":["structuring","layering","exfiltration"]}}</script>
 <span id="copyStatus" class="vh" role="status" aria-live="polite"></span>
 
 <script type="module">
@@ -5720,9 +5730,11 @@ function faPoisson(r, lam) {
   return k - 1;
 }
 
-/* client/data_loader.py, restricted to log_amount and velocity_1h. A bank's
-   typical transaction is 500 + 200k and its accounts run 0.5k transactions an
-   hour busier; `het` scales both shifts, and 1 is exactly the repo. */
+/* The earlier version of client/data_loader.py, restricted to log_amount and
+   velocity_1h: a bank's typical transaction is 500 + 200k, its accounts run
+   0.5k transactions an hour busier, and `het` scales both shifts. The repo has
+   since moved to laundering typologies stamped onto one shared population,
+   which two features cannot show; the parity check says so on the page. */
 function faBank(k, n, seed, het) {
   const r = faRng(seed), m = 500 + het * 200 * k, vb = het * 0.5 * k;
   const nF = Math.max(1, Math.floor(n * 0.02));
@@ -5874,7 +5886,7 @@ const FA_READY = 'Ready. Each Step is one stage of a round: training at home, se
 
 function faLabel() {
   const v = +faHet.value;
-  faHetV.innerHTML = v === 0 ? '0&times;, identical' : v === 1 ? '1&times;, as in the repo' : v + '&times;';
+  faHetV.innerHTML = v === 0 ? '0&times;, identical' : v + '&times;';
 }
 function faBuild() {
   faStop();
@@ -13146,6 +13158,66 @@ document.getElementById('hdScale').addEventListener('click', () => {
 ccCountNow(); hdCountNow();
 ccPick.addEventListener('change', ccCountNow);
 selA.addEventListener('change', hdCountNow); selB.addEventListener('change', hdCountNow);
+
+/* Check against the repo. Each demo here is a JavaScript port, and "trust me,
+   it's the same algorithm" is exactly the claim this page should not make. The
+   expected answers below were produced by running each project's own Python on
+   these same inputs, in a workflow, and written into the page; the button runs
+   the page's code on every input and compares. federated-aml has no answer to
+   compare, because its demo deliberately simplifies, so its check sets out how
+   the repo's current data differs from what the demo draws instead. */
+const GOLDEN = (() => { try { return JSON.parse(document.getElementById('golden').textContent); } catch (e) { return null; } })();
+const short = sha => sha ? sha.slice(0, 7) : '?';
+document.getElementById('ccParity').addEventListener('click', () => {
+  const out = document.getElementById('ccScaleOut');
+  if (!GOLDEN) { out.textContent = 'The expected answers are missing from the page, so there is nothing to check against.'; return; }
+  const bad = [];
+  CC_GRAPHS.forEach((g, i) => {
+    const mine = tarjanTrace(g).comps.map(c => c.map(v => g.n[v]).sort()).sort((a, b) => a.join() < b.join() ? -1 : 1);
+    const want = GOLDEN.cc[i] && GOLDEN.cc[i].components.map(c => c.slice().sort()).sort((a, b) => a.join() < b.join() ? -1 : 1);
+    if (!want || JSON.stringify(mine) !== JSON.stringify(want)) bad.push(g.name);
+  });
+  document.getElementById('ccScaleCv').hidden = true;
+  out.textContent = bad.length
+    ? `Differs from CodeCartographer at commit ${short(GOLDEN.commits.CodeCartographer)} on: ${bad.join(', ')}.`
+    : `Match. On all ${CC_GRAPHS.length} graphs the page finds exactly the strongly connected components that CodeCartographer's own Python finds, at commit ${short(GOLDEN.commits.CodeCartographer)}.`;
+});
+document.getElementById('hdParity').addEventListener('click', () => {
+  const out = document.getElementById('hdScaleOut');
+  if (!GOLDEN) { out.textContent = 'The expected answers are missing from the page, so there is nothing to check against.'; return; }
+  // run the demo's own fill and traceback on every pair, then put the demo back as it was
+  pause(); stopAudio();
+  const keep = [selA.value, selB.value];
+  let worst = 0, bad = 0;
+  for (const g of GOLDEN.hd) {
+    selA.value = g.a; selB.value = g.b; buildMatrix();
+    while (cellStep()) {}
+    const r = alignResult();
+    const d = Math.max(Math.abs(r.score - g.score), Math.abs(r.identity - g.identity));
+    worst = Math.max(worst, d);
+    if (d > 1e-3) bad++;
+  }
+  [selA.value, selB.value] = keep; buildMatrix(); hdOut.innerHTML = '';
+  hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
+  syncBtns(); hdDraw(); codeMark('hd', null);
+  document.getElementById('hdScaleCv').hidden = true;
+  out.textContent = bad
+    ? `${bad} of ${GOLDEN.hd.length} pairs differ from HarmonicDNA at commit ${short(GOLDEN.commits.HarmonicDNA)} by more than 0.001.`
+    : `Match. Across all ${GOLDEN.hd.length} ordered pairs of progressions, the page's score and identity agree with HarmonicDNA's align() at commit ${short(GOLDEN.commits.HarmonicDNA)} to within 0.001 (largest difference ${worst.toExponential(1)}).`;
+});
+document.getElementById('faParity').addEventListener('click', () => {
+  const out = document.getElementById('faScaleOut');
+  if (!GOLDEN) { out.textContent = 'The expected answers are missing from the page, so there is nothing to check against.'; return; }
+  const rate = [0, 1, 2].map(k => { const b = faBank(k, 10000, k * 100, 1); return b.y.reduce((a, v) => a + v, 0) / b.n; });
+  const f = GOLDEN.fa, pc = v => Math.round(v * 100) + '%';
+  out.textContent =
+    `Not the same data, and this says how. In federated-aml at commit ${short(GOLDEN.commits['federated-aml'])}, fraud is one of ${f.typologies.length} laundering shapes ` +
+    `(${f.typologies.join(', ')}) stamped onto ordinary transactions, and each bank's fraud is mostly one shape: ` +
+    f.banks.map((b, k) => `bank ${k} sees ${pc(b.home_share)} ${b.home_typology}`).join(', ') +
+    `; between ${pc(Math.min(...f.banks.map(b => b.unpatterned_share)))} and ${pc(Math.max(...f.banks.map(b => b.unpatterned_share)))} of fraud never forms a shape at all. ` +
+    `This demo draws two of the repo's ${f.features} features from its earlier generator, where banks differ by a shift instead. ` +
+    `What does agree: the fraud rate, ${rate.map(pc).join(', ')} here against ${f.banks.map(b => pc(b.fraud_rate)).join(', ')} in the repo, and the federated averaging itself.`;
+});
 
 /* Read the code. Two listings beside each of the first two demos: the
    JavaScript actually running on this page, read straight from the function
