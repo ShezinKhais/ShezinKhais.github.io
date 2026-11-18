@@ -19,6 +19,9 @@ apart from the webfont, which is the only thing fetched from anywhere.
 | `robots.txt`, `sitemap.xml` | Crawler directions. |
 | `.github/workflows/stats.yml` | Refreshes the three counters once a day. |
 | `.github/scripts/update-stats.js` | Writes those counters into `index.html`. |
+| `.github/scripts/collect-proof.sh` | Gathers each project's CI result, test count, last commit and licence. |
+| `.github/scripts/update-proof.js` | Writes that line under each project card. |
+| `.github/claims.json`, `.github/workflows/claims.yml`, `.github/scripts/verify-claims.js` | Re-derive every figure the page states about a project from its repo, weekly, and fail if they disagree. |
 
 ## The counters
 

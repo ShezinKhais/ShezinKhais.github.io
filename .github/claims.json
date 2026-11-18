@@ -1,0 +1,23 @@
+{
+  "_about": "Every specific figure the page states about a project, how to work it out again from that project's repo, and the text on the page that states it. verify-claims.js fails if either side has moved.",
+  "claims": [
+    {
+      "repo": "Clearlane",
+      "page": "1,566 real camera positions",
+      "value": 1566,
+      "derive": "python3 -c \"import json;print(len(json.load(open('data/src/main/assets/clearlane/hazards.json'))['cameras']))\""
+    },
+    {
+      "repo": "Clearlane",
+      "page": "102 tests across the pure-Kotlin modules",
+      "value": 102,
+      "derive": "grep -rho --include='*.kt' '@Test\\b' . | wc -l"
+    },
+    {
+      "repo": "HarmonicDNA",
+      "page": "24 templates: twelve roots times major and minor",
+      "value": 24,
+      "derive": "python3 -c \"import sys; sys.path.insert(0, '.'); from harmonicdna.chord_detector import _make_templates as t; print(len(t()[0]))\""
+    }
+  ]
+}
