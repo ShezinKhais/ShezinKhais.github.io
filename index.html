@@ -283,6 +283,9 @@
   .code-note { font-size:12px; color:var(--muted); margin:8px 0 0; max-width:70ch; }
   .code-src { font-size:11px; margin:4px 0 0; }
   .code-src a { color:var(--num); }
+  .ownrepo { font-size:11px; color:var(--dim); display:flex; flex-direction:column; gap:4px; }
+  .ownrepo input { font:inherit; font-size:11px; color:var(--muted); max-width:260px; }
+  .ownrepo-note { font-size:11px; color:var(--dim); margin:4px 0 0; }
   /* count the work: what the run actually did, against what the text promises */
   .countwork { margin-top:14px; }
   .cw-read { font-size:12.5px; color:var(--muted); margin:0 0 8px; max-width:70ch; }
@@ -293,6 +296,8 @@
   }
   .cw-row button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
   .cw-sub { font-size:11px; color:var(--dim); }
+  .countwork canvas[hidden] { display:none; }
+  .cw-row + .cw-row { margin-top:8px; }
   .countwork canvas { display:block; margin-top:10px; border:1px solid var(--line); background:var(--bg); width:100%; max-width:420px; height:auto; }
   .cw-out { font-size:12.5px; color:var(--fg); margin:8px 0 0; max-width:70ch; }
   .printfig { display:none; }
@@ -1299,7 +1304,10 @@
     <div class="demo" id="ccDemo" hidden>
       <div class="demo-head">
         <label for="ccPick">Import graph<select id="ccPick"></select></label>
+        <label class="ownrepo">Or map a folder of your own Python
+          <input type="file" id="ccFolder" webkitdirectory multiple accept=".py"></label>
       </div>
+      <p class="ownrepo-note" id="ccFolderNote">The files are read in this tab and go nowhere: nothing is uploaded, stored or put in the address.</p>
 
       <div class="demo-scroll">
         <canvas id="ccCv" role="img"
@@ -6197,7 +6205,7 @@ let stateLock = false;
 function demoParams(key) {
   const p = new URLSearchParams();
   if (key === 'hd') { p.set('d', 'hd'); p.set('a', selA.value); p.set('b', selB.value); }
-  else if (key === 'cc') { p.set('d', 'cc'); p.set('g', ccPick.value); }
+  else if (key === 'cc') { p.set('d', 'cc'); if (CC_GRAPHS[+ccPick.value] && CC_GRAPHS[+ccPick.value].name !== 'Your folder') p.set('g', ccPick.value); }
   else if (key === 'el') {
     p.set('d', 'el'); p.set('v', elVoice.value); p.set('t', elThr.value);
     p.set('f', elF1.value); p.set('p', elPitch.value);
@@ -13159,6 +13167,87 @@ ccCountNow(); hdCountNow();
 ccPick.addEventListener('change', ccCountNow);
 selA.addEventListener('change', hdCountNow); selB.addEventListener('change', hdCountNow);
 
+/* Map your own repo. Pick a folder of Python and the same Tarjan code above runs
+   on its imports. The scan is a line-by-line reading of import statements,
+   which stands in for the real tool's parse of the syntax tree: it resolves
+   relative imports and keeps only modules inside the folder, but it does not
+   see imports built at run time. The files are read in this tab and nothing
+   leaves it: no upload, no storage, nothing in the address. */
+const CC_FIXED = CC_GRAPHS.length;
+function pyModuleName(path) {
+  let parts = path.replace(/\\/g, '/').split('/').slice(1);          // drop the chosen folder's own name
+  if (parts[0] === 'src') parts = parts.slice(1);
+  if (!parts.length) return null;
+  const last = parts[parts.length - 1].replace(/\.py$/, '');
+  parts[parts.length - 1] = last;
+  if (last === '__init__') parts.pop();
+  return parts.length ? parts.join('.') : null;
+}
+function pyImports(text, mod, isPkg) {
+  const out = [];
+  const pkg = isPkg ? mod.split('.') : mod.split('.').slice(0, -1);
+  const resolve = (dots, name) => {
+    if (!dots) return name;
+    const base = pkg.slice(0, pkg.length - (dots - 1));
+    return base.concat(name ? name.split('.') : []).join('.');
+  };
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/#.*/, '').trim();
+    let m;
+    if ((m = /^import\s+(.+)$/.exec(line))) {
+      for (const part of m[1].split(',')) { const n = part.trim().split(/\s+as\s+/)[0]; if (/^[\w.]+$/.test(n)) out.push(n); }
+    } else if ((m = /^from\s+(\.*)([\w.]*)\s+import\s+\(?([^)]*)/.exec(line))) {
+      const base = resolve(m[1].length, m[2]);
+      out.push(base);
+      for (const part of m[3].split(',')) { const n = part.trim().split(/\s+as\s+/)[0]; if (/^\w+$/.test(n)) out.push(base ? base + '.' + n : n); }
+    }
+  }
+  return out;
+}
+document.getElementById('ccFolder').addEventListener('change', async e => {
+  const note = document.getElementById('ccFolderNote');
+  const files = [...e.target.files].filter(f => f.name.endsWith('.py') &&
+    !/(^|\/)(\.|venv|env|site-packages|node_modules|build|dist|__pycache__)/.test(f.webkitRelativePath || f.name));
+  e.target.value = '';
+  if (!files.length) { note.textContent = 'No Python files in that folder. Nothing was read.'; return; }
+  const capped = files.slice(0, 400);
+  const mods = new Map();
+  for (const f of capped) {
+    const name = pyModuleName(f.webkitRelativePath || f.name);
+    if (name && !mods.has(name)) mods.set(name, { f, pkg: /__init__\.py$/.test(f.name) });
+  }
+  const names = [...mods.keys()], idx = new Map(names.map((n, i) => [n, i])), edges = new Set();
+  for (const [name, { f, pkg }] of mods) {
+    const text = await f.text();
+    for (const imp of pyImports(text, name, pkg)) {
+      // the longest prefix that is a module in this folder is the one imported
+      let t = imp;
+      while (t && !idx.has(t)) t = t.includes('.') ? t.slice(0, t.lastIndexOf('.')) : '';
+      if (t && t !== name) edges.add(idx.get(name) + ',' + idx.get(t));
+    }
+  }
+  const e2 = [...edges].map(s => s.split(',').map(Number));
+  const g = { name: 'Your folder', n: names.map(n => n.split('.').slice(-2).join('.')), e: e2 };
+  const comps = tarjanTrace(g).comps.filter(c => c.length > 1);
+  const indeg = new Array(names.length).fill(0); e2.forEach(([, b]) => indeg[b]++);
+  const top = indeg.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]).slice(0, 3).filter(x => x[0] > 0);
+  const capNote = files.length > 400 ? ` (the first 400 of ${files.length} files)` : '';
+  note.textContent =
+    `Read ${names.length} modules${capNote} with ${e2.length} imports between them, in this tab only. ` +
+    (comps.length ? `${comps.length} circular import${comps.length > 1 ? 's' : ''}: ` +
+      comps.slice(0, 4).map(c => c.map(v => names[v]).join(' → ')).join('; ') + (comps.length > 4 ? '; …' : '') + '. '
+      : 'No circular imports. ') +
+    (top.length ? `Most imported: ${top.map(([v, i]) => `${names[i]} (${v})`).join(', ')}.` : '') +
+    ' The scan reads import lines rather than parsing the syntax tree, as the real tool does, so imports made at run time are not seen.';
+  // small enough to watch: hand it to the demo above
+  if (names.length <= 24) {
+    if (CC_GRAPHS.length > CC_FIXED) { CC_GRAPHS.pop(); ccPick.remove(CC_FIXED); }
+    CC_GRAPHS.push(g); ccPick.add(new Option('Your folder', CC_FIXED));
+    stateLock = true; ccPick.value = CC_FIXED; ccBuild(); ccCountNow(); stateLock = false;
+    note.textContent += ' It is loaded into the graph above: press Play to watch the search.';
+  }
+});
+
 /* Check against the repo. Each demo here is a JavaScript port, and "trust me,
    it's the same algorithm" is exactly the claim this page should not make. The
    expected answers below were produced by running each project's own Python on
@@ -13172,7 +13261,7 @@ document.getElementById('ccParity').addEventListener('click', () => {
   const out = document.getElementById('ccScaleOut');
   if (!GOLDEN) { out.textContent = 'The expected answers are missing from the page, so there is nothing to check against.'; return; }
   const bad = [];
-  CC_GRAPHS.forEach((g, i) => {
+  CC_GRAPHS.slice(0, CC_FIXED).forEach((g, i) => {
     const mine = tarjanTrace(g).comps.map(c => c.map(v => g.n[v]).sort()).sort((a, b) => a.join() < b.join() ? -1 : 1);
     const want = GOLDEN.cc[i] && GOLDEN.cc[i].components.map(c => c.slice().sort()).sort((a, b) => a.join() < b.join() ? -1 : 1);
     if (!want || JSON.stringify(mine) !== JSON.stringify(want)) bad.push(g.name);
@@ -13180,7 +13269,7 @@ document.getElementById('ccParity').addEventListener('click', () => {
   document.getElementById('ccScaleCv').hidden = true;
   out.textContent = bad.length
     ? `Differs from CodeCartographer at commit ${short(GOLDEN.commits.CodeCartographer)} on: ${bad.join(', ')}.`
-    : `Match. On all ${CC_GRAPHS.length} graphs the page finds exactly the strongly connected components that CodeCartographer's own Python finds, at commit ${short(GOLDEN.commits.CodeCartographer)}.`;
+    : `Match. On all ${CC_FIXED} graphs the page finds exactly the strongly connected components that CodeCartographer's own Python finds, at commit ${short(GOLDEN.commits.CodeCartographer)}.`;
 });
 document.getElementById('hdParity').addEventListener('click', () => {
   const out = document.getElementById('hdScaleOut');
