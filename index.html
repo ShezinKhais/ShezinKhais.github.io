@@ -336,6 +336,20 @@
   .hb-col li.private { font-style:italic; }
   .hb-load { font-size:12px; color:var(--muted); margin:10px 0 0; max-width:72ch; }
   @media (max-width:640px) { .hb-cols { grid-template-columns:1fr; } }
+  /* Clearlane: the calm way */
+  .cl-rank { border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:3px; font-size:11.5px; color:var(--muted); }
+  .cl-rank legend { font-size:10.5px; letter-spacing:.15em; text-transform:uppercase; color:var(--dim); padding:0; margin-bottom:4px; }
+  .cl-rows { display:grid; gap:12px; margin-top:16px; }
+  .cl-row { display:grid; grid-template-columns:150px minmax(0,1fr) 210px; gap:12px; align-items:center; font-size:12.5px; }
+  .cl-name { color:var(--fg); }
+  .cl-name small { display:block; color:var(--dim); font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; margin-top:2px; }
+  .cl-strip { display:flex; height:12px; border:1px solid var(--line); background:var(--bg); }
+  .cl-strip span { display:block; height:100%; }
+  .cl-fig { color:var(--muted); font-variant-numeric:tabular-nums; font-size:12px; }
+  .cl-fig b { color:var(--fg); font-weight:600; }
+  .cl-row.pick .cl-name::before { content:'\25B8 '; color:var(--num); }
+  .cl-key { font-size:11px; color:var(--dim); margin:10px 0 0; }
+  @media (max-width:640px) { .cl-row { grid-template-columns:1fr; gap:4px; } }
   /* count the work: what the run actually did, against what the text promises */
   .countwork { margin-top:14px; }
   .cw-read { font-size:12.5px; color:var(--muted); margin:0 0 8px; max-width:70ch; }
@@ -1303,7 +1317,7 @@
       <div><dt>Seeking</dt><dd>Internships <b>now</b>; full-time software engineering roles from <b>January 2027</b></dd></div>
       <div><dt>Based in</dt><dd>Dubai, and open to roles <b>anywhere in the UAE</b></dd></div>
       <div><dt>Strongest in</dt><dd><b>Python</b>: algorithms, machine learning, signal processing</dd></div>
-      <div><dt>Proof</dt><dd>Four of the projects below run live in this page, and every project ships with a test suite</dd></div>
+      <div><dt>Proof</dt><dd>Every project below has something you can run in this page, checked against its repo, and every one ships with a test suite</dd></div>
     </dl>
     <div class="brief-links"><a href="cv.pdf">CV <span aria-hidden="true">PDF</span></a><a href="mailto:shezinkhais@gmail.com">Email</a></div>
   </header>
@@ -1634,6 +1648,29 @@
     <p class="receipt" data-repo="clearlane"></p>
     <p class="claims">Figures above, at a pinned commit: <a href="https://github.com/ShezinKhais/Clearlane/blob/71f67a6e58d9a261548a9043363391ac9893b42c/data/src/main/assets/clearlane/hazards.json">1,566 camera positions</a> &middot; <a href="https://github.com/ShezinKhais/Clearlane/tree/71f67a6e58d9a261548a9043363391ac9893b42c/core/src/test/kotlin/ae/clearlane/core">102 tests</a></p>
 
+    <button class="tryit" id="clTry" aria-expanded="false" aria-controls="clDemo">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      What does the calm way cost?
+      <span class="sub">the app&rsquo;s tier rules, on its own demo trips</span>
+    </button>
+    <div class="demo" id="clDemo" hidden>
+      <div class="demo-head">
+        <label for="clTrip">Trip<select id="clTrip"></select></label>
+        <fieldset class="cl-rank"><legend>Judge congestion by</legend>
+          <label><input type="radio" name="clRank" value="time" checked> time spent in it (the app)</label>
+          <label><input type="radio" name="clRank" value="dist"> distance covered in it (the bug it fixed)</label>
+        </fieldset>
+      </div>
+      <div class="cl-rows" id="clRows"></div>
+      <p class="cl-key">Each strip is one route on a common distance scale, shaded by how congested each stretch is: the darker, the slower. A diagram, not a map.</p>
+      <div class="demo-out" id="clOut" aria-live="polite"></div>
+      <p class="demo-note">The trips are the synthetic ones the app bundles so it works with no traffic API
+        (<a href="https://github.com/ShezinKhais/Clearlane/blob/71f67a6e58d9a261548a9043363391ac9893b42c/data/src/main/assets/clearlane/fixtures.json">fixtures.json</a>), copied into this page by a workflow.
+        Times, the congestion index, the drive score and the tiers are worked out by a JavaScript port of the app&rsquo;s Kotlin
+        (<code>FixtureRouteProvider</code>, <code>CongestionIndex</code>, <code>DriveScoring</code>, <code>TierSelector</code>, at commit 71f67a6).
+        The fixtures carry no toll gates, so Salik is left out rather than guessed.</p>
+    </div>
+
     <a class="card" data-kind="ml product" href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform">
       <h3>C.L.I.P <span class="arrow" aria-hidden="true">&nearr;</span><span class="vh">(on GitHub)</span> <span class="status">ongoing</span></h3>
       <p>Team capstone (CSIT321, University of Wollongong in Dubai). A Microsoft Teams app that generates comprehension checkpoints from a lecturer's own slides.</p>
@@ -1886,7 +1923,7 @@
 </div>
 
 <!-- written by .github/scripts/write-golden.js from the projects' own Python; do not edit by hand -->
-<script type="application/json" id="golden">{"commits":{"CodeCartographer":"a20682ce1dc93465af6a77296cbdfab7712650eb","HarmonicDNA":"6706c0bbf19e2b9903cd2390d839f3cd6ce4310e","federated-aml":"0d7da41ad12963c020a4cb7c66b4560e8fdd8ed3","claimaudit":"c1723f039b0e0e9558e06020290380d06f798306","Hypothesisgraveyard":"5f31f9ccfad5463f66d058e459db8e9f36475f42","Cognitive_Learning_Intelligence_Platform":"9cf067581f8a8923cc1b86784f912c95a789ad4d"},"cc":[{"graph":"Layered app, no cycles","components":[["app"],["cli"],["config"],["db"],["models"],["routes"],["service"],["utils"]]},{"graph":"One circular import","components":[["app"],["cli"],["config"],["db","models"],["routes"],["service"],["utils"]]},{"graph":"Tangled core","components":[["app","db","models","routes","service","utils"],["cli"],["config"]]}],"hd":[{"a":0,"b":1,"score":20.0,"identity":1.0},{"a":0,"b":2,"score":8.7,"identity":0.357},{"a":0,"b":3,"score":13.5,"identity":0.615},{"a":0,"b":4,"score":13.3,"identity":0.583},{"a":0,"b":5,"score":11.0,"identity":0.429},{"a":0,"b":6,"score":12.8,"identity":0.5},{"a":0,"b":7,"score":12.8,"identity":0.5},{"a":0,"b":8,"score":8.5,"identity":0.5},{"a":0,"b":9,"score":5.0,"identity":0.333},{"a":0,"b":10,"score":3.3,"identity":0.167},{"a":0,"b":11,"score":9.5,"identity":0.429},{"a":0,"b":12,"score":3.8,"identity":0.333},{"a":0,"b":13,"score":2.6,"identity":0.273},{"a":1,"b":0,"score":20.0,"identity":1.0},{"a":1,"b":2,"score":8.6,"identity":0.455},{"a":1,"b":3,"score":15.5,"identity":0.643},{"a":1,"b":4,"score":13.6,"identity":0.538},{"a":1,"b":5,"score":10.5,"identity":0.462},{"a":1,"b":6,"score":13.8,"identity":0.538},{"a":1,"b":7,"score":13.8,"identity":0.538},{"a":1,"b":8,"score":8.8,"identity":0.455},{"a":1,"b":9,"score":5.0,"identity":0.333},{"a":1,"b":10,"score":3.3,"identity":0.167},{"a":1,"b":11,"score":9.0,"identity":0.462},{"a":1,"b":12,"score":3.8,"identity":0.333},{"a":1,"b":13,"score":2.6,"identity":0.273},{"a":2,"b":0,"score":8.7,"identity":0.357},{"a":2,"b":1,"score":8.6,"identity":0.455},{"a":2,"b":3,"score":7.5,"identity":0.462},{"a":2,"b":4,"score":6.5,"identity":0.667},{"a":2,"b":5,"score":7.0,"identity":0.333},{"a":2,"b":6,"score":7.5,"identity":0.556},{"a":2,"b":7,"score":7.5,"identity":0.556},{"a":2,"b":8,"score":7.8,"identity":0.5},{"a":2,"b":9,"score":2.0,"identity":0.0},{"a":2,"b":10,"score":7.3,"identity":0.455},{"a":2,"b":11,"score":11.1,"identity":0.333},{"a":2,"b":12,"score":9.3,"identity":0.455},{"a":2,"b":13,"score":11.5,"identity":0.545},{"a":3,"b":0,"score":13.5,"identity":0.615},{"a":3,"b":1,"score":15.5,"identity":0.643},{"a":3,"b":2,"score":7.5,"identity":0.462},{"a":3,"b":4,"score":10.8,"identity":0.5},{"a":3,"b":5,"score":11.5,"identity":0.545},{"a":3,"b":6,"score":9.3,"identity":0.5},{"a":3,"b":7,"score":9.3,"identity":0.5},{"a":3,"b":8,"score":5.0,"identity":0.286},{"a":3,"b":9,"score":7.3,"identity":0.3},{"a":3,"b":10,"score":1.3,"identity":0.0},{"a":3,"b":11,"score":8.9,"identity":0.308},{"a":3,"b":12,"score":0.5,"identity":0.0},{"a":3,"b":13,"score":0.5,"identity":0.0},{"a":4,"b":0,"score":13.3,"identity":0.583},{"a":4,"b":1,"score":13.6,"identity":0.538},{"a":4,"b":2,"score":6.5,"identity":0.667},{"a":4,"b":3,"score":10.8,"identity":0.5},{"a":4,"b":5,"score":7.8,"identity":0.364},{"a":4,"b":6,"score":17.6,"identity":0.692},{"a":4,"b":7,"score":17.6,"identity":0.692},{"a":4,"b":8,"score":10.6,"identity":0.5},{"a":4,"b":9,"score":2.0,"identity":0.0},{"a":4,"b":10,"score":2.5,"identity":0.5},{"a":4,"b":11,"score":9.3,"identity":0.462},{"a":4,"b":12,"score":4.1,"identity":0.4},{"a":4,"b":13,"score":2.8,"identity":0.4},{"a":5,"b":0,"score":11.0,"identity":0.429},{"a":5,"b":1,"score":10.5,"identity":0.462},{"a":5,"b":2,"score":7.0,"identity":0.333},{"a":5,"b":3,"score":11.5,"identity":0.545},{"a":5,"b":4,"score":7.8,"identity":0.364},{"a":5,"b":6,"score":6.9,"identity":0.3},{"a":5,"b":7,"score":6.9,"identity":0.3},{"a":5,"b":8,"score":5.3,"identity":0.3},{"a":5,"b":9,"score":8.0,"identity":0.556},{"a":5,"b":10,"score":2.3,"identity":0.2},{"a":5,"b":11,"score":7.7,"identity":0.308},{"a":5,"b":12,"score":3.0,"identity":0.333},{"a":5,"b":13,"score":2.0,"identity":1.0},{"a":6,"b":0,"score":12.8,"identity":0.5},{"a":6,"b":1,"score":13.8,"identity":0.538},{"a":6,"b":2,"score":7.5,"identity":0.556},{"a":6,"b":3,"score":9.3,"identity":0.5},{"a":6,"b":4,"score":17.6,"identity":0.692},{"a":6,"b":5,"score":6.9,"identity":0.3},{"a":6,"b":7,"score":24.0,"identity":1.0},{"a":6,"b":8,"score":12.8,"identity":0.636},{"a":6,"b":9,"score":1.0,"identity":0.0},{"a":6,"b":10,"score":3.0,"identity":0.667},{"a":6,"b":11,"score":13.0,"identity":0.538},{"a":6,"b":12,"score":5.3,"identity":0.5},{"a":6,"b":13,"score":4.4,"identity":0.273},{"a":7,"b":0,"score":12.8,"identity":0.5},{"a":7,"b":1,"score":13.8,"identity":0.538},{"a":7,"b":2,"score":7.5,"identity":0.556},{"a":7,"b":3,"score":9.3,"identity":0.5},{"a":7,"b":4,"score":17.6,"identity":0.692},{"a":7,"b":5,"score":6.9,"identity":0.3},{"a":7,"b":6,"score":24.0,"identity":1.0},{"a":7,"b":8,"score":12.8,"identity":0.636},{"a":7,"b":9,"score":1.0,"identity":0.0},{"a":7,"b":10,"score":3.0,"identity":0.667},{"a":7,"b":11,"score":13.0,"identity":0.538},{"a":7,"b":12,"score":5.3,"identity":0.5},{"a":7,"b":13,"score":4.4,"identity":0.273},{"a":8,"b":0,"score":8.5,"identity":0.5},{"a":8,"b":1,"score":8.8,"identity":0.455},{"a":8,"b":2,"score":7.8,"identity":0.5},{"a":8,"b":3,"score":5.0,"identity":0.286},{"a":8,"b":4,"score":10.6,"identity":0.5},{"a":8,"b":5,"score":5.3,"identity":0.3},{"a":8,"b":6,"score":12.8,"identity":0.636},{"a":8,"b":7,"score":12.8,"identity":0.636},{"a":8,"b":9,"score":1.0,"identity":0.0},{"a":8,"b":10,"score":3.5,"identity":0.667},{"a":8,"b":11,"score":10.6,"identity":0.556},{"a":8,"b":12,"score":7.0,"identity":0.667},{"a":8,"b":13,"score":6.1,"identity":0.364},{"a":9,"b":0,"score":5.0,"identity":0.333},{"a":9,"b":1,"score":5.0,"identity":0.333},{"a":9,"b":2,"score":2.0,"identity":0.0},{"a":9,"b":3,"score":7.3,"identity":0.3},{"a":9,"b":4,"score":2.0,"identity":0.0},{"a":9,"b":5,"score":8.0,"identity":0.556},{"a":9,"b":6,"score":1.0,"identity":0.0},{"a":9,"b":7,"score":1.0,"identity":0.0},{"a":9,"b":8,"score":1.0,"identity":0.0},{"a":9,"b":10,"score":1.5,"identity":0.0},{"a":9,"b":11,"score":2.8,"identity":0.2},{"a":9,"b":12,"score":0.0,"identity":0.0},{"a":9,"b":13,"score":0.0,"identity":0.0},{"a":10,"b":0,"score":3.3,"identity":0.167},{"a":10,"b":1,"score":3.3,"identity":0.167},{"a":10,"b":2,"score":7.3,"identity":0.455},{"a":10,"b":3,"score":1.3,"identity":0.0},{"a":10,"b":4,"score":2.5,"identity":0.5},{"a":10,"b":5,"score":2.3,"identity":0.2},{"a":10,"b":6,"score":3.0,"identity":0.667},{"a":10,"b":7,"score":3.0,"identity":0.667},{"a":10,"b":8,"score":3.5,"identity":0.667},{"a":10,"b":9,"score":1.5,"identity":0.0},{"a":10,"b":11,"score":5.8,"identity":0.333},{"a":10,"b":12,"score":7.8,"identity":0.571},{"a":10,"b":13,"score":9.1,"identity":0.417},{"a":11,"b":0,"score":9.5,"identity":0.429},{"a":11,"b":1,"score":9.0,"identity":0.462},{"a":11,"b":2,"score":11.1,"identity":0.333},{"a":11,"b":3,"score":8.9,"identity":0.308},{"a":11,"b":4,"score":9.3,"identity":0.455},{"a":11,"b":5,"score":7.7,"identity":0.308},{"a":11,"b":6,"score":13.0,"identity":0.538},{"a":11,"b":7,"score":13.0,"identity":0.538},{"a":11,"b":8,"score":10.6,"identity":0.556},{"a":11,"b":9,"score":2.8,"identity":0.2},{"a":11,"b":10,"score":5.8,"identity":0.333},{"a":11,"b":12,"score":7.1,"identity":0.364},{"a":11,"b":13,"score":8.9,"identity":0.333},{"a":12,"b":0,"score":3.8,"identity":0.333},{"a":12,"b":1,"score":3.8,"identity":0.333},{"a":12,"b":2,"score":9.3,"identity":0.455},{"a":12,"b":3,"score":0.5,"identity":0.0},{"a":12,"b":4,"score":4.1,"identity":0.4},{"a":12,"b":5,"score":3.0,"identity":0.333},{"a":12,"b":6,"score":5.3,"identity":0.5},{"a":12,"b":7,"score":5.3,"identity":0.5},{"a":12,"b":8,"score":7.0,"identity":0.667},{"a":12,"b":9,"score":0.0,"identity":0.0},{"a":12,"b":10,"score":7.8,"identity":0.571},{"a":12,"b":11,"score":7.1,"identity":0.364},{"a":12,"b":13,"score":15.6,"identity":0.667},{"a":13,"b":0,"score":2.6,"identity":0.273},{"a":13,"b":1,"score":2.6,"identity":0.273},{"a":13,"b":2,"score":11.5,"identity":0.545},{"a":13,"b":3,"score":0.5,"identity":0.0},{"a":13,"b":4,"score":2.8,"identity":0.4},{"a":13,"b":5,"score":2.0,"identity":1.0},{"a":13,"b":6,"score":4.4,"identity":0.273},{"a":13,"b":7,"score":4.4,"identity":0.273},{"a":13,"b":8,"score":6.1,"identity":0.364},{"a":13,"b":9,"score":0.0,"identity":0.0},{"a":13,"b":10,"score":9.1,"identity":0.417},{"a":13,"b":11,"score":8.9,"identity":0.333},{"a":13,"b":12,"score":15.6,"identity":0.667}],"fa":{"banks":[{"fraud_rate":0.02,"home_typology":"structuring","home_share":0.92,"unpatterned_share":0.175},{"fraud_rate":0.02,"home_typology":"layering","home_share":0.92,"unpatterned_share":0.15},{"fraud_rate":0.02,"home_typology":"exfiltration","home_share":0.9,"unpatterned_share":0.17}],"features":19,"typologies":["structuring","layering","exfiltration"]},"ca":[{"title":"Graphene anodes triple lithium-ion battery capacity","year":2015,"confirms":4,"challenges":1,"extends":1,"neutral":0,"score_at_5":10.0},{"title":"A perovskite solar cell exceeding 25% efficiency","year":2018,"confirms":2,"challenges":3,"extends":0,"neutral":1,"score_at_5":3.3},{"title":"Room-temperature superconductivity in a hydride at ambient pressure","year":2021,"confirms":0,"challenges":5,"extends":0,"neutral":1,"score_at_5":0.0}],"hg":[{"title":"A metabolic hypothesis for age-related memory decline","year":2011,"examined":3,"engaging":3,"neglect":0.0},{"title":"Gut microbiota as a novel driver of autoimmune arthritis","year":2013,"examined":2,"engaging":0,"neglect":1.0},{"title":"A speculative role for magnetoreception in human circadian timing","year":2016,"examined":1,"engaging":0,"neglect":1.0}],"clip":{"when":"2026-10-21","commit":"40656c6e","students":40,"passed":10,"scenarios":10,"connect_all_seconds":1.38,"fan_out_p95_ms":37.8,"half_class_resume_seconds":0.38,"whole_class_reconnect_seconds":0.65,"after_crash_back_seconds":0.88}}</script>
+<script type="application/json" id="golden">{"commits":{"CodeCartographer":"a20682ce1dc93465af6a77296cbdfab7712650eb","HarmonicDNA":"6706c0bbf19e2b9903cd2390d839f3cd6ce4310e","federated-aml":"0d7da41ad12963c020a4cb7c66b4560e8fdd8ed3","claimaudit":"c1723f039b0e0e9558e06020290380d06f798306","Hypothesisgraveyard":"5f31f9ccfad5463f66d058e459db8e9f36475f42","Cognitive_Learning_Intelligence_Platform":"9cf067581f8a8923cc1b86784f912c95a789ad4d","Clearlane":"71f67a6e58d9a261548a9043363391ac9893b42c"},"cc":[{"graph":"Layered app, no cycles","components":[["app"],["cli"],["config"],["db"],["models"],["routes"],["service"],["utils"]]},{"graph":"One circular import","components":[["app"],["cli"],["config"],["db","models"],["routes"],["service"],["utils"]]},{"graph":"Tangled core","components":[["app","db","models","routes","service","utils"],["cli"],["config"]]}],"hd":[{"a":0,"b":1,"score":20.0,"identity":1.0},{"a":0,"b":2,"score":8.7,"identity":0.357},{"a":0,"b":3,"score":13.5,"identity":0.615},{"a":0,"b":4,"score":13.3,"identity":0.583},{"a":0,"b":5,"score":11.0,"identity":0.429},{"a":0,"b":6,"score":12.8,"identity":0.5},{"a":0,"b":7,"score":12.8,"identity":0.5},{"a":0,"b":8,"score":8.5,"identity":0.5},{"a":0,"b":9,"score":5.0,"identity":0.333},{"a":0,"b":10,"score":3.3,"identity":0.167},{"a":0,"b":11,"score":9.5,"identity":0.429},{"a":0,"b":12,"score":3.8,"identity":0.333},{"a":0,"b":13,"score":2.6,"identity":0.273},{"a":1,"b":0,"score":20.0,"identity":1.0},{"a":1,"b":2,"score":8.6,"identity":0.455},{"a":1,"b":3,"score":15.5,"identity":0.643},{"a":1,"b":4,"score":13.6,"identity":0.538},{"a":1,"b":5,"score":10.5,"identity":0.462},{"a":1,"b":6,"score":13.8,"identity":0.538},{"a":1,"b":7,"score":13.8,"identity":0.538},{"a":1,"b":8,"score":8.8,"identity":0.455},{"a":1,"b":9,"score":5.0,"identity":0.333},{"a":1,"b":10,"score":3.3,"identity":0.167},{"a":1,"b":11,"score":9.0,"identity":0.462},{"a":1,"b":12,"score":3.8,"identity":0.333},{"a":1,"b":13,"score":2.6,"identity":0.273},{"a":2,"b":0,"score":8.7,"identity":0.357},{"a":2,"b":1,"score":8.6,"identity":0.455},{"a":2,"b":3,"score":7.5,"identity":0.462},{"a":2,"b":4,"score":6.5,"identity":0.667},{"a":2,"b":5,"score":7.0,"identity":0.333},{"a":2,"b":6,"score":7.5,"identity":0.556},{"a":2,"b":7,"score":7.5,"identity":0.556},{"a":2,"b":8,"score":7.8,"identity":0.5},{"a":2,"b":9,"score":2.0,"identity":0.0},{"a":2,"b":10,"score":7.3,"identity":0.455},{"a":2,"b":11,"score":11.1,"identity":0.333},{"a":2,"b":12,"score":9.3,"identity":0.455},{"a":2,"b":13,"score":11.5,"identity":0.545},{"a":3,"b":0,"score":13.5,"identity":0.615},{"a":3,"b":1,"score":15.5,"identity":0.643},{"a":3,"b":2,"score":7.5,"identity":0.462},{"a":3,"b":4,"score":10.8,"identity":0.5},{"a":3,"b":5,"score":11.5,"identity":0.545},{"a":3,"b":6,"score":9.3,"identity":0.5},{"a":3,"b":7,"score":9.3,"identity":0.5},{"a":3,"b":8,"score":5.0,"identity":0.286},{"a":3,"b":9,"score":7.3,"identity":0.3},{"a":3,"b":10,"score":1.3,"identity":0.0},{"a":3,"b":11,"score":8.9,"identity":0.308},{"a":3,"b":12,"score":0.5,"identity":0.0},{"a":3,"b":13,"score":0.5,"identity":0.0},{"a":4,"b":0,"score":13.3,"identity":0.583},{"a":4,"b":1,"score":13.6,"identity":0.538},{"a":4,"b":2,"score":6.5,"identity":0.667},{"a":4,"b":3,"score":10.8,"identity":0.5},{"a":4,"b":5,"score":7.8,"identity":0.364},{"a":4,"b":6,"score":17.6,"identity":0.692},{"a":4,"b":7,"score":17.6,"identity":0.692},{"a":4,"b":8,"score":10.6,"identity":0.5},{"a":4,"b":9,"score":2.0,"identity":0.0},{"a":4,"b":10,"score":2.5,"identity":0.5},{"a":4,"b":11,"score":9.3,"identity":0.462},{"a":4,"b":12,"score":4.1,"identity":0.4},{"a":4,"b":13,"score":2.8,"identity":0.4},{"a":5,"b":0,"score":11.0,"identity":0.429},{"a":5,"b":1,"score":10.5,"identity":0.462},{"a":5,"b":2,"score":7.0,"identity":0.333},{"a":5,"b":3,"score":11.5,"identity":0.545},{"a":5,"b":4,"score":7.8,"identity":0.364},{"a":5,"b":6,"score":6.9,"identity":0.3},{"a":5,"b":7,"score":6.9,"identity":0.3},{"a":5,"b":8,"score":5.3,"identity":0.3},{"a":5,"b":9,"score":8.0,"identity":0.556},{"a":5,"b":10,"score":2.3,"identity":0.2},{"a":5,"b":11,"score":7.7,"identity":0.308},{"a":5,"b":12,"score":3.0,"identity":0.333},{"a":5,"b":13,"score":2.0,"identity":1.0},{"a":6,"b":0,"score":12.8,"identity":0.5},{"a":6,"b":1,"score":13.8,"identity":0.538},{"a":6,"b":2,"score":7.5,"identity":0.556},{"a":6,"b":3,"score":9.3,"identity":0.5},{"a":6,"b":4,"score":17.6,"identity":0.692},{"a":6,"b":5,"score":6.9,"identity":0.3},{"a":6,"b":7,"score":24.0,"identity":1.0},{"a":6,"b":8,"score":12.8,"identity":0.636},{"a":6,"b":9,"score":1.0,"identity":0.0},{"a":6,"b":10,"score":3.0,"identity":0.667},{"a":6,"b":11,"score":13.0,"identity":0.538},{"a":6,"b":12,"score":5.3,"identity":0.5},{"a":6,"b":13,"score":4.4,"identity":0.273},{"a":7,"b":0,"score":12.8,"identity":0.5},{"a":7,"b":1,"score":13.8,"identity":0.538},{"a":7,"b":2,"score":7.5,"identity":0.556},{"a":7,"b":3,"score":9.3,"identity":0.5},{"a":7,"b":4,"score":17.6,"identity":0.692},{"a":7,"b":5,"score":6.9,"identity":0.3},{"a":7,"b":6,"score":24.0,"identity":1.0},{"a":7,"b":8,"score":12.8,"identity":0.636},{"a":7,"b":9,"score":1.0,"identity":0.0},{"a":7,"b":10,"score":3.0,"identity":0.667},{"a":7,"b":11,"score":13.0,"identity":0.538},{"a":7,"b":12,"score":5.3,"identity":0.5},{"a":7,"b":13,"score":4.4,"identity":0.273},{"a":8,"b":0,"score":8.5,"identity":0.5},{"a":8,"b":1,"score":8.8,"identity":0.455},{"a":8,"b":2,"score":7.8,"identity":0.5},{"a":8,"b":3,"score":5.0,"identity":0.286},{"a":8,"b":4,"score":10.6,"identity":0.5},{"a":8,"b":5,"score":5.3,"identity":0.3},{"a":8,"b":6,"score":12.8,"identity":0.636},{"a":8,"b":7,"score":12.8,"identity":0.636},{"a":8,"b":9,"score":1.0,"identity":0.0},{"a":8,"b":10,"score":3.5,"identity":0.667},{"a":8,"b":11,"score":10.6,"identity":0.556},{"a":8,"b":12,"score":7.0,"identity":0.667},{"a":8,"b":13,"score":6.1,"identity":0.364},{"a":9,"b":0,"score":5.0,"identity":0.333},{"a":9,"b":1,"score":5.0,"identity":0.333},{"a":9,"b":2,"score":2.0,"identity":0.0},{"a":9,"b":3,"score":7.3,"identity":0.3},{"a":9,"b":4,"score":2.0,"identity":0.0},{"a":9,"b":5,"score":8.0,"identity":0.556},{"a":9,"b":6,"score":1.0,"identity":0.0},{"a":9,"b":7,"score":1.0,"identity":0.0},{"a":9,"b":8,"score":1.0,"identity":0.0},{"a":9,"b":10,"score":1.5,"identity":0.0},{"a":9,"b":11,"score":2.8,"identity":0.2},{"a":9,"b":12,"score":0.0,"identity":0.0},{"a":9,"b":13,"score":0.0,"identity":0.0},{"a":10,"b":0,"score":3.3,"identity":0.167},{"a":10,"b":1,"score":3.3,"identity":0.167},{"a":10,"b":2,"score":7.3,"identity":0.455},{"a":10,"b":3,"score":1.3,"identity":0.0},{"a":10,"b":4,"score":2.5,"identity":0.5},{"a":10,"b":5,"score":2.3,"identity":0.2},{"a":10,"b":6,"score":3.0,"identity":0.667},{"a":10,"b":7,"score":3.0,"identity":0.667},{"a":10,"b":8,"score":3.5,"identity":0.667},{"a":10,"b":9,"score":1.5,"identity":0.0},{"a":10,"b":11,"score":5.8,"identity":0.333},{"a":10,"b":12,"score":7.8,"identity":0.571},{"a":10,"b":13,"score":9.1,"identity":0.417},{"a":11,"b":0,"score":9.5,"identity":0.429},{"a":11,"b":1,"score":9.0,"identity":0.462},{"a":11,"b":2,"score":11.1,"identity":0.333},{"a":11,"b":3,"score":8.9,"identity":0.308},{"a":11,"b":4,"score":9.3,"identity":0.455},{"a":11,"b":5,"score":7.7,"identity":0.308},{"a":11,"b":6,"score":13.0,"identity":0.538},{"a":11,"b":7,"score":13.0,"identity":0.538},{"a":11,"b":8,"score":10.6,"identity":0.556},{"a":11,"b":9,"score":2.8,"identity":0.2},{"a":11,"b":10,"score":5.8,"identity":0.333},{"a":11,"b":12,"score":7.1,"identity":0.364},{"a":11,"b":13,"score":8.9,"identity":0.333},{"a":12,"b":0,"score":3.8,"identity":0.333},{"a":12,"b":1,"score":3.8,"identity":0.333},{"a":12,"b":2,"score":9.3,"identity":0.455},{"a":12,"b":3,"score":0.5,"identity":0.0},{"a":12,"b":4,"score":4.1,"identity":0.4},{"a":12,"b":5,"score":3.0,"identity":0.333},{"a":12,"b":6,"score":5.3,"identity":0.5},{"a":12,"b":7,"score":5.3,"identity":0.5},{"a":12,"b":8,"score":7.0,"identity":0.667},{"a":12,"b":9,"score":0.0,"identity":0.0},{"a":12,"b":10,"score":7.8,"identity":0.571},{"a":12,"b":11,"score":7.1,"identity":0.364},{"a":12,"b":13,"score":15.6,"identity":0.667},{"a":13,"b":0,"score":2.6,"identity":0.273},{"a":13,"b":1,"score":2.6,"identity":0.273},{"a":13,"b":2,"score":11.5,"identity":0.545},{"a":13,"b":3,"score":0.5,"identity":0.0},{"a":13,"b":4,"score":2.8,"identity":0.4},{"a":13,"b":5,"score":2.0,"identity":1.0},{"a":13,"b":6,"score":4.4,"identity":0.273},{"a":13,"b":7,"score":4.4,"identity":0.273},{"a":13,"b":8,"score":6.1,"identity":0.364},{"a":13,"b":9,"score":0.0,"identity":0.0},{"a":13,"b":10,"score":9.1,"identity":0.417},{"a":13,"b":11,"score":8.9,"identity":0.333},{"a":13,"b":12,"score":15.6,"identity":0.667}],"fa":{"banks":[{"fraud_rate":0.02,"home_typology":"structuring","home_share":0.92,"unpatterned_share":0.175},{"fraud_rate":0.02,"home_typology":"layering","home_share":0.92,"unpatterned_share":0.15},{"fraud_rate":0.02,"home_typology":"exfiltration","home_share":0.9,"unpatterned_share":0.17}],"features":19,"typologies":["structuring","layering","exfiltration"]},"ca":[{"title":"Graphene anodes triple lithium-ion battery capacity","year":2015,"confirms":4,"challenges":1,"extends":1,"neutral":0,"score_at_5":10.0},{"title":"A perovskite solar cell exceeding 25% efficiency","year":2018,"confirms":2,"challenges":3,"extends":0,"neutral":1,"score_at_5":3.3},{"title":"Room-temperature superconductivity in a hydride at ambient pressure","year":2021,"confirms":0,"challenges":5,"extends":0,"neutral":1,"score_at_5":0.0}],"hg":[{"title":"A metabolic hypothesis for age-related memory decline","year":2011,"examined":3,"engaging":3,"neglect":0.0},{"title":"Gut microbiota as a novel driver of autoimmune arthritis","year":2013,"examined":2,"engaging":0,"neglect":1.0},{"title":"A speculative role for magnetoreception in human circadian timing","year":2016,"examined":1,"engaging":0,"neglect":1.0}],"clip":{"when":"2026-10-21","commit":"40656c6e","students":40,"passed":10,"scenarios":10,"connect_all_seconds":1.38,"fan_out_p95_ms":37.8,"half_class_resume_seconds":0.38,"whole_class_reconnect_seconds":0.65,"after_crash_back_seconds":0.88},"clearlane":{"note":"Synthetic demo data. Geometry is drawn through approximate points on the real corridors rather than traced from the road network, so routes will not sit exactly on the basemap, and the congestion patterns are invented to be representative of a bad evening rather than measured from anything. Used so the app is fully usable with no API key, and so the tier logic can be exercised against conditions you cannot summon on demand from a live service. Congestion runs are [congestion, extent]; extents are rescaled to the real path length on load, so they can be written in metres or as fractions.","trips":[{"id":"marina-airport-evening","label":"Dubai Marina to the airport, evening peak","origin":{"lat":25.0785,"lon":55.1403},"destination":{"lat":25.2528,"lon":55.3644},"routes":[{"id":"e44","refs":["E44","D89"],"speedLimitKph":100,"signals":5,"roundabouts":0,"via":[{"lat":25.08,"lon":55.19},{"lat":25.14,"lon":55.25},{"lat":25.2,"lon":55.32}],"congestion":[[0.15,7770],[0.52,9330],[0.4,7770],[0.18,6220]]},{"id":"e11","refs":["E11","D89"],"speedLimitKph":100,"signals":8,"roundabouts":0,"via":[{"lat":25.13,"lon":55.2},{"lat":25.19,"lon":55.26},{"lat":25.23,"lon":55.3}],"congestion":[[0.3,6050],[0.72,10590],[0.62,7560],[0.35,6050]]},{"id":"e311","refs":["E311","E11"],"speedLimitKph":110,"signals":2,"roundabouts":0,"via":[{"lat":25.02,"lon":55.24},{"lat":25.09,"lon":55.33},{"lat":25.18,"lon":55.42}],"congestion":[[0.1,14200],[0.28,16500],[0.14,9450],[0.22,7090]]},{"id":"e611","refs":["E611","E311"],"speedLimitKph":110,"signals":1,"roundabouts":0,"via":[{"lat":25.01,"lon":55.3},{"lat":25.09,"lon":55.39},{"lat":25.19,"lon":55.48}],"congestion":[[0.03,26280],[0.06,20440],[0.1,11680]]}]},{"id":"sharjah-business-bay-morning","label":"Sharjah to Business Bay, morning peak","origin":{"lat":25.3463,"lon":55.4209},"destination":{"lat":25.1857,"lon":55.2766},"routes":[{"id":"e311","refs":["E311","E44"],"speedLimitKph":110,"signals":3,"roundabouts":0,"via":[{"lat":25.28,"lon":55.45},{"lat":25.2,"lon":55.37},{"lat":25.19,"lon":55.3}],"congestion":[[0.18,7370],[0.48,8840],[0.35,7370],[0.2,5890]]},{"id":"e11-ittihad","refs":["E11","E10"],"speedLimitKph":80,"signals":11,"roundabouts":1,"via":[{"lat":25.31,"lon":55.38},{"lat":25.27,"lon":55.33},{"lat":25.22,"lon":55.3}],"congestion":[[0.4,4660],[0.7,6980],[0.58,5820],[0.35,5820]]},{"id":"e611","refs":["E611","E44"],"speedLimitKph":110,"signals":2,"roundabouts":0,"via":[{"lat":25.26,"lon":55.54},{"lat":25.14,"lon":55.42},{"lat":25.16,"lon":55.32}],"congestion":[[0.04,24440],[0.08,14660],[0.12,9770]]}]},{"id":"abu-dhabi-dubai-midday","label":"Abu Dhabi to Dubai, the middle of the day","origin":{"lat":24.4539,"lon":54.3773},"destination":{"lat":25.1972,"lon":55.2744},"routes":[{"id":"e311-inland","refs":["E311"],"speedLimitKph":120,"signals":0,"roundabouts":0,"via":[{"lat":24.62,"lon":54.7},{"lat":24.88,"lon":55.0},{"lat":25.06,"lon":55.24}],"congestion":[[0.05,63210],[0.08,37930],[0.16,25280]]},{"id":"e11-coast","refs":["E11"],"speedLimitKph":120,"signals":0,"roundabouts":0,"via":[{"lat":24.64,"lon":54.62},{"lat":24.86,"lon":54.89},{"lat":25.03,"lon":55.12}],"congestion":[[0.1,43000],[0.22,36870],[0.48,18430],[0.3,24580]]}]}]}}</script>
 <span id="copyStatus" class="vh" role="status" aria-live="polite"></span>
 
 <script type="module">
@@ -13491,6 +13528,169 @@ document.getElementById('ccFolder').addEventListener('change', async e => {
     note.textContent += ' It is loaded into the graph above: press Play to watch the search.';
   }
 });
+
+/* ============ Clearlane: what does the calm way cost? ============
+   The app's answer to "is there a calmer way, and what does it cost", worked
+   out the way the app works it out, on the trips it ships for use without a
+   traffic API. FixtureRouteProvider turns each corridor into segments and
+   times; CongestionIndex weights each stretch by the time spent on it;
+   DriveScoring grades the drive; TierSelector picks, for each traffic level,
+   the quickest route that fits under it. The distance-weighted option shows
+   the version the app moved away from, where a short car park and a long open
+   road could average out to the same figure. */
+const CL_TIERS = [['None', 0.10], ['Low', 0.22], ['Medium', 0.38], ['High', 0.55]];
+const CL = { CRAWL: 0.12, HEAVY: 0.45, SEVERE: 0.70, CLEAR: 0.20, JAM_ENTER: 0.55, JAM_EXIT: 0.35, SPACING: 180, MIN_GAIN: 0.05 };
+const clRad = d => d * Math.PI / 180;
+function clDist(a, b) {
+  const dLat = clRad(b.lat - a.lat), dLon = clRad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(clRad(a.lat)) * Math.cos(clRad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371008.8 * Math.asin(Math.sqrt(Math.min(1, Math.max(0, h))));
+}
+function clDensify(anchors) {
+  const out = [anchors[0]];
+  for (let i = 0; i < anchors.length - 1; i++) {
+    const a = anchors[i], b = anchors[i + 1], steps = Math.max(1, Math.floor(clDist(a, b) / CL.SPACING));
+    for (let s = 1; s <= steps; s++) out.push({ lat: a.lat + (b.lat - a.lat) * s / steps, lon: a.lon + (b.lon - a.lon) * s / steps });
+  }
+  return out;
+}
+function clCircumRadius(a, b, c) {
+  const mx = 6371008.8 * Math.cos(clRad(b.lat)) * Math.PI / 180, my = 6371008.8 * Math.PI / 180;
+  const ax = (a.lon - b.lon) * mx, ay = (a.lat - b.lat) * my, cx = (c.lon - b.lon) * mx, cy = (c.lat - b.lat) * my;
+  const la = Math.hypot(ax, ay), lc = Math.hypot(cx, cy), cross = ax * cy - ay * cx;
+  if (Math.abs(cross) < 1e-9) return Infinity;
+  const lb = Math.hypot(cx - ax, cy - ay);
+  if (la < 1e-6 || lb < 1e-6 || lc < 1e-6) return Infinity;
+  return (la * lb * lc) / (2 * Math.abs(cross));
+}
+// FixtureRouteProvider.build and assemble
+function clBuild(trip, r) {
+  const path = clDensify([trip.origin, ...r.via, trip.destination]);
+  const limit = r.speedLimitKph * 1000 / 3600;
+  let total = 0; for (let i = 0; i < path.length - 1; i++) total += clDist(path[i], path[i + 1]);
+  const declared = r.congestion.reduce((a, c) => a + c[1], 0);
+  const runs = r.congestion.length && declared > 0 ? r.congestion.map(([v, e]) => [v, e * total / declared]) : [[0, total]];
+  const at = d => { let edge = 0; for (const [v, e] of runs) { edge += e; if (d <= edge) return Math.min(1, Math.max(0, v)); } return Math.min(1, Math.max(0, runs[runs.length - 1][0])); };
+  const segs = []; let travelled = 0, free = 0, traffic = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    const m = clDist(path[i], path[i + 1]); if (m <= 0) continue;
+    const c = at(travelled + m / 2);
+    segs.push({ m, c }); travelled += m;
+    const clear = m / limit; free += clear; traffic += clear / Math.max(1 - c, CL.CRAWL);
+  }
+  return { id: r.id, refs: r.refs, path, segs, runs, meters: Math.max(1, total), dur: Math.max(1, traffic), free: Math.max(1, free), interrupts: r.signals + r.roundabouts };
+}
+// CongestionIndex.profile
+function clProfile(rt) {
+  const total = rt.segs.reduce((a, s) => a + s.m, 0);
+  let wSum = 0, tw = 0, dw = 0;
+  for (const s of rt.segs) { const w = s.m / Math.max(1 - s.c, CL.CRAWL); wSum += w; tw += w * s.c; dw += s.m * s.c; }
+  let inJam = false, entries = 0, jam = 0, longJam = 0, clear = 0, longClear = 0;
+  for (const s of rt.segs) {
+    if (inJam) { if (s.c <= CL.JAM_EXIT) { inJam = false; longJam = Math.max(longJam, jam); jam = 0; } else jam += s.m; }
+    else if (s.c >= CL.JAM_ENTER) { inJam = true; entries++; jam = s.m; }
+    if (s.c <= CL.CLEAR) clear += s.m; else { longClear = Math.max(longClear, clear); clear = 0; }
+  }
+  longClear = Math.max(longClear, clear);
+  return { time: wSum > 0 ? Math.min(1, tw / wSum) : 0, dist: Math.min(1, dw / total), stopGo: entries / (total / 10000), longClear };
+}
+// DriveScoring.score
+function clScore(rt, p) {
+  const km = rt.meters / 1000, flow = Math.min(1, Math.max(0, 1 - p.time));
+  const steady = Math.min(1, Math.max(0, 1 - p.stopGo / 6)), cruise = Math.min(1, Math.max(0, p.longClear / rt.meters));
+  const junctions = km > 0 ? Math.min(1, Math.max(0, 1 - (rt.interrupts / km) / 2)) : 1;
+  let sweep = 0;
+  if (p.time <= 0.30) {
+    let interesting = 0, measured = 0;
+    for (let i = 1; i < rt.path.length - 1; i++) {
+      const s = rt.segs[i]; if (!s || s.m <= 0) continue;
+      measured += s.m; if (s.c > 0.30) continue;
+      const r = clCircumRadius(rt.path[i - 1], rt.path[i], rt.path[i + 1]);
+      if (r >= 120 && r <= 900) interesting += s.m;
+    }
+    sweep = measured > 0 ? Math.min(1, interesting / measured) : 0;
+  }
+  const total = flow * (0.40 + 0.20 * steady + 0.15 * cruise + 0.15 * junctions + 0.10 * sweep);
+  return Math.min(100, Math.max(0, Math.round(total * 100)));
+}
+// TierSelector.select, with the index it judges by switchable
+function clPlan(trip, by) {
+  const rts = trip.routes.map(r => clBuild(trip, r));
+  const fastest = rts.reduce((a, b) => b.dur < a.dur ? b : a);
+  const scored = rts.map(rt => {
+    const p = clProfile(rt), extra = rt.dur - fastest.dur;
+    return { rt, p, idx: by === 'dist' ? p.dist : p.time, score: clScore(rt, p), extra, over: !(extra <= 20 * 60 && extra <= fastest.dur * 0.75) };
+  });
+  const fast = scored.find(s => s.rt === fastest), picks = [], used = new Set();
+  for (const [name, ceil] of CL_TIERS) {
+    const ok = scored.filter(s => s.idx <= ceil);
+    if (!ok.length) continue;
+    const pick = ok.reduce((a, b) => b.rt.dur < a.rt.dur ? b : a);
+    if (used.has(pick.rt.id)) continue;
+    const isFastest = pick === fast, calmer = fast.idx - pick.idx >= CL.MIN_GAIN;
+    if (!isFastest && !calmer) continue;
+    picks.push({ tier: name, s: pick }); used.add(pick.rt.id);
+  }
+  const affordable = picks.filter(x => !x.s.over);
+  const rec = affordable.slice().sort((a, b) => b.s.score - a.s.score || a.s.rt.dur - b.s.rt.dur)[0];
+  return { scored, fast, picks, rec };
+}
+const clTry = document.getElementById('clTry'), clDemo = document.getElementById('clDemo'), clTripSel = document.getElementById('clTrip');
+const clTrips = () => (GOLDEN && GOLDEN.clearlane && GOLDEN.clearlane.trips) || [];
+const clMin = s => Math.round(s / 60);
+const clExtra = (s, f) => clMin(s.rt.dur) - clMin(f.rt.dur);   // shown as the difference of the shown minutes, so the sums add up
+function clRender() {
+  const trip = clTrips()[+clTripSel.value]; if (!trip) return;
+  const by = document.querySelector('input[name="clRank"]:checked').value;
+  const plan = clPlan(trip, by), maxM = Math.max(...plan.scored.map(s => s.rt.meters));
+  const rows = document.getElementById('clRows'); rows.textContent = '';
+  const tierOf = new Map(plan.picks.map(p => [p.s, p.tier]));
+  plan.scored.slice().sort((a, b) => a.rt.dur - b.rt.dur).forEach(s => {
+    const row = document.createElement('div'); row.className = 'cl-row' + (tierOf.has(s) ? ' pick' : '');
+    const name = document.createElement('div'); name.className = 'cl-name'; name.textContent = s.rt.refs.join(' / ');
+    const sm = document.createElement('small');
+    sm.textContent = (tierOf.has(s) ? (tierOf.get(s) === 'None' ? 'no traffic' : tierOf.get(s).toLowerCase() + ' traffic') : 'not offered') + (plan.rec && plan.rec.s === s ? ' · recommended' : '') + (s === plan.fast ? ' · fastest' : '');
+    name.appendChild(sm);
+    const strip = document.createElement('div'); strip.className = 'cl-strip'; strip.style.width = (100 * s.rt.meters / maxM) + '%';
+    strip.setAttribute('role', 'img');
+    strip.setAttribute('aria-label', `${(s.rt.meters / 1000).toFixed(1)} km, congestion by stretch: ` + s.rt.runs.map(([v]) => Math.round(v * 100) + '%').join(', '));
+    const runTotal = s.rt.runs.reduce((a, r) => a + r[1], 0);
+    for (const [v, e] of s.rt.runs) {
+      const sp = document.createElement('span'); sp.style.width = (100 * e / runTotal) + '%';
+      sp.style.background = `color-mix(in srgb, var(--fg) ${Math.round(8 + v * 80)}%, var(--bg))`;
+      strip.appendChild(sp);
+    }
+    const fig = document.createElement('div'); fig.className = 'cl-fig';
+    fig.innerHTML = `<b>${clMin(s.rt.dur)} min</b>${s === plan.fast ? '' : ` (+${clExtra(s, plan.fast)})`} · ${(s.rt.meters / 1000).toFixed(1)} km · index ${s.idx.toFixed(2)} · score ${s.score}`;
+    row.append(name, strip, fig); rows.appendChild(row);
+  });
+  const out = document.getElementById('clOut');
+  const calm = plan.picks.filter(p => p.s !== plan.fast).sort((a, b) => a.s.idx - b.s.idx)[0];
+  out.innerHTML = [['fastest', clMin(plan.fast.rt.dur) + ' min'], ['tiers offered', plan.picks.length],
+    ['calmest offered', calm ? calm.s.rt.refs[0] : '—'], ['it costs', calm ? '+' + clExtra(calm.s, plan.fast) + ' min' : '—']]
+    .map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+  const t = plan.fast.rt.refs[0];
+  out.appendChild(plainLine(calm
+    ? `In plain terms: the quickest way is ${t}, ${clMin(plan.fast.rt.dur)} minutes; the calm way is ${calm.s.rt.refs[0]}, ${clExtra(calm.s, plan.fast)} minutes longer, with a congestion index of ${calm.s.idx.toFixed(2)} against ${plan.fast.idx.toFixed(2)}.` +
+      (by === 'dist' ? (() => {
+        const other = clPlan(trip, 'time'), same = other.picks.map(p => p.s.rt.id + p.tier).join() === plan.picks.map(p => p.s.rt.id + p.tier).join();
+        return same ? ' On this trip, judging by distance happens to offer the same routes; it understates every index, though, because a jam is short in kilometres and long in minutes.'
+          : ' Judged by distance, as the app used to, the offer changes: a jam is short in kilometres and long in minutes, so distance lets congested routes look calmer than they drive.';
+      })() : '')
+    : `In plain terms: the quickest way, ${t}, is already the calmest worth offering, so there is no detour to sell.`));
+}
+function clOpen(on) {
+  clDemo.hidden = !on;
+  clTry.setAttribute('aria-expanded', String(on));
+  clTry.querySelector('.sub').textContent = on ? 'collapse' : 'the app’s tier rules, on its own demo trips';
+  // the trips live in the expected-answers block further down, so they are read on first open
+  if (on && !clTripSel.options.length) clTrips().forEach((t, i) => clTripSel.add(new Option(t.label, i)));
+  if (on) clRender();
+  resize(); draw(performance.now() / 1000);
+}
+clTry.addEventListener('click', () => clOpen(clDemo.hidden));
+clTripSel.addEventListener('change', clRender);
+document.querySelectorAll('input[name="clRank"]').forEach(r => r.addEventListener('change', clRender));
 
 /* ============ C.L.I.P: drop the connection ============
    The live-event hub numbers every event on a lesson's channel and keeps the

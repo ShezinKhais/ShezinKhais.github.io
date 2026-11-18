@@ -25,7 +25,7 @@ jobs:
       - name: The projects, at the head of each
         run: |
           mkdir -p "$RUNNER_TEMP/repos"
-          for r in CodeCartographer HarmonicDNA federated-aml claimaudit Hypothesisgraveyard; do
+          for r in CodeCartographer HarmonicDNA federated-aml claimaudit Hypothesisgraveyard Clearlane; do
             git clone -q https://github.com/${{ github.repository_owner }}/$r "$RUNNER_TEMP/repos/$r"
           done
           git clone -q --depth 1 https://github.com/${{ github.repository_owner }}/Cognitive_Learning_Intelligence_Platform "$RUNNER_TEMP/repos/Cognitive_Learning_Intelligence_Platform"

@@ -155,6 +155,17 @@ def _clip(out):
     }
 
 
+def _clearlane(out):
+    """Clearlane's own demo trips, copied as they are, for the page's route
+    demo: the app ships them so it works with no traffic API, and they are
+    labelled synthetic in the file itself."""
+    if not (repos / "Clearlane").exists():
+        return
+    out["commits"]["Clearlane"] = head("Clearlane")
+    out["clearlane"] = json.load(open(repos / "Clearlane" / "data/src/main/assets/clearlane/fixtures.json"))
+
+
 _more(out)
 _clip(out)
+_clearlane(out)
 json.dump(out, sys.stdout, separators=(",", ":"))
