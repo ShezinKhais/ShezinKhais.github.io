@@ -61,7 +61,7 @@ jobs:
         uses: lycheeverse/lychee-action@v2
         with:
           args: >-
-            --no-progress --max-retries 2
+            --no-progress --max-retries 2 --root-dir ${{ github.workspace }}
             --exclude 'linkedin\.com' --exclude '^mailto:'
             index.html 404.html README.md
           fail: true
