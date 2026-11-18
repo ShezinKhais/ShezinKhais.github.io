@@ -263,6 +263,26 @@
     padding:20px 0 20px 20px; margin:4px 0 18px;
   }
   .how[hidden] { display:none; }
+  /* read the code: the function that is running, with the line the demo is on lit */
+  .codepane { margin-top:16px; border-top:1px solid var(--line); padding-top:12px; }
+  .code-tabs { display:flex; gap:0; margin-bottom:8px; }
+  .code-tabs button {
+    font:inherit; font-size:11px; letter-spacing:.08em; text-transform:uppercase; cursor:pointer;
+    background:none; border:0; border-bottom:2px solid transparent; color:var(--dim); padding:6px 12px 6px 0; margin-right:14px;
+  }
+  .code-tabs button[aria-selected="true"] { color:var(--fg); border-bottom-color:var(--sn-mid); }
+  .code-tabs button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  pre.code {
+    position:relative; margin:0; max-height:260px; overflow:auto; font-size:11.5px; line-height:1.55;
+    background:var(--bg); border:1px solid var(--line); padding:8px 0; tab-size:4;
+  }
+  pre.code:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  pre.code span { display:block; padding:0 12px 0 0; white-space:pre; color:var(--muted); }
+  pre.code span::before { content:attr(data-n); display:inline-block; width:3.4em; padding-right:.9em; text-align:right; color:var(--dim); opacity:.7; }
+  pre.code span[aria-current="step"] { background:var(--panel-hi); color:var(--fg); box-shadow:inset 3px 0 0 var(--sn-mid); }
+  .code-note { font-size:12px; color:var(--muted); margin:8px 0 0; max-width:70ch; }
+  .code-src { font-size:11px; margin:4px 0 0; }
+  .code-src a { color:var(--num); }
   .printfig { display:none; }
   /* the evidence line under a project: written by the daily workflow, and
      simply absent until it has run once */
@@ -1288,6 +1308,17 @@
 
       <div class="demo-out" id="ccOut" aria-live="polite"></div>
 
+      <div class="codepane" id="ccCode">
+        <div class="code-tabs" role="tablist" aria-label="Read the code">
+          <button role="tab" id="ccCodeJsT" aria-selected="true" aria-controls="ccCodeJs">This page (JavaScript)</button>
+          <button role="tab" id="ccCodePyT" aria-selected="false" aria-controls="ccCodePy" tabindex="-1">The repo (Python)</button>
+        </div>
+        <pre class="code" id="ccCodeJs" role="tabpanel" aria-labelledby="ccCodeJsT" tabindex="0"></pre>
+        <pre class="code" id="ccCodePy" role="tabpanel" aria-labelledby="ccCodePyT" tabindex="0" hidden></pre>
+        <p class="code-note" id="ccCodeNote"></p>
+        <p class="code-src"><a href="https://github.com/ShezinKhais/CodeCartographer/blob/a20682ce1dc93465af6a77296cbdfab7712650eb/src/codecartographer/graph.py#L65-L116">src/codecartographer/graph.py, lines 65&ndash;116, at commit a20682c</a></p>
+      </div>
+
       <p class="demo-note">
         Each node is a module, each arrow an import. Tarjan's algorithm walks the
         graph depth-first, stamping every node with the order it was discovered
@@ -1372,6 +1403,17 @@
       </div>
 
       <div class="demo-out" id="hdOut" aria-live="polite"></div>
+
+      <div class="codepane" id="hdCode">
+        <div class="code-tabs" role="tablist" aria-label="Read the code">
+          <button role="tab" id="hdCodeJsT" aria-selected="true" aria-controls="hdCodeJs">This page (JavaScript)</button>
+          <button role="tab" id="hdCodePyT" aria-selected="false" aria-controls="hdCodePy" tabindex="-1">The repo (Python)</button>
+        </div>
+        <pre class="code" id="hdCodeJs" role="tabpanel" aria-labelledby="hdCodeJsT" tabindex="0"></pre>
+        <pre class="code" id="hdCodePy" role="tabpanel" aria-labelledby="hdCodePyT" tabindex="0" hidden></pre>
+        <p class="code-note" id="hdCodeNote"></p>
+        <p class="code-src"><a href="https://github.com/ShezinKhais/HarmonicDNA/blob/6706c0bbf19e2b9903cd2390d839f3cd6ce4310e/harmonicdna/aligner.py#L130-L195">harmonicdna/aligner.py, lines 130&ndash;195, at commit 6706c0b</a></p>
+      </div>
 
       <p class="demo-note">
         Every number is computed by the same rules the project uses:
@@ -4848,8 +4890,8 @@ function syncBtns() {
 }
 
 function advance() {
-  if (!cellStep()) { startTrace(); return false; }
-  hdDraw();
+  if (!cellStep()) { startTrace(); codeMark('hd', 'trace'); return false; }
+  hdDraw(); codeMark('hd', 'fill');
   return true;
 }
 
@@ -4893,7 +4935,7 @@ btnFill.addEventListener('click', () => {
   hdDraw();
 });
 document.getElementById('hdReset').addEventListener('click', () => {
-  clearTimeout(timer); stopAudio(); buildMatrix(); hdOut.innerHTML = '';
+  clearTimeout(timer); stopAudio(); buildMatrix(); hdOut.innerHTML = ''; codeMark('hd', null);
   hdRead.textContent = 'Ready. Play fills the matrix cell by cell, or Step one at a time.';
   syncBtns(); syncAudioBtns(); hdDraw();
 });
@@ -4999,6 +5041,7 @@ function ccBuild() {
   ccAt = -1; ccStop();
   ccRead.innerHTML = 'Ready. Step walks the depth-first search one move at a time.';
   ccOut.innerHTML = '';
+  codeMark('cc', null);
   ccDraw();
 }
 function ccStop() { clearTimeout(ccTimer); ccTimer = 0; ccPlaying = false; ccSync(); }
@@ -5103,6 +5146,9 @@ function ccStepOnce() {
   const st = ccTrace.ev[ccAt];
   ccRead.innerHTML = st.msg;
   ccDraw();
+  codeMark('cc', st.done ? 'done' : /discovered/.test(st.msg) ? 'discover' : /descend/.test(st.msg) ? 'descend'
+    : /back at/.test(st.msg) ? 'back' : /still on the stack/.test(st.msg) ? 'onstack' : /skip/.test(st.msg) ? 'skip'
+    : /component root/.test(st.msg) ? 'root' : null);
   if (st.done) ccReport();
   return true;
 }
@@ -12967,6 +13013,81 @@ wireWalk('el', () => { if (elDemo.hidden) elTry.click(); elDemo.scrollIntoView({
   'four steps, from signal to verdict');
 wireWalk('fa', () => { if (faDemo.hidden) faTry.click(); faDemo.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' }); },
   'four steps, and no data moves');
+
+/* Read the code. Two listings beside each of the first two demos: the
+   JavaScript actually running on this page, read straight from the function
+   rather than retyped, and the Python from the project's repo, pasted verbatim
+   at a pinned commit. As the demo steps, the line that produced the current
+   state is lit in both. */
+const CODE_PY = {
+  cc: { start: 65, lines: ["    def strongly_connected_components(self) -> list[list[str]]:", "        \"\"\"Return all strongly connected components using Tarjan's algorithm.", "", "        Components of size 1 without a self-loop are not cycles; callers", "        filter accordingly.", "        \"\"\"", "        index: dict[str, int] = {}", "        lowlink: dict[str, int] = {}", "        on_stack: set[str] = set()", "        stack: list[str] = []", "        sccs: list[list[str]] = []", "        counter = 0", "", "        for start in self._succ:", "            if start in index:", "                continue", "            index[start] = lowlink[start] = counter", "            counter += 1", "            stack.append(start)", "            on_stack.add(start)", "            work: list[tuple[str, Iterator[str]]] = [(start, iter(sorted(self._succ[start])))]", "", "            while work:", "                node, it = work[-1]", "                pushed_child = False", "                for succ in it:", "                    if succ not in index:", "                        index[succ] = lowlink[succ] = counter", "                        counter += 1", "                        stack.append(succ)", "                        on_stack.add(succ)", "                        work.append((succ, iter(sorted(self._succ.get(succ, ())))))", "                        pushed_child = True", "                        break", "                    if succ in on_stack:", "                        lowlink[node] = min(lowlink[node], index[succ])", "                if pushed_child:", "                    continue", "                work.pop()", "                if lowlink[node] == index[node]:", "                    component: list[str] = []", "                    while True:", "                        member = stack.pop()", "                        on_stack.discard(member)", "                        component.append(member)", "                        if member == node:", "                            break", "                    sccs.append(component)", "                if work:", "                    parent = work[-1][0]", "                    lowlink[parent] = min(lowlink[parent], lowlink[node])", "        return sccs"] },
+  hd: { start: 130, lines: ["def align(", "    seq_a: list[str],", "    seq_b: list[str],", "    gap: float = GAP,", "    score_fn = chord_similarity,", ") -> AlignmentResult:", "    \"\"\"Smith-Waterman local alignment of two chord sequences.\"\"\"", "    n, m = len(seq_a), len(seq_b)", "    H    = np.zeros((n + 1, m + 1))", "    if n and m:", "        table, rows, cols = _score_lookup(seq_a, seq_b, score_fn)", "", "        # The recurrence is serial in both axes, so the fill stays a loop. It", "        # runs over Python lists rather than indexing H cell by cell: element", "        # access on a numpy array costs far more than plain float arithmetic,", "        # and this loop runs len(a) * len(b) times. The arithmetic is identical,", "        # so the matrix and the traceback below are unchanged.", "        prev = [0.0] * (m + 1)", "        for i in range(1, n + 1):", "            scores = table[rows[i - 1]].take(cols).tolist()", "            cur    = [0.0] * (m + 1)", "            left   = 0.0", "            for j in range(1, m + 1):", "                best = prev[j - 1] + scores[j - 1]", "                up   = prev[j] + gap", "                if up > best:", "                    best = up", "                lf = left + gap", "                if lf > best:", "                    best = lf", "                if best < 0.0:", "                    best = 0.0", "                cur[j] = best", "                left   = best", "            H[i] = cur", "            prev = cur", "", "    # find best score position", "    best_score = float(H.max())", "    if best_score <= 0:", "        return AlignmentResult(", "            score=0.0, seq_a_aligned=[], seq_b_aligned=[],", "            start_a=0, start_b=0, identity=0.0", "        )", "", "    idx      = np.unravel_index(np.argmax(H), H.shape)", "    i, j     = int(idx[0]), int(idx[1])", "", "    # traceback", "    aligned_a, aligned_b = [], []", "    while i > 0 and j > 0 and H[i, j] > 0:", "        s = score_fn(seq_a[i - 1], seq_b[j - 1])", "        if abs(H[i, j] - (H[i - 1, j - 1] + s)) < _EPS:", "            aligned_a.append(seq_a[i - 1])", "            aligned_b.append(seq_b[j - 1])", "            i -= 1; j -= 1", "        elif abs(H[i, j] - (H[i - 1, j] + gap)) < _EPS:", "            aligned_a.append(seq_a[i - 1])", "            aligned_b.append(\"-\")", "            i -= 1", "        else:", "            aligned_a.append(\"-\")", "            aligned_b.append(seq_b[j - 1])", "            j -= 1", "", "    aligned_a.reverse(); aligned_b.reverse()"] }
+};
+// for each kind of step, a piece of text that picks out its line in each listing
+const CODE_MARK = {
+  cc: {
+    discover: [/index\[v\] = low\[v\] = counter\+\+/, /index\[succ\] = lowlink\[succ\] = counter/],
+    descend:  [/^\s*connect\(w\);/, /work\.append\(\(succ/],
+    back:     [/low\[v\] = Math\.min\(low\[v\], low\[w\]\)/, /lowlink\[parent\] = min/],
+    onstack:  [/low\[v\] = Math\.min\(low\[v\], index\[w\]\)/, /lowlink\[node\] = min\(lowlink\[node\], index\[succ\]\)/],
+    skip:     [/already belongs to a finished component/, /if succ in on_stack:/],
+    root:     [/comps\.push\(c\)/, /sccs\.append\(component\)/],
+    done:     [/for \(let v = 0; v < N; v\+\+\)/, /return sccs/]
+  },
+  hd: {
+    fill:  [/const v = Math\.max\(0, diag, up, left\)/, /best = prev\[j - 1\] \+ scores\[j - 1\]/],
+    trace: [/while \(i > 0 && j > 0 && H\[i\]\[j\] > 0\)/, /while i > 0 and j > 0 and H\[i, j\] > 0:/]
+  }
+};
+const CODE_NOTE = {
+  cc: 'The page walks the graph recursively, which keeps each step easy to show. The repo does the same walk with an explicit work stack, so a project with thousands of modules cannot hit Python’s recursion limit; the steps it takes are the same.',
+  hd: 'The repo fills each row from plain Python lists and looks chord scores up in a small table, because indexing a numpy array cell by cell is slow. The recurrence is the same one, line for line.'
+};
+function codeFill(pre, lines, start) {
+  pre.textContent = '';
+  lines.forEach((l, i) => {
+    const sp = document.createElement('span');
+    sp.dataset.n = start + i; sp.textContent = l || ' ';
+    pre.appendChild(sp);
+  });
+}
+function codeInit(k, jsSrc) {
+  codeFill(document.getElementById(k + 'CodeJs'), jsSrc.split('\n'), 1);
+  codeFill(document.getElementById(k + 'CodePy'), CODE_PY[k].lines, CODE_PY[k].start);
+  document.getElementById(k + 'CodeNote').textContent = CODE_NOTE[k];
+  const tabs = [document.getElementById(k + 'CodeJsT'), document.getElementById(k + 'CodePyT')];
+  const pick = t => tabs.forEach(b => {
+    const on = b === t;
+    b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
+    document.getElementById(b.getAttribute('aria-controls')).hidden = !on;
+  });
+  tabs.forEach((b, i) => {
+    b.addEventListener('click', () => pick(b));
+    b.addEventListener('keydown', e => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+      e.preventDefault(); const t = tabs[1 - i]; pick(t); t.focus();
+    });
+  });
+}
+function codeMark(k, kind) {
+  const marks = kind ? CODE_MARK[k][kind] : null;
+  ['Js', 'Py'].forEach((side, s) => {
+    const pre = document.getElementById(k + 'Code' + side);
+    let hit = null;
+    for (const sp of pre.children) {
+      const on = !!marks && !hit && marks[s].test(sp.textContent);
+      if (on) hit = sp;
+      if (on) sp.setAttribute('aria-current', 'step'); else sp.removeAttribute('aria-current');
+    }
+    // keep the lit line in view inside the listing, without moving the page
+    if (hit && !pre.hidden) {
+      const top = hit.offsetTop - pre.clientHeight / 2;
+      pre.scrollTo({ top, behavior: reduced || paused ? "auto" : "smooth" });
+    }
+  });
+}
+codeInit('cc', tarjanTrace.toString());
+codeInit('hd', cellStep.toString() + '\n\n' + traceback.toString());
 
 /* On paper the demos were simply left out, so a printout carried every claim on
    the page and none of the evidence. Each demo that is open when the page is
