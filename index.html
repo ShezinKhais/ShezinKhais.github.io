@@ -314,6 +314,28 @@
   .ml-t td.v b { font-weight:600; }
   .ml-t tr.moved td { background:var(--panel-hi); }
   @media (max-width:640px) { .ml-t { font-size:11.5px; } .ml-t th:nth-child(5), .ml-t td:nth-child(5) { display:none; } }
+  /* the hub, reconnecting */
+  .hb-repo { font-size:11px; color:var(--dim); max-width:40ch; }
+  .hb-ctl { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .hb-ctl button, .hb-col button {
+    font:inherit; font-size:11.5px; color:var(--muted); cursor:pointer; background:var(--bg);
+    border:1px solid var(--line); border-radius:0; padding:7px 12px;
+  }
+  .hb-ctl button:hover, .hb-col button:hover { color:var(--fg); border-color:var(--sn-mid); }
+  .hb-ctl button:focus-visible, .hb-col button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  .hb-cols { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:12px; margin-top:14px; }
+  .hb-col { border:1px solid var(--line); background:var(--bg); padding:10px; min-width:0; }
+  .hb-col h4 { margin:0 0 4px; font-size:12px; font-weight:600; color:var(--fg); }
+  .hb-col .st { font-size:11px; color:var(--dim); margin:0 0 8px; }
+  .hb-col ol { list-style:none; margin:8px 0 0; padding:0; font-size:11.5px; max-height:220px; overflow:auto; }
+  .hb-col li { padding:3px 0; border-top:1px solid var(--line); color:var(--muted); font-variant-numeric:tabular-nums; }
+  .hb-col li .k { color:var(--dim); font-size:10.5px; margin-left:6px; }
+  .hb-col li.replay { color:var(--fg); outline:1px dashed var(--sn-mid); outline-offset:-1px; }
+  .hb-col li.ready { color:var(--num); }
+  .hb-col li.refused { color:var(--badge); }
+  .hb-col li.private { font-style:italic; }
+  .hb-load { font-size:12px; color:var(--muted); margin:10px 0 0; max-width:72ch; }
+  @media (max-width:640px) { .hb-cols { grid-template-columns:1fr; } }
   /* count the work: what the run actually did, against what the text promises */
   .countwork { margin-top:14px; }
   .cw-read { font-size:12.5px; color:var(--muted); margin:0 0 8px; max-width:70ch; }
@@ -1634,6 +1656,32 @@
         <li>The load test connects 40 students at once and drops and restores them; in the latest recorded run every scenario passed. <a href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform/blob/9cf067581f8a8923cc1b86784f912c95a789ad4d/backend/app/realtime/hub.py">The hub</a> &middot; <a href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform/blob/9cf067581f8a8923cc1b86784f912c95a789ad4d/docs/load-and-recovery.md">the load test report</a></li>
       </ul>
     </div>
+
+    <button class="tryit" id="hbTry" aria-expanded="false" aria-controls="hbDemo">
+      <span class="ic" aria-hidden="true">&#9654;</span>
+      Drop the connection
+      <span class="sub">the live-event hub, reconnecting</span>
+    </button>
+    <div class="demo" id="hbDemo" hidden>
+      <div class="demo-head">
+        <label for="hbWin">Replay window <b id="hbWinV" class="demo-thr">6</b>
+          <input type="range" id="hbWin" min="2" max="20" value="6"></label>
+        <span class="hb-repo">the repo keeps 128 events per channel; a small window here makes the limit easy to reach</span>
+      </div>
+      <div class="hb-ctl">
+        <button type="button" id="hbPub">Publish the next event</button>
+        <button type="button" id="hbPriv">Send Panel A a private result</button>
+        <button type="button" id="hbRestart">Restart the server</button>
+        <button type="button" id="hbReset">Reset</button>
+      </div>
+      <div class="hb-cols" id="hbCols"></div>
+      <div class="demo-out" id="hbOut" aria-live="polite"></div>
+      <p class="hb-load" id="hbLoad"></p>
+      <p class="demo-note">A JavaScript port of the stream in
+        <a href="https://github.com/ShezinKhais/Cognitive_Learning_Intelligence_Platform/blob/9cf067581f8a8923cc1b86784f912c95a789ad4d/backend/app/realtime/hub.py">backend/app/realtime/hub.py</a>
+        (<code>resume_point</code>, <code>missed_since</code> and the unsequenced send), at commit 9cf0675.
+        Only the lesson&rsquo;s own lifecycle events are simulated; the panels are generic, and nothing here touches the app&rsquo;s other data.</p>
+    </div>
   </section>
 
   <section id="sec-other">
@@ -1838,7 +1886,7 @@
 </div>
 
 <!-- written by .github/scripts/write-golden.js from the projects' own Python; do not edit by hand -->
-<script type="application/json" id="golden">{"commits":{"CodeCartographer":"a20682ce1dc93465af6a77296cbdfab7712650eb","HarmonicDNA":"6706c0bbf19e2b9903cd2390d839f3cd6ce4310e","federated-aml":"0d7da41ad12963c020a4cb7c66b4560e8fdd8ed3","claimaudit":"c1723f039b0e0e9558e06020290380d06f798306","Hypothesisgraveyard":"5f31f9ccfad5463f66d058e459db8e9f36475f42"},"cc":[{"graph":"Layered app, no cycles","components":[["app"],["cli"],["config"],["db"],["models"],["routes"],["service"],["utils"]]},{"graph":"One circular import","components":[["app"],["cli"],["config"],["db","models"],["routes"],["service"],["utils"]]},{"graph":"Tangled core","components":[["app","db","models","routes","service","utils"],["cli"],["config"]]}],"hd":[{"a":0,"b":1,"score":20.0,"identity":1.0},{"a":0,"b":2,"score":8.7,"identity":0.357},{"a":0,"b":3,"score":13.5,"identity":0.615},{"a":0,"b":4,"score":13.3,"identity":0.583},{"a":0,"b":5,"score":11.0,"identity":0.429},{"a":0,"b":6,"score":12.8,"identity":0.5},{"a":0,"b":7,"score":12.8,"identity":0.5},{"a":0,"b":8,"score":8.5,"identity":0.5},{"a":0,"b":9,"score":5.0,"identity":0.333},{"a":0,"b":10,"score":3.3,"identity":0.167},{"a":0,"b":11,"score":9.5,"identity":0.429},{"a":0,"b":12,"score":3.8,"identity":0.333},{"a":0,"b":13,"score":2.6,"identity":0.273},{"a":1,"b":0,"score":20.0,"identity":1.0},{"a":1,"b":2,"score":8.6,"identity":0.455},{"a":1,"b":3,"score":15.5,"identity":0.643},{"a":1,"b":4,"score":13.6,"identity":0.538},{"a":1,"b":5,"score":10.5,"identity":0.462},{"a":1,"b":6,"score":13.8,"identity":0.538},{"a":1,"b":7,"score":13.8,"identity":0.538},{"a":1,"b":8,"score":8.8,"identity":0.455},{"a":1,"b":9,"score":5.0,"identity":0.333},{"a":1,"b":10,"score":3.3,"identity":0.167},{"a":1,"b":11,"score":9.0,"identity":0.462},{"a":1,"b":12,"score":3.8,"identity":0.333},{"a":1,"b":13,"score":2.6,"identity":0.273},{"a":2,"b":0,"score":8.7,"identity":0.357},{"a":2,"b":1,"score":8.6,"identity":0.455},{"a":2,"b":3,"score":7.5,"identity":0.462},{"a":2,"b":4,"score":6.5,"identity":0.667},{"a":2,"b":5,"score":7.0,"identity":0.333},{"a":2,"b":6,"score":7.5,"identity":0.556},{"a":2,"b":7,"score":7.5,"identity":0.556},{"a":2,"b":8,"score":7.8,"identity":0.5},{"a":2,"b":9,"score":2.0,"identity":0.0},{"a":2,"b":10,"score":7.3,"identity":0.455},{"a":2,"b":11,"score":11.1,"identity":0.333},{"a":2,"b":12,"score":9.3,"identity":0.455},{"a":2,"b":13,"score":11.5,"identity":0.545},{"a":3,"b":0,"score":13.5,"identity":0.615},{"a":3,"b":1,"score":15.5,"identity":0.643},{"a":3,"b":2,"score":7.5,"identity":0.462},{"a":3,"b":4,"score":10.8,"identity":0.5},{"a":3,"b":5,"score":11.5,"identity":0.545},{"a":3,"b":6,"score":9.3,"identity":0.5},{"a":3,"b":7,"score":9.3,"identity":0.5},{"a":3,"b":8,"score":5.0,"identity":0.286},{"a":3,"b":9,"score":7.3,"identity":0.3},{"a":3,"b":10,"score":1.3,"identity":0.0},{"a":3,"b":11,"score":8.9,"identity":0.308},{"a":3,"b":12,"score":0.5,"identity":0.0},{"a":3,"b":13,"score":0.5,"identity":0.0},{"a":4,"b":0,"score":13.3,"identity":0.583},{"a":4,"b":1,"score":13.6,"identity":0.538},{"a":4,"b":2,"score":6.5,"identity":0.667},{"a":4,"b":3,"score":10.8,"identity":0.5},{"a":4,"b":5,"score":7.8,"identity":0.364},{"a":4,"b":6,"score":17.6,"identity":0.692},{"a":4,"b":7,"score":17.6,"identity":0.692},{"a":4,"b":8,"score":10.6,"identity":0.5},{"a":4,"b":9,"score":2.0,"identity":0.0},{"a":4,"b":10,"score":2.5,"identity":0.5},{"a":4,"b":11,"score":9.3,"identity":0.462},{"a":4,"b":12,"score":4.1,"identity":0.4},{"a":4,"b":13,"score":2.8,"identity":0.4},{"a":5,"b":0,"score":11.0,"identity":0.429},{"a":5,"b":1,"score":10.5,"identity":0.462},{"a":5,"b":2,"score":7.0,"identity":0.333},{"a":5,"b":3,"score":11.5,"identity":0.545},{"a":5,"b":4,"score":7.8,"identity":0.364},{"a":5,"b":6,"score":6.9,"identity":0.3},{"a":5,"b":7,"score":6.9,"identity":0.3},{"a":5,"b":8,"score":5.3,"identity":0.3},{"a":5,"b":9,"score":8.0,"identity":0.556},{"a":5,"b":10,"score":2.3,"identity":0.2},{"a":5,"b":11,"score":7.7,"identity":0.308},{"a":5,"b":12,"score":3.0,"identity":0.333},{"a":5,"b":13,"score":2.0,"identity":1.0},{"a":6,"b":0,"score":12.8,"identity":0.5},{"a":6,"b":1,"score":13.8,"identity":0.538},{"a":6,"b":2,"score":7.5,"identity":0.556},{"a":6,"b":3,"score":9.3,"identity":0.5},{"a":6,"b":4,"score":17.6,"identity":0.692},{"a":6,"b":5,"score":6.9,"identity":0.3},{"a":6,"b":7,"score":24.0,"identity":1.0},{"a":6,"b":8,"score":12.8,"identity":0.636},{"a":6,"b":9,"score":1.0,"identity":0.0},{"a":6,"b":10,"score":3.0,"identity":0.667},{"a":6,"b":11,"score":13.0,"identity":0.538},{"a":6,"b":12,"score":5.3,"identity":0.5},{"a":6,"b":13,"score":4.4,"identity":0.273},{"a":7,"b":0,"score":12.8,"identity":0.5},{"a":7,"b":1,"score":13.8,"identity":0.538},{"a":7,"b":2,"score":7.5,"identity":0.556},{"a":7,"b":3,"score":9.3,"identity":0.5},{"a":7,"b":4,"score":17.6,"identity":0.692},{"a":7,"b":5,"score":6.9,"identity":0.3},{"a":7,"b":6,"score":24.0,"identity":1.0},{"a":7,"b":8,"score":12.8,"identity":0.636},{"a":7,"b":9,"score":1.0,"identity":0.0},{"a":7,"b":10,"score":3.0,"identity":0.667},{"a":7,"b":11,"score":13.0,"identity":0.538},{"a":7,"b":12,"score":5.3,"identity":0.5},{"a":7,"b":13,"score":4.4,"identity":0.273},{"a":8,"b":0,"score":8.5,"identity":0.5},{"a":8,"b":1,"score":8.8,"identity":0.455},{"a":8,"b":2,"score":7.8,"identity":0.5},{"a":8,"b":3,"score":5.0,"identity":0.286},{"a":8,"b":4,"score":10.6,"identity":0.5},{"a":8,"b":5,"score":5.3,"identity":0.3},{"a":8,"b":6,"score":12.8,"identity":0.636},{"a":8,"b":7,"score":12.8,"identity":0.636},{"a":8,"b":9,"score":1.0,"identity":0.0},{"a":8,"b":10,"score":3.5,"identity":0.667},{"a":8,"b":11,"score":10.6,"identity":0.556},{"a":8,"b":12,"score":7.0,"identity":0.667},{"a":8,"b":13,"score":6.1,"identity":0.364},{"a":9,"b":0,"score":5.0,"identity":0.333},{"a":9,"b":1,"score":5.0,"identity":0.333},{"a":9,"b":2,"score":2.0,"identity":0.0},{"a":9,"b":3,"score":7.3,"identity":0.3},{"a":9,"b":4,"score":2.0,"identity":0.0},{"a":9,"b":5,"score":8.0,"identity":0.556},{"a":9,"b":6,"score":1.0,"identity":0.0},{"a":9,"b":7,"score":1.0,"identity":0.0},{"a":9,"b":8,"score":1.0,"identity":0.0},{"a":9,"b":10,"score":1.5,"identity":0.0},{"a":9,"b":11,"score":2.8,"identity":0.2},{"a":9,"b":12,"score":0.0,"identity":0.0},{"a":9,"b":13,"score":0.0,"identity":0.0},{"a":10,"b":0,"score":3.3,"identity":0.167},{"a":10,"b":1,"score":3.3,"identity":0.167},{"a":10,"b":2,"score":7.3,"identity":0.455},{"a":10,"b":3,"score":1.3,"identity":0.0},{"a":10,"b":4,"score":2.5,"identity":0.5},{"a":10,"b":5,"score":2.3,"identity":0.2},{"a":10,"b":6,"score":3.0,"identity":0.667},{"a":10,"b":7,"score":3.0,"identity":0.667},{"a":10,"b":8,"score":3.5,"identity":0.667},{"a":10,"b":9,"score":1.5,"identity":0.0},{"a":10,"b":11,"score":5.8,"identity":0.333},{"a":10,"b":12,"score":7.8,"identity":0.571},{"a":10,"b":13,"score":9.1,"identity":0.417},{"a":11,"b":0,"score":9.5,"identity":0.429},{"a":11,"b":1,"score":9.0,"identity":0.462},{"a":11,"b":2,"score":11.1,"identity":0.333},{"a":11,"b":3,"score":8.9,"identity":0.308},{"a":11,"b":4,"score":9.3,"identity":0.455},{"a":11,"b":5,"score":7.7,"identity":0.308},{"a":11,"b":6,"score":13.0,"identity":0.538},{"a":11,"b":7,"score":13.0,"identity":0.538},{"a":11,"b":8,"score":10.6,"identity":0.556},{"a":11,"b":9,"score":2.8,"identity":0.2},{"a":11,"b":10,"score":5.8,"identity":0.333},{"a":11,"b":12,"score":7.1,"identity":0.364},{"a":11,"b":13,"score":8.9,"identity":0.333},{"a":12,"b":0,"score":3.8,"identity":0.333},{"a":12,"b":1,"score":3.8,"identity":0.333},{"a":12,"b":2,"score":9.3,"identity":0.455},{"a":12,"b":3,"score":0.5,"identity":0.0},{"a":12,"b":4,"score":4.1,"identity":0.4},{"a":12,"b":5,"score":3.0,"identity":0.333},{"a":12,"b":6,"score":5.3,"identity":0.5},{"a":12,"b":7,"score":5.3,"identity":0.5},{"a":12,"b":8,"score":7.0,"identity":0.667},{"a":12,"b":9,"score":0.0,"identity":0.0},{"a":12,"b":10,"score":7.8,"identity":0.571},{"a":12,"b":11,"score":7.1,"identity":0.364},{"a":12,"b":13,"score":15.6,"identity":0.667},{"a":13,"b":0,"score":2.6,"identity":0.273},{"a":13,"b":1,"score":2.6,"identity":0.273},{"a":13,"b":2,"score":11.5,"identity":0.545},{"a":13,"b":3,"score":0.5,"identity":0.0},{"a":13,"b":4,"score":2.8,"identity":0.4},{"a":13,"b":5,"score":2.0,"identity":1.0},{"a":13,"b":6,"score":4.4,"identity":0.273},{"a":13,"b":7,"score":4.4,"identity":0.273},{"a":13,"b":8,"score":6.1,"identity":0.364},{"a":13,"b":9,"score":0.0,"identity":0.0},{"a":13,"b":10,"score":9.1,"identity":0.417},{"a":13,"b":11,"score":8.9,"identity":0.333},{"a":13,"b":12,"score":15.6,"identity":0.667}],"fa":{"banks":[{"fraud_rate":0.02,"home_typology":"structuring","home_share":0.92,"unpatterned_share":0.175},{"fraud_rate":0.02,"home_typology":"layering","home_share":0.92,"unpatterned_share":0.15},{"fraud_rate":0.02,"home_typology":"exfiltration","home_share":0.9,"unpatterned_share":0.17}],"features":19,"typologies":["structuring","layering","exfiltration"]},"ca":[{"title":"Graphene anodes triple lithium-ion battery capacity","year":2015,"confirms":4,"challenges":1,"extends":1,"neutral":0,"score_at_5":10.0},{"title":"A perovskite solar cell exceeding 25% efficiency","year":2018,"confirms":2,"challenges":3,"extends":0,"neutral":1,"score_at_5":3.3},{"title":"Room-temperature superconductivity in a hydride at ambient pressure","year":2021,"confirms":0,"challenges":5,"extends":0,"neutral":1,"score_at_5":0.0}],"hg":[{"title":"A metabolic hypothesis for age-related memory decline","year":2011,"examined":3,"engaging":3,"neglect":0.0},{"title":"Gut microbiota as a novel driver of autoimmune arthritis","year":2013,"examined":2,"engaging":0,"neglect":1.0},{"title":"A speculative role for magnetoreception in human circadian timing","year":2016,"examined":1,"engaging":0,"neglect":1.0}]}</script>
+<script type="application/json" id="golden">{"commits":{"CodeCartographer":"a20682ce1dc93465af6a77296cbdfab7712650eb","HarmonicDNA":"6706c0bbf19e2b9903cd2390d839f3cd6ce4310e","federated-aml":"0d7da41ad12963c020a4cb7c66b4560e8fdd8ed3","claimaudit":"c1723f039b0e0e9558e06020290380d06f798306","Hypothesisgraveyard":"5f31f9ccfad5463f66d058e459db8e9f36475f42","Cognitive_Learning_Intelligence_Platform":"9cf067581f8a8923cc1b86784f912c95a789ad4d"},"cc":[{"graph":"Layered app, no cycles","components":[["app"],["cli"],["config"],["db"],["models"],["routes"],["service"],["utils"]]},{"graph":"One circular import","components":[["app"],["cli"],["config"],["db","models"],["routes"],["service"],["utils"]]},{"graph":"Tangled core","components":[["app","db","models","routes","service","utils"],["cli"],["config"]]}],"hd":[{"a":0,"b":1,"score":20.0,"identity":1.0},{"a":0,"b":2,"score":8.7,"identity":0.357},{"a":0,"b":3,"score":13.5,"identity":0.615},{"a":0,"b":4,"score":13.3,"identity":0.583},{"a":0,"b":5,"score":11.0,"identity":0.429},{"a":0,"b":6,"score":12.8,"identity":0.5},{"a":0,"b":7,"score":12.8,"identity":0.5},{"a":0,"b":8,"score":8.5,"identity":0.5},{"a":0,"b":9,"score":5.0,"identity":0.333},{"a":0,"b":10,"score":3.3,"identity":0.167},{"a":0,"b":11,"score":9.5,"identity":0.429},{"a":0,"b":12,"score":3.8,"identity":0.333},{"a":0,"b":13,"score":2.6,"identity":0.273},{"a":1,"b":0,"score":20.0,"identity":1.0},{"a":1,"b":2,"score":8.6,"identity":0.455},{"a":1,"b":3,"score":15.5,"identity":0.643},{"a":1,"b":4,"score":13.6,"identity":0.538},{"a":1,"b":5,"score":10.5,"identity":0.462},{"a":1,"b":6,"score":13.8,"identity":0.538},{"a":1,"b":7,"score":13.8,"identity":0.538},{"a":1,"b":8,"score":8.8,"identity":0.455},{"a":1,"b":9,"score":5.0,"identity":0.333},{"a":1,"b":10,"score":3.3,"identity":0.167},{"a":1,"b":11,"score":9.0,"identity":0.462},{"a":1,"b":12,"score":3.8,"identity":0.333},{"a":1,"b":13,"score":2.6,"identity":0.273},{"a":2,"b":0,"score":8.7,"identity":0.357},{"a":2,"b":1,"score":8.6,"identity":0.455},{"a":2,"b":3,"score":7.5,"identity":0.462},{"a":2,"b":4,"score":6.5,"identity":0.667},{"a":2,"b":5,"score":7.0,"identity":0.333},{"a":2,"b":6,"score":7.5,"identity":0.556},{"a":2,"b":7,"score":7.5,"identity":0.556},{"a":2,"b":8,"score":7.8,"identity":0.5},{"a":2,"b":9,"score":2.0,"identity":0.0},{"a":2,"b":10,"score":7.3,"identity":0.455},{"a":2,"b":11,"score":11.1,"identity":0.333},{"a":2,"b":12,"score":9.3,"identity":0.455},{"a":2,"b":13,"score":11.5,"identity":0.545},{"a":3,"b":0,"score":13.5,"identity":0.615},{"a":3,"b":1,"score":15.5,"identity":0.643},{"a":3,"b":2,"score":7.5,"identity":0.462},{"a":3,"b":4,"score":10.8,"identity":0.5},{"a":3,"b":5,"score":11.5,"identity":0.545},{"a":3,"b":6,"score":9.3,"identity":0.5},{"a":3,"b":7,"score":9.3,"identity":0.5},{"a":3,"b":8,"score":5.0,"identity":0.286},{"a":3,"b":9,"score":7.3,"identity":0.3},{"a":3,"b":10,"score":1.3,"identity":0.0},{"a":3,"b":11,"score":8.9,"identity":0.308},{"a":3,"b":12,"score":0.5,"identity":0.0},{"a":3,"b":13,"score":0.5,"identity":0.0},{"a":4,"b":0,"score":13.3,"identity":0.583},{"a":4,"b":1,"score":13.6,"identity":0.538},{"a":4,"b":2,"score":6.5,"identity":0.667},{"a":4,"b":3,"score":10.8,"identity":0.5},{"a":4,"b":5,"score":7.8,"identity":0.364},{"a":4,"b":6,"score":17.6,"identity":0.692},{"a":4,"b":7,"score":17.6,"identity":0.692},{"a":4,"b":8,"score":10.6,"identity":0.5},{"a":4,"b":9,"score":2.0,"identity":0.0},{"a":4,"b":10,"score":2.5,"identity":0.5},{"a":4,"b":11,"score":9.3,"identity":0.462},{"a":4,"b":12,"score":4.1,"identity":0.4},{"a":4,"b":13,"score":2.8,"identity":0.4},{"a":5,"b":0,"score":11.0,"identity":0.429},{"a":5,"b":1,"score":10.5,"identity":0.462},{"a":5,"b":2,"score":7.0,"identity":0.333},{"a":5,"b":3,"score":11.5,"identity":0.545},{"a":5,"b":4,"score":7.8,"identity":0.364},{"a":5,"b":6,"score":6.9,"identity":0.3},{"a":5,"b":7,"score":6.9,"identity":0.3},{"a":5,"b":8,"score":5.3,"identity":0.3},{"a":5,"b":9,"score":8.0,"identity":0.556},{"a":5,"b":10,"score":2.3,"identity":0.2},{"a":5,"b":11,"score":7.7,"identity":0.308},{"a":5,"b":12,"score":3.0,"identity":0.333},{"a":5,"b":13,"score":2.0,"identity":1.0},{"a":6,"b":0,"score":12.8,"identity":0.5},{"a":6,"b":1,"score":13.8,"identity":0.538},{"a":6,"b":2,"score":7.5,"identity":0.556},{"a":6,"b":3,"score":9.3,"identity":0.5},{"a":6,"b":4,"score":17.6,"identity":0.692},{"a":6,"b":5,"score":6.9,"identity":0.3},{"a":6,"b":7,"score":24.0,"identity":1.0},{"a":6,"b":8,"score":12.8,"identity":0.636},{"a":6,"b":9,"score":1.0,"identity":0.0},{"a":6,"b":10,"score":3.0,"identity":0.667},{"a":6,"b":11,"score":13.0,"identity":0.538},{"a":6,"b":12,"score":5.3,"identity":0.5},{"a":6,"b":13,"score":4.4,"identity":0.273},{"a":7,"b":0,"score":12.8,"identity":0.5},{"a":7,"b":1,"score":13.8,"identity":0.538},{"a":7,"b":2,"score":7.5,"identity":0.556},{"a":7,"b":3,"score":9.3,"identity":0.5},{"a":7,"b":4,"score":17.6,"identity":0.692},{"a":7,"b":5,"score":6.9,"identity":0.3},{"a":7,"b":6,"score":24.0,"identity":1.0},{"a":7,"b":8,"score":12.8,"identity":0.636},{"a":7,"b":9,"score":1.0,"identity":0.0},{"a":7,"b":10,"score":3.0,"identity":0.667},{"a":7,"b":11,"score":13.0,"identity":0.538},{"a":7,"b":12,"score":5.3,"identity":0.5},{"a":7,"b":13,"score":4.4,"identity":0.273},{"a":8,"b":0,"score":8.5,"identity":0.5},{"a":8,"b":1,"score":8.8,"identity":0.455},{"a":8,"b":2,"score":7.8,"identity":0.5},{"a":8,"b":3,"score":5.0,"identity":0.286},{"a":8,"b":4,"score":10.6,"identity":0.5},{"a":8,"b":5,"score":5.3,"identity":0.3},{"a":8,"b":6,"score":12.8,"identity":0.636},{"a":8,"b":7,"score":12.8,"identity":0.636},{"a":8,"b":9,"score":1.0,"identity":0.0},{"a":8,"b":10,"score":3.5,"identity":0.667},{"a":8,"b":11,"score":10.6,"identity":0.556},{"a":8,"b":12,"score":7.0,"identity":0.667},{"a":8,"b":13,"score":6.1,"identity":0.364},{"a":9,"b":0,"score":5.0,"identity":0.333},{"a":9,"b":1,"score":5.0,"identity":0.333},{"a":9,"b":2,"score":2.0,"identity":0.0},{"a":9,"b":3,"score":7.3,"identity":0.3},{"a":9,"b":4,"score":2.0,"identity":0.0},{"a":9,"b":5,"score":8.0,"identity":0.556},{"a":9,"b":6,"score":1.0,"identity":0.0},{"a":9,"b":7,"score":1.0,"identity":0.0},{"a":9,"b":8,"score":1.0,"identity":0.0},{"a":9,"b":10,"score":1.5,"identity":0.0},{"a":9,"b":11,"score":2.8,"identity":0.2},{"a":9,"b":12,"score":0.0,"identity":0.0},{"a":9,"b":13,"score":0.0,"identity":0.0},{"a":10,"b":0,"score":3.3,"identity":0.167},{"a":10,"b":1,"score":3.3,"identity":0.167},{"a":10,"b":2,"score":7.3,"identity":0.455},{"a":10,"b":3,"score":1.3,"identity":0.0},{"a":10,"b":4,"score":2.5,"identity":0.5},{"a":10,"b":5,"score":2.3,"identity":0.2},{"a":10,"b":6,"score":3.0,"identity":0.667},{"a":10,"b":7,"score":3.0,"identity":0.667},{"a":10,"b":8,"score":3.5,"identity":0.667},{"a":10,"b":9,"score":1.5,"identity":0.0},{"a":10,"b":11,"score":5.8,"identity":0.333},{"a":10,"b":12,"score":7.8,"identity":0.571},{"a":10,"b":13,"score":9.1,"identity":0.417},{"a":11,"b":0,"score":9.5,"identity":0.429},{"a":11,"b":1,"score":9.0,"identity":0.462},{"a":11,"b":2,"score":11.1,"identity":0.333},{"a":11,"b":3,"score":8.9,"identity":0.308},{"a":11,"b":4,"score":9.3,"identity":0.455},{"a":11,"b":5,"score":7.7,"identity":0.308},{"a":11,"b":6,"score":13.0,"identity":0.538},{"a":11,"b":7,"score":13.0,"identity":0.538},{"a":11,"b":8,"score":10.6,"identity":0.556},{"a":11,"b":9,"score":2.8,"identity":0.2},{"a":11,"b":10,"score":5.8,"identity":0.333},{"a":11,"b":12,"score":7.1,"identity":0.364},{"a":11,"b":13,"score":8.9,"identity":0.333},{"a":12,"b":0,"score":3.8,"identity":0.333},{"a":12,"b":1,"score":3.8,"identity":0.333},{"a":12,"b":2,"score":9.3,"identity":0.455},{"a":12,"b":3,"score":0.5,"identity":0.0},{"a":12,"b":4,"score":4.1,"identity":0.4},{"a":12,"b":5,"score":3.0,"identity":0.333},{"a":12,"b":6,"score":5.3,"identity":0.5},{"a":12,"b":7,"score":5.3,"identity":0.5},{"a":12,"b":8,"score":7.0,"identity":0.667},{"a":12,"b":9,"score":0.0,"identity":0.0},{"a":12,"b":10,"score":7.8,"identity":0.571},{"a":12,"b":11,"score":7.1,"identity":0.364},{"a":12,"b":13,"score":15.6,"identity":0.667},{"a":13,"b":0,"score":2.6,"identity":0.273},{"a":13,"b":1,"score":2.6,"identity":0.273},{"a":13,"b":2,"score":11.5,"identity":0.545},{"a":13,"b":3,"score":0.5,"identity":0.0},{"a":13,"b":4,"score":2.8,"identity":0.4},{"a":13,"b":5,"score":2.0,"identity":1.0},{"a":13,"b":6,"score":4.4,"identity":0.273},{"a":13,"b":7,"score":4.4,"identity":0.273},{"a":13,"b":8,"score":6.1,"identity":0.364},{"a":13,"b":9,"score":0.0,"identity":0.0},{"a":13,"b":10,"score":9.1,"identity":0.417},{"a":13,"b":11,"score":8.9,"identity":0.333},{"a":13,"b":12,"score":15.6,"identity":0.667}],"fa":{"banks":[{"fraud_rate":0.02,"home_typology":"structuring","home_share":0.92,"unpatterned_share":0.175},{"fraud_rate":0.02,"home_typology":"layering","home_share":0.92,"unpatterned_share":0.15},{"fraud_rate":0.02,"home_typology":"exfiltration","home_share":0.9,"unpatterned_share":0.17}],"features":19,"typologies":["structuring","layering","exfiltration"]},"ca":[{"title":"Graphene anodes triple lithium-ion battery capacity","year":2015,"confirms":4,"challenges":1,"extends":1,"neutral":0,"score_at_5":10.0},{"title":"A perovskite solar cell exceeding 25% efficiency","year":2018,"confirms":2,"challenges":3,"extends":0,"neutral":1,"score_at_5":3.3},{"title":"Room-temperature superconductivity in a hydride at ambient pressure","year":2021,"confirms":0,"challenges":5,"extends":0,"neutral":1,"score_at_5":0.0}],"hg":[{"title":"A metabolic hypothesis for age-related memory decline","year":2011,"examined":3,"engaging":3,"neglect":0.0},{"title":"Gut microbiota as a novel driver of autoimmune arthritis","year":2013,"examined":2,"engaging":0,"neglect":1.0},{"title":"A speculative role for magnetoreception in human circadian timing","year":2016,"examined":1,"engaging":0,"neglect":1.0}],"clip":{"when":"2026-10-21","commit":"40656c6e","students":40,"passed":10,"scenarios":10,"connect_all_seconds":1.38,"fan_out_p95_ms":37.8,"half_class_resume_seconds":0.38,"whole_class_reconnect_seconds":0.65,"after_crash_back_seconds":0.88}}</script>
 <span id="copyStatus" class="vh" role="status" aria-live="polite"></span>
 
 <script type="module">
@@ -13443,6 +13491,125 @@ document.getElementById('ccFolder').addEventListener('change', async e => {
     note.textContent += ' It is loaded into the graph above: press Play to watch the search.';
   }
 });
+
+/* ============ C.L.I.P: drop the connection ============
+   The live-event hub numbers every event on a lesson's channel and keeps the
+   most recent ones, so a client that drops can come back with the last number
+   it saw and be replayed exactly what it missed. Three cases make that hard,
+   and the port below handles them the way the hub does: a cursor from before a
+   server restart is refused (a new counter will reach old numbers), a cursor
+   older than the kept window is refused (replaying only the tail would hide
+   the gap), and a private message goes out unnumbered, so nobody else sees a
+   hole in their sequence. */
+const HB_EVENTS = ['session.state', 'question.delivered', 'question.closed'];
+let hbGenN = 0;
+function hbStream(win) { return { gen: 'g' + (++hbGenN), seq: 0, recent: [], win }; }
+function hbNext(st, type) {
+  const ev = { type, seq: ++st.seq };
+  st.recent.push(ev); if (st.recent.length > st.win) st.recent.shift();
+  return ev;
+}
+// hub.py _Stream.resume_point
+function hbResumePoint(st, lastSeq, gen) {
+  if (lastSeq == null) return null;
+  if (gen == null) { if (lastSeq !== 0) return null; }
+  else if (gen !== st.gen) return null;
+  if (lastSeq > st.seq) return null;
+  if (lastSeq === st.seq) return lastSeq;
+  if (!st.recent.length || lastSeq < st.recent[0].seq - 1) return null;
+  return lastSeq;
+}
+const hbMissedSince = (st, lastSeq) => st.recent.filter(e => e.seq > lastSeq);
+const hbWin = document.getElementById('hbWin');
+let hb;
+function hbFresh() {
+  hb = { st: hbStream(+hbWin.value), next: 0, panels: ['Lecturer panel', 'Panel A', 'Panel B'].map(name => ({ name, on: true, last: 0, gen: null, log: [] })) };
+  hb.panels.forEach(p => hbConnect(p));
+  hbRender('A fresh lesson: every panel connected and told the stream it is on.');
+}
+function hbConnect(p) {
+  const resumed = hbResumePoint(hb.st, p.gen === null && p.last === 0 ? 0 : p.last, p.gen);
+  p.on = true;
+  if (resumed === null) {
+    p.log.push({ cls: 'refused', text: `READY: cursor ${p.last} refused, starting afresh` });
+    p.last = hb.st.seq; p.gen = hb.st.gen;
+    return { resumed: null, replayed: 0 };
+  }
+  const missed = hbMissedSince(hb.st, resumed);
+  p.log.push({ cls: 'ready', text: `READY: resumed from ${resumed}` });
+  missed.forEach(e => p.log.push({ cls: 'replay', text: `${e.seq} ${e.type}`, k: 'replayed' }));
+  if (missed.length) p.last = missed[missed.length - 1].seq;
+  p.gen = hb.st.gen;
+  return { resumed, replayed: missed.length };
+}
+function hbRender(msg) {
+  const cols = document.getElementById('hbCols'); cols.textContent = '';
+  hb.panels.forEach((p, i) => {
+    const col = document.createElement('div'); col.className = 'hb-col';
+    const h = document.createElement('h4'); h.textContent = p.name;
+    const st = document.createElement('p'); st.className = 'st';
+    st.textContent = (p.on ? 'connected' : 'cut off') + ` · last seen ${p.last}`;
+    const b = document.createElement('button'); b.type = 'button';
+    b.textContent = p.on ? 'Cut its connection' : 'Reconnect';
+    b.addEventListener('click', () => {
+      if (p.on) { p.on = false; p.log.push({ cls: 'refused', text: '— connection lost —' }); hbRender(`${p.name} has lost its connection, holding cursor ${p.last}.`); }
+      else {
+        const r = hbConnect(p);
+        hbRender(r.resumed === null
+          ? `${p.name}'s cursor could not be honoured, so it was told to start afresh rather than be handed a stream that only looks continuous.`
+          : `${p.name} resumed from ${r.resumed}, and ${r.replayed} event${r.replayed === 1 ? '' : 's'} it missed ${r.replayed === 1 ? 'was' : 'were'} replayed in order.`);
+      }
+    });
+    const ol = document.createElement('ol');
+    p.log.slice(-40).forEach(r => {
+      const li = document.createElement('li'); if (r.cls) li.className = r.cls; li.textContent = r.text;
+      if (r.k) { const k = document.createElement('span'); k.className = 'k'; k.textContent = r.k; li.appendChild(k); }
+      ol.appendChild(li);
+    });
+    col.append(h, st, b, ol); cols.appendChild(col);
+    ol.scrollTop = ol.scrollHeight;
+  });
+  const out = document.getElementById('hbOut');
+  out.innerHTML = [['stream', hb.st.gen], ['last number', hb.st.seq], ['kept', `${hb.st.recent.length} of ${hb.st.win}`],
+    ['oldest kept', hb.st.recent.length ? hb.st.recent[0].seq : '—']].map(([k, v]) => `<div><b>${v}</b><span>${k}</span></div>`).join('');
+  out.appendChild(plainLine(msg));
+}
+document.getElementById('hbPub').addEventListener('click', () => {
+  const ev = hbNext(hb.st, HB_EVENTS[hb.next++ % HB_EVENTS.length]);
+  hb.panels.forEach(p => { if (p.on) { p.log.push({ text: `${ev.seq} ${ev.type}` }); p.last = ev.seq; } });
+  const off = hb.panels.filter(p => !p.on).map(p => p.name);
+  hbRender(`Event ${ev.seq} (${ev.type}) went to every connected panel${off.length ? `; ${off.join(' and ')} missed it` : ''}.`);
+});
+document.getElementById('hbPriv').addEventListener('click', () => {
+  const a = hb.panels[1];
+  if (a.on) a.log.push({ cls: 'private', text: '0 feedback.result', k: 'private, unnumbered' });
+  hbRender(a.on
+    ? 'A private result went to Panel A with sequence number 0, outside the stream, so Panel B sees no gap in its numbering.'
+    : 'Panel A is cut off, so its private result was not delivered, and it will not be replayed: it is restated on reconnect or no longer current.');
+});
+document.getElementById('hbRestart').addEventListener('click', () => {
+  hb.st = hbStream(+hbWin.value);
+  hb.panels.forEach(p => { if (p.on) { p.on = false; p.log.push({ cls: 'refused', text: '— server restarted —' }); } });
+  hbRender('The server restarted: every connection dropped, and the new stream has a new identity and starts counting from 0 again. Reconnect a panel to see its old cursor refused.');
+});
+document.getElementById('hbReset').addEventListener('click', hbFresh);
+hbWin.addEventListener('input', () => { document.getElementById('hbWinV').textContent = hbWin.value; hb.st.win = +hbWin.value; while (hb.st.recent.length > hb.st.win) hb.st.recent.shift(); hbRender(`The stream now keeps the last ${hbWin.value} events for replay.`); });
+const hbTry = document.getElementById('hbTry'), hbDemo = document.getElementById('hbDemo');
+function hbOpen(on) {
+  hbDemo.hidden = !on;
+  hbTry.setAttribute('aria-expanded', String(on));
+  hbTry.querySelector('.sub').textContent = on ? 'collapse' : 'the live-event hub, reconnecting';
+  if (on && !hb) {
+    hbFresh();
+    const L = GOLDEN && GOLDEN.clip;
+    if (L) document.getElementById('hbLoad').textContent =
+      `The real thing, from the repo's own load test (run ${L.when}, commit ${L.commit}): ${L.passed} of ${L.scenarios} scenarios passed with ${L.students} students connected. ` +
+      `The whole class connected in ${L.connect_all_seconds} s; half the class resumed in ${L.half_class_resume_seconds} s and the whole class reconnected in ${L.whole_class_reconnect_seconds} s, ` +
+      `with no gaps and no repeats; after the server was killed mid-question, everyone was back in ${L.after_crash_back_seconds} s.`;
+  }
+  resize(); draw(performance.now() / 1000);
+}
+hbTry.addEventListener('click', () => hbOpen(hbDemo.hidden));
 
 /* ============ move the line ============
    claimaudit scores a claim from how the papers citing it lean, and

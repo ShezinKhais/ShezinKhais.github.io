@@ -131,6 +131,30 @@ def _more(out):
                      "engaging": e.engaging_count, "neglect": e.neglect_score})
     out["hg"] = rows
 
+def _clip(out):
+    """The C.L.I.P load test's own recorded results, copied field by field: the
+    date and commit it ran at, how many scenarios passed, and a few figures on
+    connecting and reconnecting a class. Nothing about the machine, and nothing
+    from the scenarios about attention signals."""
+    name = "Cognitive_Learning_Intelligence_Platform"
+    if not (repos / name).exists():
+        return
+    d = json.load(open(repos / name / "docs" / "load-test-results.json"))
+    sc = {x["name"]: x for x in d["scenarios"]}
+    fig = lambda s, k: sc.get(s, {}).get("figures", {}).get(k)
+    out["commits"][name] = head(name)
+    out["clip"] = {
+        "when": d["machine"]["when"][:10], "commit": d["machine"]["commit"],
+        "students": d["students"],
+        "passed": sum(1 for x in d["scenarios"] if x.get("passed")), "scenarios": len(d["scenarios"]),
+        "connect_all_seconds": fig("class", "connect_all_seconds"),
+        "fan_out_p95_ms": (fig("class", "question_fan_out") or {}).get("p95_ms"),
+        "half_class_resume_seconds": fig("reconnect", "half_class_resume_seconds"),
+        "whole_class_reconnect_seconds": fig("reconnect", "whole_class_reconnect_seconds"),
+        "after_crash_back_seconds": fig("crash", "whole_class_back_seconds"),
+    }
+
 
 _more(out)
+_clip(out)
 json.dump(out, sys.stdout, separators=(",", ":"))
