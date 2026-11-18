@@ -28,7 +28,7 @@ jobs:
           for r in CodeCartographer HarmonicDNA federated-aml; do
             git clone -q https://github.com/${{ github.repository_owner }}/$r "$RUNNER_TEMP/repos/$r"
           done
-          pip install --quiet numpy
+          pip install --quiet numpy requests
 
       - name: Run them on the demos' own inputs
         run: |
