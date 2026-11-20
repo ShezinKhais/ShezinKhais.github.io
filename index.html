@@ -6908,6 +6908,32 @@ const RC_CARS = [
     cyl: 8, turbo: true, crackle: 0.95, spool: 2.0, bov: 'flutter', flame: 0.9,
     paint: '#4f6b3a', trim: '#1c2418', shape: 'coupe' }
 ];
+/* How each engine idles and how fast its revs can move, and what sort of
+   gearbox sits behind it. A dual clutch drops the revs in a blink and cuts the
+   fuel for a few hundredths on the way up (the blat); a single-clutch
+   automated manual is slower and does the same; a torque-converter automatic
+   slurs the change with the throttle half open; a manual falls at whatever the
+   flywheel allows. revUp is how fast a blip can lift the crank, revDn how fast
+   it falls with the clutch out. upAt is where the automatic box changes up. */
+const RC_BOX = { dct: { dn: 25000, cut: 0.05, thr: 0 }, amt: { dn: 12000, cut: 0.06, thr: 0 },
+  tc: { dn: 4500, cut: 0, thr: 0.6 }, man: { dn: 0, cut: 0, thr: 0.18 } };
+for (const [id, v] of Object.entries({
+  is350c: { idle: 680, revUp: 5000, revDn: 4000, gbox: 'tc', upAt: 0.97 },
+  huracan: { idle: 980, revUp: 12000, revDn: 9000, gbox: 'dct', upAt: 0.985 },
+  typer: { idle: 750, revUp: 7000, revDn: 5000, gbox: 'man', upAt: 0.985 },
+  r34: { idle: 900, revUp: 8000, revDn: 6000, gbox: 'man', upAt: 0.985 },
+  supra: { idle: 680, revUp: 6000, revDn: 4500, gbox: 'tc', upAt: 0.98 },
+  m3: { idle: 880, revUp: 9000, revDn: 6000, gbox: 'man', upAt: 0.985 },
+  carrera: { idle: 760, revUp: 10000, revDn: 8000, gbox: 'dct', upAt: 0.985 },
+  stang: { idle: 650, revUp: 6000, revDn: 4500, gbox: 'man', upAt: 0.98 },
+  rs6: { idle: 650, revUp: 5000, revDn: 4000, gbox: 'tc', upAt: 0.97 },
+  cruiser: { idle: 620, revUp: 3500, revDn: 2500, gbox: 'tc', upAt: 0.95 },
+  lfa: { idle: 1000, revUp: 14000, revDn: 9000, gbox: 'amt', upAt: 0.99 },
+  mclaren: { idle: 900, revUp: 11000, revDn: 9000, gbox: 'dct', upAt: 0.985 },
+  f458: { idle: 1000, revUp: 13000, revDn: 10000, gbox: 'dct', upAt: 0.99 },
+  amggtr: { idle: 780, revUp: 9000, revDn: 7000, gbox: 'dct', upAt: 0.985 },
+})) Object.assign(RC_CARS.find(c => c.id === id), v);
+
 
 const RC_RW = 0.34;                        // rolling radius, metres
 const rcRpmOf = (v, ratio) => v / RC_RW * ratio * 60 / (2 * Math.PI);
@@ -6996,7 +7022,7 @@ function rcAutoGear(car, gear, v, throttle) {
   gear = rcClamp(gear | 0, 0, car.gears.length - 1);
   const rpm = rcRpmOf(v, rcRatio(car, gear));
   const held = (RC.onFor || 0) > 0.3;
-  if (gear < car.gears.length - 1 && (throttle ? rpm > car.redline * 0.94 : rpm > car.redline * 0.985)) return gear + 1;
+  if (gear < car.gears.length - 1 && (throttle ? rpm > car.redline * (car.upAt || 0.985) : rpm > car.redline * 0.985)) return gear + 1;
   if ((RC.gearHold || 0) > 0) return gear;
   if (gear > 0 && rcRpmOf(v, rcRatio(car, gear - 1)) < car.redline * 0.80) {
     if (throttle && held && rpm < car.peak * 0.70) return gear - 1;      // kickdown, for a real request
@@ -7729,9 +7755,12 @@ function rcDrive(dt) {
     const want = rcRpmOf(RC.v, rcRatio(car, RC.gear));
     if (RC.erpm == null) RC.erpm = want;
     if (RC.shiftFor > 0) {
-      const rate = (want > RC.erpm ? (RC.blip > 0 ? 16000 : 6000) : 9000) * dt;
+      // how fast the crank can move depends on the engine and on the box
+      const bx = RC_BOX[car.gbox] || RC_BOX.man, up = car.revUp || 8000;
+      const rate = (want > RC.erpm ? (RC.blip > 0 ? up : 0.4 * up) : bx.dn || car.revDn || 6000) * dt;
       RC.erpm += rcClamp(want - RC.erpm, -rate, rate);
-    } else RC.erpm += (want - RC.erpm) * Math.min(1, dt * 18);
+    } else RC.erpm += (want - RC.erpm) * Math.min(1, dt * 40);
+    RC.erpm = Math.max(RC.erpm, car.idle || 850);
   }
   rcTurbo(car, dt, throttle, rcRpmOf(RC.v, rcRatio(car, RC.gear)));
 
@@ -8208,7 +8237,7 @@ class RcEngine extends AudioWorkletProcessor {
     return [
       { name: 'rpm', defaultValue: 900, minValue: 0, maxValue: 14000, automationRate: 'k-rate' },
       { name: 'throttle', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' },
-      { name: 'cut', defaultValue: 0, minValue: 0, maxValue: 1, automationRate: 'k-rate' }
+      { name: 'cut', defaultValue: 0, minValue: 0, maxValue: 2, automationRate: 'k-rate' }
     ];
   }
   constructor() {
@@ -8243,7 +8272,7 @@ class RcEngine extends AudioWorkletProcessor {
     const add = k => { const key = Math.round(k * 2); if (seen.has(key) || k <= 0) return; seen.add(key); this.ok.push(k); this.oph.push(this.rnd()); };
     for (let h = 1; h <= (g.harms || 18); h++) add(F * h);
     for (let k = 0.5; k <= F * (g.span || 4); k += 0.5) add(k);
-    this.oa.fill(0);
+    this.oa.fill(0); this.oj = new Float32Array(this.ok.length);
   }
   rnd() {
     let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
@@ -8255,11 +8284,17 @@ class RcEngine extends AudioWorkletProcessor {
        stops and restarts the fuel in a rhythm you can count (the brap of a
        Honda or a V8 on the stop), or a soft one that drops a share of the
        firings and holds the revs smooth. */
+    if (cut > 1.5) { this.envT = 0.08; return; }
     if (cut > 0.5) {
       const lim = c.sig && c.sig.limiter;
-      if (lim && lim[0] === 'hard') { if (this.cutPh % 1 < 0.5) return; }
-      else if (lim && lim[0] === 'soft') { if (this.rnd() < 0.45) return; }
-      else if (this.rnd() < 0.75) return;
+      let skip;
+      if (lim && lim[0] === 'hard') skip = this.cutPh % 1 < 0.5;
+      else if (lim && lim[0] === 'soft') skip = this.rnd() < 0.45;
+      else skip = this.rnd() < 0.75;
+      /* A missed firing silences the note as well as the pulse: before, only
+         the pulse went, and the steady orders carried on over the gap, so the
+         limiter was a one-decibel flicker instead of a brap. */
+      if (skip) { this.envT = c.sig && c.sig.cutFloor != null ? c.sig.cutFloor : lim && lim[0] === 'hard' ? 0.12 : 0.28; return; }
     }
     let amp = (0.26 + 0.74 * thr) * ev[2] * (1 + (this.rnd() - 0.5) * 0.3);
     let width = c.pw / 1000, nz = c.noise * (0.4 + 0.6 * thr);
@@ -8293,15 +8328,30 @@ class RcEngine extends AudioWorkletProcessor {
   levels(rpm, thr) {
     const g = this.cfg.sig, F = this.cfg.fire.length / 2, f0 = rpm / 60, sr = sampleRate;
     let sum = 0;
+    /* How fast the harmonics fall away, and whether that eases as the revs
+       climb: a high-revving engine gets brighter towards the top, not duller. */
+    const dec = (g.decay || 1) - (g.hot || 0) * (rpm / this.cfg.redline - 0.5);
+    const rl = Math.min(1, rpm / this.cfg.redline), jit = g.jit == null ? 0.04 : g.jit;
     for (let i = 0; i < this.ok.length; i++) {
       const k = this.ok[i], f = k * f0;
       let w;
       if (f > Math.min(11000, sr * 0.45)) { this.ot[i] = 0; continue; }
-      const h = k / F;
+      const h = k / F, hb = k / (F / 2);
       if (Math.abs(h - Math.round(h)) < 1e-6) {
-        w = Math.pow(h, -(g.decay || 1)) * (Math.round(h) % 2 === 0 ? (g.even == null ? 1 : g.even) : 1);
+        w = Math.pow(h, -dec) * (Math.round(h) % 2 === 0 ? (g.even == null ? 1 : g.even) : 1);
+      } else if (g.bank && Math.abs(hb - Math.round(hb)) < 1e-6 && Math.round(hb) % 2 === 1) {
+        /* The bank order: one bank's pulses on their own, at half the firing
+           rate. Every vee and flat engine has some of it, because the two
+           pipes are never quite the same; it is what separates a V10 from a
+           straight five. */
+        w = g.bank * Math.pow(hb / 2, -dec);
       } else if (Math.abs(k - Math.round(k)) < 1e-6) w = (g.whole || 0) * Math.pow(k / F, -0.5);
       else w = (g.half || 0) * Math.pow(k / F + 0.25, -0.6);
+      // the orders below and between the firing note thin out under load and at high revs
+      if (Math.abs(h - Math.round(h)) > 1e-6) w *= 1 - (g.fade == null ? 0.4 : g.fade) * thr * rl;
+      // and nothing holds perfectly still: each order wanders a little, slowly
+      this.oj[i] = 0.92 * this.oj[i] + 0.08 * (this.rnd() * 2 - 1);
+      w *= Math.max(0, 1 + jit * this.oj[i] * 4);
       // off the throttle, the uneven orders come up: the burble on a lift
       if (Math.abs(h - Math.round(h)) > 1e-6) w *= 1 + (g.burble || 0) * (1 - thr);
       // the resonances, as bumps on a log-frequency scale over a floor
@@ -8318,13 +8368,13 @@ class RcEngine extends AudioWorkletProcessor {
     const norm = sum > 0 ? 1 / Math.sqrt(sum) : 0;
     const ov = g.overrun == null ? 0.28 : g.overrun;
     const load = (ov + (1 - ov) * thr) * (0.45 + 0.55 * Math.min(1, rpm / this.cfg.redline));
-    for (let i = 0; i < this.ok.length; i++) this.ot[i] *= norm * load * (g.level || 0.3);
+    for (let i = 0; i < this.ok.length; i++) this.ot[i] *= norm * load * (g.level == null ? 0.3 : g.level);
   }
   process(inputs, outputs, params) {
     const out = outputs[0][0];
     const c = this.cfg;
     if (!c) { out.fill(0); return true; }
-    const target = params.rpm[0], thr = params.throttle[0], cut = params.cut[0];
+    let target = params.rpm[0]; const thr = params.throttle[0], cut = params.cut[0];
     const n = out.length, sr = sampleRate, ev = c.fire;
     const dA = Math.min(8000, Math.round(c.pipeA * sr / 1000));
     const dB = Math.min(8000, Math.round(c.pipeB * sr / 1000));
@@ -8332,7 +8382,7 @@ class RcEngine extends AudioWorkletProcessor {
        a louder pipe with more of the top end let through. Eased, so it opens
        like a flap rather than a switch. */
     const vRpm = c.valve || 0;
-    this.vopen += ((vRpm && target > vRpm ? 1 : vRpm ? 0 : 1) - this.vopen) * Math.min(1, n / sr * 6);
+    this.vopen += ((vRpm && target > vRpm && thr > 0.3 ? 1 : vRpm ? 0 : 1) - this.vopen) * Math.min(1, n / sr * 6);
     const vg = vRpm ? 0.62 + 0.38 * this.vopen : 1;
     const toneHz = c.tone * (0.5 + 0.5 * thr) * (vRpm ? 0.7 + 0.45 * this.vopen : 1);
     const a1 = 1 - Math.exp(-2 * Math.PI * toneHz / sr);
@@ -8351,6 +8401,15 @@ class RcEngine extends AudioWorkletProcessor {
     }
     const ig = c.intake ? c.intake.gain * (0.35 + 0.65 * thr) : 0;
     const vtHz = c.whine ? target / 60 * c.whine[0] : 0, vtG = c.whine ? c.whine[1] * (0.4 + 0.6 * thr) * Math.min(1, target / 7000) : 0;
+    /* A real idle is never quite still: the revs hunt by ten or twenty rpm,
+       slowly. It fades out as the revs leave idle. */
+    const idle = c.idle || 850;
+    this.wn = 0.98 * (this.wn || 0) + 3 * (this.rnd() * 2 - 1);
+    const target0 = target;
+    target = target0 + this.wn * Math.max(0, 1 - (target0 - idle) / (idle * 0.6)) * (1 - thr);
+    // the per-sample constants were tuned at 44.1 kHz; most devices run at 48
+    const srk = 44100 / sr, sk = q => 1 - Math.pow(1 - q, srk);
+    const damp = sk(c.damp), glide = sk(0.0008), ienvK = sk(0.01);
     const r0 = this.rpm;
     // how long the throttle has been open, and whether it has just been shut
     if (thr > 0.5) { this.loaded += n / sr; this.liftT = 9; }
@@ -8366,7 +8425,7 @@ class RcEngine extends AudioWorkletProcessor {
     const g = c.sig, nO = this.ok.length;
     if (g && nO) this.levels(target, thr);
     const S = RcEngine.SIN, envK = 1 - Math.exp(-1 / (sr * 0.004));
-    const lim = g && g.limiter, hardCut = cut > 0.5 && lim && lim[0] === 'hard';
+    const lim = g && g.limiter, hardCut = cut > 0.5 && cut < 1.5 && lim && lim[0] === 'hard';
     /* The intake: noise through the airbox's own resonance, pulsed by the
        firings, which is what roars when the throttle opens. Individual
        throttle bodies howl at a multiple of the firing rate; a big airbox
@@ -8377,7 +8436,7 @@ class RcEngine extends AudioWorkletProcessor {
       const w0 = 2 * Math.PI * f / sr, al = Math.sin(w0) / (2 * ind[2]), a0 = 1 + al;
       ic.push(al / a0, -al / a0, -2 * Math.cos(w0) / a0, (1 - al) / a0, ind[3] * (0.25 + 0.75 * thr));
     }
-    const drive = g ? 1 + (g.rasp || 0) * 6 : 1, dn = g && g.rasp ? Math.tanh(drive * 0.3) / 0.3 : 1;
+    const rasp = g ? g.rasp || 0 : 0, rd = 1 + rasp * 3, rb = 0.2, rt = Math.tanh(rd * rb);
     const grit = g ? (g.grit == null ? 0.5 : g.grit) : 1;
     // a turbo's turbine, or a big silencer, takes the edge off everything after it
     const muf = g && g.muffle ? 1 - Math.exp(-2 * Math.PI * g.muffle * (0.55 + 0.45 * thr) / sr) : 0;
@@ -8399,7 +8458,7 @@ class RcEngine extends AudioWorkletProcessor {
       for (const p of this.P) {
         if (p[0] >= p[1]) continue;
         const k = p[0] / p[1];
-        const v = p[2] * (Math.sin(Math.PI * k) + p[4] * (this.rnd() * 2 - 1) * (1 - k));
+        const v = p[2] * (Math.sin(Math.PI * k) + p[4] * (this.rnd() * 2 - 1) * Math.sin(Math.PI * Math.min(1, k * 3)) * (1 - k));
         if (p[3]) xb += v; else xa += v;
         p[0] += 1 / sr;
       }
@@ -8408,7 +8467,7 @@ class RcEngine extends AudioWorkletProcessor {
       if (nO) {
         this.th += rpm / 60 / sr; if (this.th >= 2) this.th -= 2;
         for (let o = 0; o < nO; o++) {
-          const a = this.oa[o] + (this.ot[o] - this.oa[o]) * 0.0008; this.oa[o] = a;
+          const a = this.oa[o] + (this.ot[o] - this.oa[o]) * glide; this.oa[o] = a;
           if (a < 1e-5) continue;
           let ph = this.ok[o] * this.th + this.oph[o]; ph -= Math.floor(ph);
           tonal += a * S[(ph * 4096) | 0];
@@ -8418,8 +8477,8 @@ class RcEngine extends AudioWorkletProcessor {
       }
       // the two pipes, each an inverted reflection off its open end
       const w = this.w, bA = this.bufs[0], bB = this.bufs[1];
-      this.lp[0] += (bA[(w - dA) & 8191] - this.lp[0]) * c.damp;
-      this.lp[1] += (bB[(w - dB) & 8191] - this.lp[1]) * c.damp;
+      this.lp[0] += (bA[(w - dA) & 8191] - this.lp[0]) * damp;
+      this.lp[1] += (bB[(w - dB) & 8191] - this.lp[1]) * damp;
       const ya = xa - c.fb * this.lp[0], yb = xb - c.fb * this.lp[1];
       bA[w] = ya; bB[w] = yb; this.w = (w + 1) & 8191;
       // DC out, then the silencer: two gentle poles that open with the throttle
@@ -8429,15 +8488,18 @@ class RcEngine extends AudioWorkletProcessor {
       this.t2 += (this.t1 - this.t2) * a1;
       let y = this.t2 * c.gain * vg * grit + tonal * vg;
       if (ic.length) {
-        this.ienv += (Math.abs(xa + xb) - this.ienv) * 0.01;
+        this.ienv += (Math.abs(xa + xb) - this.ienv) * ienvK;
         const nz = (this.rnd() * 2 - 1) * (0.3 + Math.min(1.5, this.ienv * 3));
         const z = this.iz, o = ic[0] * nz + ic[1] * z[1] - ic[2] * z[2] - ic[3] * z[3];
         z[1] = z[0]; z[0] = nz; z[3] = z[2]; z[2] = o;
         y += o * ic[4];
       }
+      /* rasp: some of the note driven into something that cannot take all of
+         it, lopsided, so it adds the even harmonics a real pipe does. In
+         parallel with the clean note and ahead of the silencer, so the
+         silencer softens what it adds; before, it squared the whole wave. */
+      if (rasp) y = y * (1 - 0.5 * rasp) + (Math.tanh(rd * (y + rb)) - rt) / rd * rasp * 1.1;
       if (muf) { this.sl += (y - this.sl) * muf; this.sl2 += (this.sl - this.sl2) * muf; y = this.sl2; }
-      // rasp: the note driven into something that cannot take all of it
-      if (g && g.rasp) y = Math.tanh(y * drive) / dn;
       if (res) {
         // the raw pulses through the airbox resonances
         const src = xa + xb;
@@ -8464,7 +8526,7 @@ registerProcessor('rc-engine', RcEngine);
 function rcFiring(cyl, step, banks) {
   const out = [];
   for (let i = 0; i < cyl; i++) {
-    const weak = 0.78 + rcHash(i * 7.3 + cyl) * 0.44;   // cylinders are never identical
+    const weak = 0.95 + rcHash(i * 7.3 + cyl) * 0.10;   // cylinders are never quite identical
     out.push([i * step, banks[i % banks.length], weak]);
   }
   return out;
@@ -8505,9 +8567,18 @@ const RC_ENGINE = {
      the firing rate, which is the scream, and an airbox chamber around 1.1
      kHz, which is the vowel. The exhaust valve opens at 3,800, and there is a
      thread of valvetrain whine under it all. */
-  lfa: { fire: rcFiring(10, 72, [0, 1]), pipeA: 1.55, pipeB: 1.55, fb: 0.5, damp: 0.68, tone: 7400, pw: 0.40, noise: 0.14, gain: 0.82,
-    intake: { gain: 0.9, res: [[2, 9, 0, 1.0], [4, 11, 0, 0.7], [0, 3.2, 1150, 0.55], [6, 14, 0, 0.3]] },
-    valve: 3800, whine: [10, 0.012] , sig: { decay: 0.55, even: 1.2, whole: 0.04, half: 0, harms: 20, span: 3, formants: [[1150, 0.45, 1.3], [2300, 0.4, 1.0], [3450, 0.4, 0.6], [600, 0.6, 0.4]], floor: 0.1, rough: 0.02, rasp: 0.05, grit: 0.25, closed: 0.2, overrun: 0.3, level: 0.4, induct: [1, 0, 3.0, 0.06], limiter: ['soft'], burble: 0.05 } },
+  /* The LFA, voiced the way Yamaha did it: the firing note itself is the
+     voice, three hundred hertz at four thousand and six hundred near nine,
+     and it gets brighter as it climbs, not duller. Broad resonances from the
+     resin surge tank (the 600, 1500 and 3000 hertz vowels) rather than narrow
+     whistles that follow the revs; a trace of one bank on its own; titanium
+     internals, so it revs faster than anything else here. */
+  lfa: { fire: rcFiring(10, 72, [0, 1]), pipeA: 1.55, pipeB: 1.62, fb: 0.5, damp: 0.68, tone: 7400, pw: 0.40, noise: 0.14, gain: 0.82,
+    intake: { gain: 0.5, res: [[1, 2.5, 0, 0.9], [0, 2.5, 1500, 0.45], [0, 3, 3000, 0.3]] },
+    valve: 3000, whine: [37, 0.003], sig: { decay: 0.6, hot: 0.6, even: 1.3, bank: 0.25, whole: 0.02, half: 0.02, harms: 20, span: 3,
+      formants: [[600, 0.8, 0.8], [1500, 0.5, 0.8], [3000, 0.5, 0.6], [4500, 0.45, 0.35]],
+      floor: 0.35, rough: 0.03, rasp: 0.1, grit: 0.4, closed: 0.2, overrun: 0.3, level: 0.44,
+      induct: [1, 0, 3.0, 0.06], limiter: ['soft'], cutFloor: 0.25, burble: 0.05, jit: 0.06 } },
   /* The two of them sounded like each other and like nothing much: the same
      engine with a different tone knob. Now the McLaren is the gruff one: wider
      pulses, longer pipes, a lot of rasp in the noise, its intake leaning on
@@ -8523,6 +8594,32 @@ const RC_ENGINE = {
   // crossplane, long pipes and a big resonance: the deepest thing here bar the Land Cruiser
   amggtr: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.9, pipeB: 4.4, fb: 0.60, damp: 0.40, tone: 1700, pw: 2.1, noise: 0.24, gain: 0.9 , sig: { decay: 1.0, even: 1.2, whole: 0.35, half: 0.8, harms: 16, span: 3, formants: [[140, 0.5, 1.1], [600, 0.5, 0.7], [1800, 0.6, 0.5]], rough: 0.18, lope: 0.45, uneven: 0.45, rasp: 0.55, grit: 0.75, muffle: 3200, closed: 0.5, overrun: 0.5, level: 0.4, induct: [0, 500, 1.2, 0.06], limiter: ['hard', 11], burble: 1.0 } }
 };
+/* The second pass, by measurement. The orders each engine can make come
+   from its layout: an even-fire V10 or a flat-plane V8 has almost no whole
+   orders below its firing note, only its bank order, and a stock crossplane
+   V8 burbles but does not lope like a race cam. Loudness is spread the way
+   the real cars differ, and the silencers on the V8s let more top through. */
+for (const [id, v] of Object.entries({
+  is350c: { half: 0.08, bank: 0.25, rasp: 0.1, level: 0.34 },
+  huracan: { half: 0.05, whole: 0.04, bank: 0.3, hot: 0.3, formants: [[650, 0.6, 0.7], [1900, 0.5, 1.0], [3800, 0.5, 0.6]], floor: 0.35, rasp: 0.18, level: 0.46, cutFloor: 0.12 },
+  typer: { rasp: 0.15, level: 0.34 },
+  r34: { bank: 0.18, rasp: 0.15, induct: [2, 0, 3.0, 0.07], level: 0.38 },
+  supra: { bank: 0.15, level: 0.38 },
+  m3: { rasp: 0.2, bank: 0.15, hot: 0.3, level: 0.42 },
+  carrera: { muffle: 3200, bank: 0.3, half: 0.06, whole: 0.04, level: 0.38 },
+  stang: { lope: 0.25, rough: 0.08, uneven: 0.3, whole: 0.03, half: 0.6, fade: 0.15, muffle: 4500, formants: [[140, 0.5, 0.9], [520, 0.6, 0.7], [1600, 0.6, 0.5]], floor: 0.3, level: 0.46 },
+  rs6: { whole: 0.03, level: 0.36, fade: 0.15 },
+  cruiser: { whole: 0.02, half: 0.7, floor: 0.35, level: 0.3, fade: 0 },
+  mclaren: { whole: 0.04, bank: 0.35, rasp: 0.25, level: 0.42 },
+  f458: { floor: 0.35, bank: 0.2, hot: 0.4, whole: 0.04, level: 0.46 },
+  amggtr: { fade: 0.15, rasp: 0.2, whole: 0.03, lope: 0.15, muffle: 4200, level: 0.46 },
+})) Object.assign(RC_ENGINE[id].sig, v);
+Object.assign(RC_ENGINE.stang, { tone: 2400 });
+Object.assign(RC_ENGINE.r34, { whine: [23, 0.003] });
+Object.assign(RC_ENGINE.huracan, { valve: 3500 });
+// fixed, broad airbox resonances in place of narrow whistles that tracked the revs
+Object.assign(RC_ENGINE.mclaren, { intake: { gain: 0.35, res: [[0, 2.0, 640, 0.5], [0, 2.5, 1800, 0.4]] } });
+Object.assign(RC_ENGINE.f458, { intake: { gain: 0.45, res: [[2, 3.5, 0, 0.8], [4, 4, 0, 0.5], [0, 3.0, 1450, 0.5]] } });
 
 let rcAC = null, rcSnd = null;
 let rcSoundOn = true;
@@ -8655,14 +8752,19 @@ function rcAudioUpdate() {
     // the engine proper: which engine it is, how fast it turns, how hard it works
     if (s.engId !== (car.sig || car.id)) {
       s.eng.port.postMessage(Object.assign({}, RC_ENGINE[car.id],
-        { redline: car.redline, crackle: car.crackle, flame: car.flame || 0 }));
+        { redline: car.redline, crackle: car.crackle, flame: car.flame || 0, idle: car.idle || 850 }));
       s.engId = car.sig || car.id;
     }
     const EP = s.eng.parameters;
-    EP.get('rpm').setTargetAtTime(rcClamp(RC.erpm != null ? RC.erpm : rpmRaw, 850, car.redline * 1.02), t, 0.03);
-    // a change of gear is a dip in the note, not a silence: the cut lasts a tenth of a second
-    EP.get('throttle').setTargetAtTime(RC.shiftFor > 0 ? (RC.blip > 0 ? 0.7 : 0.18) : (RC.thr || 0), t, 0.035);
-    EP.get('cut').setValueAtTime(onLimiter ? 1 : 0, t);
+    EP.get('rpm').setTargetAtTime(rcClamp(RC.erpm != null ? RC.erpm : rpmRaw, car.idle || 850, car.redline * 1.02), t, 0.03);
+    /* A change of gear sounds like the box it goes through: a dual clutch or
+       automated manual cuts the fuel for a few hundredths on the way up (cut
+       2 is every firing gone), a torque converter keeps the throttle half open
+       and slurs it, a manual is a lift. */
+    const bx = RC_BOX[car.gbox] || RC_BOX.man, inShift = car.shift - RC.shiftFor;
+    const shiftCut = RC.shiftFor > 0 && !(RC.blip > 0) && bx.cut && inShift < bx.cut;
+    EP.get('throttle').setTargetAtTime(RC.shiftFor > 0 ? (RC.blip > 0 ? 0.7 : bx.thr) : (RC.thr || 0), t, 0.035);
+    EP.get('cut').setValueAtTime(shiftCut ? 2 : onLimiter ? 1 : 0, t);
   } else {
     // the stand in: the note, and the limiter stuttering on top of it
     const chop = onLimiter ? (Math.sin(t * 150) > 0 ? 0.25 : 1) : 1;
@@ -8779,17 +8881,22 @@ function rcTurbo(car, dt, throttle, rpmRaw) {
    second shaft (twin detune, or a sequential cut-in band), the intake rush
    [centre Hz, Q, level], what the valve does, and the wastegates. */
 const RC_TURBO = {
-  typer:   { lo: 2600, hi: 10500, wh: 0.020, shape: 'sine', hiss: [4800, 1.4, 0.049],
+  /* The whistle tops out where a real compressor's blade-pass note does, five
+     to seven kilohertz; at ten it read as tinnitus, not a turbo. Sines, since
+     a triangle's third harmonic lands above anyone's hearing. */
+  typer:   { lo: 2200, hi: 6500, wh: 0.012, shape: 'sine', hiss: [3800, 1.0, 0.06],
              bov: { type: 'recirc', lvl: 0.6, len: 0.18, hz: [1700, 700] } },
-  r34:     { lo: 2000, hi: 8200, wh: 0.025, twin: 0.008, shape: 'triangle', hiss: [3800, 1.2, 0.070],
+  r34:     { lo: 2000, hi: 7000, wh: 0.020, twin: 0.008, shape: 'sine', hiss: [3800, 1.2, 0.070],
              bov: { type: 'flutter', lvl: 1.0, rate: 19, len: 0.5, hz: [2100, 700] } },
-  supra:   { lo: 1400, hi: 6200, wh: 0.022, seq: [0.45, 0.68], shape: 'sine', hiss: [2400, 0.9, 0.098],
-             bov: { type: 'valve', lvl: 1.25, len: 0.65, hz: [4600, 900] } },
-  rs6:     { lo: 1800, hi: 6600, wh: 0.011, twin: 0.004, shape: 'sine', hiss: [3200, 1.0, 0.042],
+  supra:   { lo: 1400, hi: 5200, wh: 0.016, seq: [0.45, 0.68], shape: 'sine', hiss: [2400, 0.9, 0.090],
+             bov: { type: 'valve', lvl: 1.1, len: 0.6, hz: [4600, 900] } },
+  carrera: { lo: 1800, hi: 6000, wh: 0.008, twin: 0.003, shape: 'sine', hiss: [3000, 1.0, 0.03],
+             bov: { type: 'recirc', lvl: 0.3, len: 0.15, hz: [1300, 500] } },
+  rs6:     { lo: 1800, hi: 6000, wh: 0.009, twin: 0.004, shape: 'sine', hiss: [3200, 1.0, 0.042],
              bov: { type: 'recirc', lvl: 0.45, len: 0.2, hz: [1200, 500] } },
-  mclaren: { lo: 2300, hi: 8800, wh: 0.022, twin: 0.005, shape: 'triangle', hiss: [4200, 1.3, 0.077],
+  mclaren: { lo: 2300, hi: 7000, wh: 0.017, twin: 0.005, shape: 'sine', hiss: [4200, 1.3, 0.070],
              bov: { type: 'recirc', lvl: 0.7, len: 0.22, hz: [2000, 800] }, gate: 0.8 },
-  amggtr:  { lo: 1700, hi: 7200, wh: 0.025, twin: 0.006, shape: 'triangle', hiss: [3400, 1.1, 0.070],
+  amggtr:  { lo: 1700, hi: 6500, wh: 0.019, twin: 0.006, shape: 'sine', hiss: [3400, 1.1, 0.065],
              bov: { type: 'flutter', lvl: 0.9, rate: 23, len: 0.4, hz: [1800, 650] }, gate: 1.0 }
 };
 // any other turbo car (or one tuned into having one) gets a plain single
@@ -8824,8 +8931,9 @@ function rcTurboVoice(ac, out, buf) {
       }
       o1.frequency.setTargetAtTime(f, t, 0.06); o2.frequency.setTargetAtTime(f2, t, 0.06);
       g1.gain.setTargetAtTime(a, t, 0.05); g2.gain.setTargetAtTime(a2, t, 0.05);
-      hf.frequency.setTargetAtTime(p.hiss[0] * (0.6 + 0.6 * boost), t, 0.08);
-      hg.gain.setTargetAtTime(boost * on * p.hiss[2], t, 0.06);
+      // the rush of air: its pitch follows the shaft, its weight the boost
+      hf.frequency.setTargetAtTime(p.hiss[0] * (0.5 + 0.5 * spin + 0.3 * boost), t, 0.08);
+      hg.gain.setTargetAtTime((0.25 * spin + 0.75 * boost) * on * p.hiss[2], t, 0.06);
     }
   };
 }
@@ -13109,7 +13217,7 @@ function rcHud(c, w, h, P) {
   const fg = '#f3f5f8', muted = 'rgba(243,245,248,.72)', num = '#7ad48f', bad = '#ff5b4a';
   const k = rcClamp(Math.min(w / 640, h / 380), 0.8, 1.9);
   const car = RC.car;
-  const rpm = rcClamp(RC.erpm != null ? RC.erpm : rcRpmOf(RC.v, rcRatio(car, RC.gear)), 900, car.redline);
+  const rpm = rcClamp(RC.erpm != null ? RC.erpm : rcRpmOf(RC.v, rcRatio(car, RC.gear)), car.idle || 850, car.redline);
   const turbo = !!car.turbo;
   const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round((turbo ? 66 : 54) * k);
   // in full screen on a phone the pedals sit over the bottom of the road, so the binnacle rides above them
