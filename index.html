@@ -967,7 +967,26 @@
     max-width:min(96vw,880px); width:100%; margin:auto;
     box-shadow:0 26px 70px rgba(0,0,0,.45);
   }
-  .rstage { border:1px solid var(--line); background:var(--bg); line-height:0; }
+  .rstage { border:1px solid var(--line); background:var(--bg); line-height:0; position:relative; }
+  /* full screen: the road and nothing else, edge to edge. Where the browser
+     cannot put an element in full screen (an iPhone), the stage covers the
+     window instead, which is as close as it allows. */
+  .rstage.rcfs { position:fixed; inset:0; z-index:95; border:0; background:#000;
+    display:flex; align-items:center; justify-content:center; }
+  .rstage:fullscreen { border:0; }
+  .rcfsx { display:none; }
+  .rstage.rcfs .rcfsx {
+    display:block; position:absolute; top:max(10px, env(safe-area-inset-top)); left:max(10px, env(safe-area-inset-left));
+    font:inherit; font-size:12px; line-height:1; color:#e6edf3; background:rgba(0,0,0,.45);
+    border:1px solid rgba(255,255,255,.25); padding:9px 12px; cursor:pointer; opacity:.7;
+  }
+  .rstage.rcfs .rcfsx:hover, .rstage.rcfs .rcfsx:focus-visible { opacity:1; }
+  .rstage.rcfs .rtouch {
+    position:absolute; left:8px; right:8px; bottom:max(8px, env(safe-area-inset-bottom)); margin:0;
+    background:none; border:0; line-height:normal;
+    grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:1fr; gap:5px;
+  }
+  .rstage.rcfs .rtouch button { min-height:46px; padding:0; background:rgba(20,22,26,.42); color:#f3f5f8; border-color:rgba(255,255,255,.22); }
   #raceCv { display:block; width:100%; height:auto; touch-action:none; }
   .rcars { display:flex; flex-wrap:wrap; gap:6px; padding:12px; border:1px solid var(--line); border-top:0; }
   /* an author display beats the UA's rule for the hidden attribute, so the
@@ -1197,9 +1216,10 @@
       <b>[ highway ]</b>
       <span class="sc">distance <i id="rcDist">0.00 km</i> &middot; best <i id="rcBest">0.00 km</i></span>
     </div>
-    <div class="rstage">
+    <div class="rstage" id="rcStage">
       <canvas id="raceCv" role="img"
               aria-label="A motorway seen from behind your car, with traffic ahead. Arrow keys steer and brake."></canvas>
+      <button type="button" class="rcfsx" id="rcFullX" aria-label="Leave full screen">&times; Exit full screen</button>
     </div>
     <div id="lbSlotGame">
       <form class="lbform" id="lbForm" hidden autocomplete="off">
@@ -1253,13 +1273,14 @@
       <kbd>&larr;</kbd><kbd>&rarr;</kbd> or <kbd>A</kbd><kbd>D</kbd> steer &middot;
       <kbd>&uarr;</kbd><kbd>W</kbd> throttle &middot; <kbd>&darr;</kbd><kbd>S</kbd> brake &middot;
       <kbd>Shift</kbd><kbd>Ctrl</kbd> gears in manual &middot; <kbd>F</kbd> flash the car ahead &middot;
-      <kbd>T</kbd> gearbox &middot; <kbd>G</kbd> garage &middot; <kbd>F</kbd> flash &middot; <kbd>M</kbd> sound &middot;
+      <kbd>T</kbd> gearbox &middot; <kbd>G</kbd> garage &middot; <kbd>V</kbd> full screen &middot; <kbd>M</kbd> sound &middot;
       <kbd>R</kbd> bank the score and go again &middot; <kbd>P</kbd> pause
     </p>
     <p class="gfoot">
       <span id="rcMsg">press enter, or any arrow, to start</span>
       <button id="rcSound" type="button" aria-pressed="true">Sound on</button>
       <button id="rcMode" type="button">Automatic</button>
+      <button id="rcFull" type="button" aria-pressed="false">Full screen</button>
       <button id="rcAgain" type="button">Restart</button>
       <button id="rcClose" type="button" class="close">Close</button>
     </p>
@@ -8980,6 +9001,15 @@ const RC_NIGHT = {
 let rcW = 640, rcH = 360, rcDpr = 1;
 function rcSize() {
   const box = raceCv.parentElement;
+  if (rcFullOn) {
+    const w = Math.max(280, box.clientWidth || innerWidth), h = Math.max(190, box.clientHeight || innerHeight);
+    // a big monitor at full density is a lot of pixels to paint every frame
+    rcDpr = Math.min(devicePixelRatio || 1, 2, Math.sqrt(2.6e6 / (w * h)));
+    rcW = w; rcH = h;
+    raceCv.width = Math.round(w * rcDpr); raceCv.height = Math.round(h * rcDpr);
+    raceCv.style.width = w + 'px'; raceCv.style.height = h + 'px';
+    return;
+  }
   const w = Math.max(280, Math.min(900, box.clientWidth || 640));
   // 16:9 on a phone is a letterbox with no road in it, so a narrow canvas is
   // squarer and shows more of what is coming
@@ -12893,7 +12923,9 @@ function rcHud(c, w, h, P) {
   const rpm = rcClamp(RC.erpm != null ? RC.erpm : rcRpmOf(RC.v, rcRatio(car, RC.gear)), 900, car.redline);
   const turbo = !!car.turbo;
   const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round((turbo ? 66 : 54) * k);
-  const bx = pad, by = h - pad - bh;
+  // in full screen on a phone the pedals sit over the bottom of the road, so the binnacle rides above them
+  const lift = rcFullOn && rcTouchUI ? (document.getElementById('rcTouch').offsetHeight || 0) + 8 : 0;
+  const bx = pad, by = h - pad - bh - lift;
 
   c.fillStyle = 'rgba(0,0,0,.45)';
   c.fillRect(bx, by, bw, bh);
@@ -13332,8 +13364,45 @@ function rcOpen() {
   lbPlace();
 }
 
+/* Full screen. The road alone, edge to edge, with the touch controls laid
+   over it on a phone and a button to get out. Uses the browser's own full
+   screen where it has one, and covers the window where it does not (iPhone
+   Safari will not put anything but a video in full screen). The canvas is
+   resized to the screen, with the pixel count capped so a large monitor does
+   not cost more frames than it gives. */
+const rcStage = document.getElementById('rcStage'), rcFullBtn = document.getElementById('rcFull');
+var rcFullOn = false, rcTouchHome = null;   // var: rcSize can run before this line has
+function rcFullSync(on) {
+  rcFullOn = on;
+  rcStage.classList.toggle('rcfs', on);
+  rcFullBtn.setAttribute('aria-pressed', String(on));
+  rcFullBtn.textContent = on ? 'Leave full screen' : 'Full screen';
+  const pads = document.getElementById('rcTouch');
+  if (on && rcTouchUI && pads.parentElement !== rcStage) { rcTouchHome = pads.parentElement; rcStage.appendChild(pads); }
+  if (!on && rcTouchHome && pads.parentElement === rcStage) rcTouchHome.insertBefore(pads, rcTouchHome.querySelector('.rtabs'));
+  requestAnimationFrame(() => rcSize());
+}
+function rcFullscreen(on) {
+  if (on === rcFullOn) return;
+  const real = rcStage.requestFullscreen && document.fullscreenEnabled;
+  if (on) {
+    if (real) rcStage.requestFullscreen({ navigationUI: 'hide' }).then(() => {
+      try { screen.orientation.lock('landscape').catch(() => {}); } catch (e) {}
+    }).catch(() => rcFullSync(true));
+    else rcFullSync(true);
+  } else {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    rcFullSync(false);
+  }
+}
+document.addEventListener('fullscreenchange', () => rcFullSync(document.fullscreenElement === rcStage));
+rcFullBtn.addEventListener('click', () => rcFullscreen(!rcFullOn));
+document.getElementById('rcFullX').addEventListener('click', () => rcFullscreen(false));
+raceCv.addEventListener('dblclick', () => rcFullscreen(!rcFullOn));
+
 function rcClose() {
   rcPullOff();
+  rcFullscreen(false);
   raceEl.hidden = true;
   lbPlace();
   rcSoundStop();
@@ -13365,7 +13434,7 @@ addEventListener('keydown', e => {
   if (raceEl.hidden) return;
   // the name box for the leaderboard keeps its own keys
   if (e.target instanceof Element && e.target.closest('input, select, textarea')) return;
-  if (e.key === 'Escape') { e.preventDefault(); rcClose(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); if (rcFullOn) rcFullscreen(false); else rcClose(); return; }
   // Enter and space belong to whichever button has focus, not to the car.
   // e.target is not always an element, so it is asked rather than assumed.
   const onBtn = e.target instanceof Element && e.target.closest('button');
@@ -13388,6 +13457,7 @@ addEventListener('keydown', e => {
   if (RC_DOWNSHIFT[k]) { rcShift(-1); e.preventDefault(); return; }
   if (k === 't') { rcSetMode(RC.mode === 'auto' ? 'manual' : 'auto'); e.preventDefault(); return; }
   if (k === 'g') { rcShopShow(rcShopEl.hidden); e.preventDefault(); return; }
+  if (k === 'v') { rcFullscreen(!rcFullOn); e.preventDefault(); return; }
   if (k === 'm') { rcSetSound(!rcSoundOn); e.preventDefault(); return; }
   if (k === 'r') { rcReset(true); rcStart(); e.preventDefault(); return; }
   if (k === 'c') { rcReset(true); e.preventDefault(); return; }
