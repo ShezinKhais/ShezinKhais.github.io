@@ -1,0 +1,27 @@
+name: check the figures
+
+# Every specific number the page states about a project is re-derived from that
+# project's repo once a week, and on any change to the page. If the repo and the
+# page disagree, this fails, so the copy is corrected rather than left to drift.
+on:
+  schedule:
+    - cron: '41 5 * * 1'
+  push:
+    paths: ['index.html', '.github/claims.json', '.github/scripts/verify-claims.js']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: numpy, for the figures that are computed by the project's own code
+        run: pip install --quiet numpy
+      - name: Re-derive every figure and compare it with the page
+        run: node .github/scripts/verify-claims.js index.html

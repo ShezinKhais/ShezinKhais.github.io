@@ -1,0 +1,48 @@
+name: refresh the expected demo answers
+
+# The page's "Check against the repo" buttons compare each demo with answers the
+# projects' own Python produced on the same inputs. This regenerates those
+# answers weekly, and whenever the page changes, from the head of each project.
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+  push:
+    branches: [main]
+    paths: ['index.html', '.github/scripts/golden.py', '.github/scripts/extract-fixtures.js']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  golden:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: The projects, at the head of each
+        run: |
+          mkdir -p "$RUNNER_TEMP/repos"
+          for r in CodeCartographer HarmonicDNA federated-aml claimaudit Hypothesisgraveyard Clearlane; do
+            git clone -q https://github.com/${{ github.repository_owner }}/$r "$RUNNER_TEMP/repos/$r"
+          done
+          git clone -q --depth 1 https://github.com/${{ github.repository_owner }}/Cognitive_Learning_Intelligence_Platform "$RUNNER_TEMP/repos/Cognitive_Learning_Intelligence_Platform"
+          pip install --quiet numpy requests
+
+      - name: Run them on the demos' own inputs
+        run: |
+          node .github/scripts/extract-fixtures.js index.html > "$RUNNER_TEMP/fixtures.json"
+          python .github/scripts/golden.py "$RUNNER_TEMP/fixtures.json" "$RUNNER_TEMP/repos" > "$RUNNER_TEMP/golden.json"
+          node .github/scripts/write-golden.js "$RUNNER_TEMP/golden.json" index.html
+
+      - name: Commit if anything moved
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- index.html; then echo "answers unchanged"; exit 0; fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add index.html
+          git commit -m "golden - expected demo answers refreshed from the project repos"
+          git push

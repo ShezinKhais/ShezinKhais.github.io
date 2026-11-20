@@ -9,7 +9,7 @@ const fs = require('fs');
 const file = process.argv[2] || 'index.html';
 const wanted = [
   ['public repositories', process.env.REPOS],
-  ['contributions this year', process.env.CONTRIB],
+  ['contributions in the last year', process.env.CONTRIB],
   ['projects with CI suites', process.env.CI],
 ];
 
