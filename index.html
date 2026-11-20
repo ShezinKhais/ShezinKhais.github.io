@@ -6964,13 +6964,23 @@ function rcWheelForce(car, gear, v, throttle) {
 
 /* Which gear an automatic would be in: the highest one that still has the
    revs to pull, shifting up near the redline and back down as they fall. */
+/* It used to decide afresh every frame from the pedal alone, and its upshift
+   point fell the moment you lifted: tap the throttle and it changed up on the
+   lift, then kicked down on the next press, so a few taps were a few shifts,
+   each one cutting the engine. Now it behaves like a gearbox with a brain: it
+   holds a gear for a moment after changing, never changes up just because you
+   lifted (only if the revs are running away), and kicks down only when the
+   pedal has been held, not tapped. */
 function rcAutoGear(car, gear, v, throttle) {
   gear = rcClamp(gear | 0, 0, car.gears.length - 1);
   const rpm = rcRpmOf(v, rcRatio(car, gear));
-  const up = car.redline * (0.72 + 0.22 * throttle);
-  if (rpm > up && gear < car.gears.length - 1) return gear + 1;
-  if (gear > 0 && rcRpmOf(v, rcRatio(car, gear - 1)) < car.redline * 0.80
-      && rpm < car.peak * (0.42 + 0.30 * throttle)) return gear - 1;
+  const held = (RC.onFor || 0) > 0.3;
+  if (gear < car.gears.length - 1 && (throttle ? rpm > car.redline * 0.94 : rpm > car.redline * 0.985)) return gear + 1;
+  if ((RC.gearHold || 0) > 0) return gear;
+  if (gear > 0 && rcRpmOf(v, rcRatio(car, gear - 1)) < car.redline * 0.80) {
+    if (throttle && held && rpm < car.peak * 0.70) return gear - 1;      // kickdown, for a real request
+    if (!throttle && rpm < car.peak * 0.40) return gear - 1;             // rolling down through the box
+  }
   return gear;
 }
 
@@ -7448,7 +7458,7 @@ function rcReset(keepCar) {
   const lanes = rcLanes(0);
   RC.state = 'ready';
   RC.z = 0; RC.v = 100 / 3.6; RC.yaw = 0; RC.gear = 0; RC.shiftFor = 0; RC.steer = 0; RC.lat = 0;
-  RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9;
+  RC.spin = 0; RC.boost = 0; RC.blip = 0; RC.onBoost = 0; RC.bovAt = -9; RC.thr = 0; RC.erpm = null; RC.gearHold = 0;
   RC.score = 0; RC.mult = 1; RC.multAt = -9; RC.slowFor = 0; RC.draft = 0; RC.pops = [];
   RC.heat = 0; RC.cop = null; RC.lurk = null; RC.heli = null; RC.chaseFor = 0; RC.awayFor = 0; RC.nearFor = 0;
   RC.runPeak = 0; RC.pbBefore = rcBestScore; RC.runLevel = RC.level;
@@ -7655,6 +7665,7 @@ function rcDrive(dt) {
 
   // gears
   if (RC.shiftFor > 0) RC.shiftFor -= dt;
+  RC.gearHold = Math.max(0, (RC.gearHold || 0) - dt);
   if (RC.mode === 'auto' && RC.shiftFor <= 0) {
     const g = rcAutoGear(car, RC.gear, RC.v, throttle);
     if (g !== RC.gear) {
@@ -7662,7 +7673,7 @@ function rcDrive(dt) {
       // through the box on the overrun does not
       if (g > RC.gear && throttle) rcShiftPop(car);
       if (g < RC.gear) RC.blip = 0.20;      // the revs matched on the way down
-      RC.gear = g; RC.shiftFor = car.shift;
+      RC.gear = g; RC.shiftFor = car.shift; RC.gearHold = 1.0;
     }
   }
   /* And the odd bang on a lift, but only after the car has been worked, high
@@ -7685,6 +7696,22 @@ function rcDrive(dt) {
   }
   RC.lastThrottle = throttle;
   RC.blip = Math.max(0, RC.blip - dt);
+  /* The pedal travels rather than teleporting: about a tenth of a second down
+     and a little less up. The sound reads it, so a tap is a swell and a fall
+     rather than a switch thrown on and off. */
+  RC.thr = (RC.thr || 0) + rcClamp(throttle - (RC.thr || 0), -dt / 0.08, dt / 0.11);
+  /* And the engine has a flywheel. Its speed follows the wheels through the
+     clutch, but across a gear change it has to fall (or, on a downshift, be
+     blipped up) at the rate a real crank can: snapping it to the new gear's
+     revs in thirty milliseconds was the chirp on every change. */
+  {
+    const want = rcRpmOf(RC.v, rcRatio(car, RC.gear));
+    if (RC.erpm == null) RC.erpm = want;
+    if (RC.shiftFor > 0) {
+      const rate = (want > RC.erpm ? (RC.blip > 0 ? 16000 : 6000) : 9000) * dt;
+      RC.erpm += rcClamp(want - RC.erpm, -rate, rate);
+    } else RC.erpm += (want - RC.erpm) * Math.min(1, dt * 18);
+  }
   rcTurbo(car, dt, throttle, rcRpmOf(RC.v, rcRatio(car, RC.gear)));
 
   /* Downforce, and everything that leans on it. One number, used three times:
@@ -7693,7 +7720,7 @@ function rcDrive(dt) {
      Cruiser, whose figure is negative, is not. */
   const load = car.mass * RC_G + car.aero * RC.v * RC.v;
   const cutting = RC.shiftFor > 0;
-  let F = cutting ? 0 : rcWheelForce(car, RC.gear, RC.v, throttle);
+  let F = cutting ? 0 : rcWheelForce(car, RC.gear, RC.v, RC.thr);
   F = Math.min(F, car.mu * car.drive * load);
   /* Slipstream. Anything ahead of you in the same line is dragging a hole in
      the air behind it, and a lorry is dragging a very big one: tuck in and the
@@ -8248,7 +8275,7 @@ class RcEngine extends AudioWorkletProcessor {
       let r = g.floor == null ? 0.25 : g.floor;
       for (const [hz, bw, gain] of g.formants || []) { const o = Math.log2(f / hz) / bw; r += gain * Math.exp(-0.5 * o * o); }
       // a shut throttle takes the top off
-      const bright = thr > 0.5 ? 1 : Math.exp(-Math.max(0, h - 1) * (g.closed || 0.35));
+      const bright = Math.exp(-Math.max(0, h - 1) * (g.closed || 0.35) * (1 - thr));
       // and nothing much below about forty hertz reaches anyone
       const lo = f < 40 ? f / 40 : 1;
       w *= r * bright * lo;
@@ -8256,7 +8283,8 @@ class RcEngine extends AudioWorkletProcessor {
     }
     // the same loudness from every recipe, rising with revs and with load
     const norm = sum > 0 ? 1 / Math.sqrt(sum) : 0;
-    const load = (thr > 0.5 ? 1 : (g.overrun == null ? 0.28 : g.overrun)) * (0.45 + 0.55 * Math.min(1, rpm / this.cfg.redline));
+    const ov = g.overrun == null ? 0.28 : g.overrun;
+    const load = (ov + (1 - ov) * thr) * (0.45 + 0.55 * Math.min(1, rpm / this.cfg.redline));
     for (let i = 0; i < this.ok.length; i++) this.ot[i] *= norm * load * (g.level || 0.3);
   }
   process(inputs, outputs, params) {
@@ -8330,7 +8358,7 @@ class RcEngine extends AudioWorkletProcessor {
       if (nO) {
         this.th += rpm / 60 / sr; if (this.th >= 2) this.th -= 2;
         for (let o = 0; o < nO; o++) {
-          const a = this.oa[o] + (this.ot[o] - this.oa[o]) * 0.002; this.oa[o] = a;
+          const a = this.oa[o] + (this.ot[o] - this.oa[o]) * 0.0008; this.oa[o] = a;
           if (a < 1e-5) continue;
           let ph = this.ok[o] * this.th + this.oph[o]; ph -= Math.floor(ph);
           tonal += a * S[(ph * 4096) | 0];
@@ -8582,8 +8610,9 @@ function rcAudioUpdate() {
       s.engId = car.sig || car.id;
     }
     const EP = s.eng.parameters;
-    EP.get('rpm').setTargetAtTime(rcClamp(rpmRaw, 850, car.redline * 1.02), t, 0.03);
-    EP.get('throttle').setTargetAtTime(RC.shiftFor > 0 ? (RC.blip > 0 ? 1 : 0) : throttle, t, 0.02);
+    EP.get('rpm').setTargetAtTime(rcClamp(RC.erpm != null ? RC.erpm : rpmRaw, 850, car.redline * 1.02), t, 0.03);
+    // a change of gear is a dip in the note, not a silence: the cut lasts a tenth of a second
+    EP.get('throttle').setTargetAtTime(RC.shiftFor > 0 ? (RC.blip > 0 ? 0.7 : 0.18) : (RC.thr || 0), t, 0.035);
     EP.get('cut').setValueAtTime(onLimiter ? 1 : 0, t);
   } else {
     // the stand in: the note, and the limiter stuttering on top of it
@@ -12748,7 +12777,7 @@ function rcHud(c, w, h, P) {
   const fg = '#f3f5f8', muted = 'rgba(243,245,248,.72)', num = '#7ad48f', bad = '#ff5b4a';
   const k = rcClamp(w / 640, 0.58, 1.12);
   const car = RC.car;
-  const rpm = rcClamp(rcRpmOf(RC.v, rcRatio(car, RC.gear)), 900, car.redline);
+  const rpm = rcClamp(RC.erpm != null ? RC.erpm : rcRpmOf(RC.v, rcRatio(car, RC.gear)), 900, car.redline);
   const turbo = !!car.turbo;
   const pad = Math.round(11 * k), bw = Math.round(190 * k), bh = Math.round((turbo ? 66 : 54) * k);
   const bx = pad, by = h - pad - bh;
