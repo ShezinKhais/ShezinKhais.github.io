@@ -8174,7 +8174,27 @@ class RcEngine extends AudioWorkletProcessor {
     this.lastThr = 0; this.loaded = 0; this.liftT = 9; this.budget = 0;
     // intake resonators (biquad band-pass state) and the valvetrain's phase
     this.rz = [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]; this.vt = 0; this.vopen = 0;
-    this.port.onmessage = e => { this.cfg = e.data; this.idx = 0; this.phase = 0; };
+    // the engine orders: the crank's turn (over two revolutions), each order's phase, its level now and its level wanted
+    this.th = 0; this.ok = []; this.oph = []; this.oa = new Float32Array(160); this.ot = new Float32Array(160);
+    this.env = 1; this.envT = 1; this.sl = 0; this.sl2 = 0; this.ohp = 0; this.ohx = 0;
+    if (!RcEngine.SIN) { RcEngine.SIN = new Float32Array(4097); for (let i = 0; i <= 4096; i++) RcEngine.SIN[i] = Math.sin(i / 4096 * Math.PI * 2); }
+    this.port.onmessage = e => { this.cfg = e.data; this.idx = 0; this.phase = 0; this.orders(); };
+  }
+  /* Which orders this engine has, worked out once. An order is a multiple of
+     the crank's speed. A four-stroke fires cyl/2 times a revolution, so that
+     order and its multiples are the note; whole orders in between come from
+     imbalance, and half orders, which repeat only every second revolution,
+     come from cylinders or banks that do not fire evenly: the off-beat of a
+     crossplane V8, the warble of an odd-fire V10. */
+  orders() {
+    const g = this.cfg.sig; this.ok = []; this.oph = [];
+    if (!g) return;
+    const F = this.cfg.fire.length / 2;
+    const seen = new Set();
+    const add = k => { const key = Math.round(k * 2); if (seen.has(key) || k <= 0) return; seen.add(key); this.ok.push(k); this.oph.push(this.rnd()); };
+    for (let h = 1; h <= (g.harms || 18); h++) add(F * h);
+    for (let k = 0.5; k <= F * (g.span || 4); k += 0.5) add(k);
+    this.oa.fill(0);
   }
   rnd() {
     let x = this.seed; x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
@@ -8198,9 +8218,46 @@ class RcEngine extends AudioWorkletProcessor {
       // a bang of its own size, not a fatter firing: the same on a V10 as a four
       amp = 2.9 + fl * 1.7; width = 0.0035 + this.rnd() * 0.002; nz = 1.4;
     } else width = Math.min(width, interval * 0.8);
+    // each firing nudges the strength of the note: how even the engine is, and the lope of a big cam at idle
+    const g = c.sig;
+    if (g) {
+      const lope = (g.lope || 0) * Math.max(0, 1 - (rpm - 700) / 2200);
+      this.envT = Math.max(0.15, 1 + ((g.rough || 0) + lope) * (this.rnd() * 2 - 1) + (ev[2] - 1) * (g.uneven || 0));
+    }
     for (const p of this.P) if (p[0] >= p[1]) {
       p[0] = 0; p[1] = width; p[2] = amp; p[3] = ev[1]; p[4] = nz; return;
     }
+  }
+  /* Each order's level for this block: its place in the recipe (the firing
+     order and its harmonics, the whole orders, the half orders), shaped by the
+     resonances of this engine's exhaust and intake, brighter with the throttle
+     open, and none of it above what the ear can use. */
+  levels(rpm, thr) {
+    const g = this.cfg.sig, F = this.cfg.fire.length / 2, f0 = rpm / 60, sr = sampleRate;
+    let sum = 0;
+    for (let i = 0; i < this.ok.length; i++) {
+      const k = this.ok[i], f = k * f0;
+      let w;
+      if (f > Math.min(11000, sr * 0.45)) { this.ot[i] = 0; continue; }
+      const h = k / F;
+      if (Math.abs(h - Math.round(h)) < 1e-6) {
+        w = Math.pow(h, -(g.decay || 1)) * (Math.round(h) % 2 === 0 ? (g.even == null ? 1 : g.even) : 1);
+      } else if (Math.abs(k - Math.round(k)) < 1e-6) w = (g.whole || 0) * Math.pow(k / F, -0.5);
+      else w = (g.half || 0) * Math.pow(k / F + 0.25, -0.6);
+      // the resonances, as bumps on a log-frequency scale over a floor
+      let r = g.floor == null ? 0.25 : g.floor;
+      for (const [hz, bw, gain] of g.formants || []) { const o = Math.log2(f / hz) / bw; r += gain * Math.exp(-0.5 * o * o); }
+      // a shut throttle takes the top off
+      const bright = thr > 0.5 ? 1 : Math.exp(-Math.max(0, h - 1) * (g.closed || 0.35));
+      // and nothing much below about forty hertz reaches anyone
+      const lo = f < 40 ? f / 40 : 1;
+      w *= r * bright * lo;
+      this.ot[i] = w; sum += w * w;
+    }
+    // the same loudness from every recipe, rising with revs and with load
+    const norm = sum > 0 ? 1 / Math.sqrt(sum) : 0;
+    const load = (thr > 0.5 ? 1 : (g.overrun == null ? 0.28 : g.overrun)) * (0.45 + 0.55 * Math.min(1, rpm / this.cfg.redline));
+    for (let i = 0; i < this.ok.length; i++) this.ot[i] *= norm * load * (g.level || 0.3);
   }
   process(inputs, outputs, params) {
     const out = outputs[0][0];
@@ -8245,6 +8302,13 @@ class RcEngine extends AudioWorkletProcessor {
       this.loaded = 0;
     } else this.liftT += n / sr;
     this.lastThr = thr;
+    const g = c.sig, nO = this.ok.length;
+    if (g && nO) this.levels(target, thr);
+    const S = RcEngine.SIN, envK = 1 - Math.exp(-1 / (sr * 0.004));
+    const drive = g ? 1 + (g.rasp || 0) * 6 : 1, dn = g && g.rasp ? Math.tanh(drive * 0.3) / 0.3 : 1;
+    const grit = g ? (g.grit == null ? 0.5 : g.grit) : 1;
+    // a turbo's turbine, or a big silencer, takes the edge off everything after it
+    const muf = g && g.muffle ? 1 - Math.exp(-2 * Math.PI * g.muffle * (0.55 + 0.45 * thr) / sr) : 0;
     for (let i = 0; i < n; i++) {
       const rpm = r0 + (target - r0) * (i / n);      // no steps between blocks
       this.phase += rpm * 6 / sr;
@@ -8261,6 +8325,19 @@ class RcEngine extends AudioWorkletProcessor {
         if (p[3]) xb += v; else xa += v;
         p[0] += 1 / sr;
       }
+      // the orders: one sine each, read from a table, at its own multiple of the crank
+      let tonal = 0;
+      if (nO) {
+        this.th += rpm / 60 / sr; if (this.th >= 2) this.th -= 2;
+        for (let o = 0; o < nO; o++) {
+          const a = this.oa[o] + (this.ot[o] - this.oa[o]) * 0.002; this.oa[o] = a;
+          if (a < 1e-5) continue;
+          let ph = this.ok[o] * this.th + this.oph[o]; ph -= Math.floor(ph);
+          tonal += a * S[(ph * 4096) | 0];
+        }
+        this.env += (this.envT - this.env) * envK;
+        tonal *= this.env;
+      }
       // the two pipes, each an inverted reflection off its open end
       const w = this.w, bA = this.bufs[0], bB = this.bufs[1];
       this.lp[0] += (bA[(w - dA) & 8191] - this.lp[0]) * c.damp;
@@ -8272,7 +8349,10 @@ class RcEngine extends AudioWorkletProcessor {
       this.py = x - this.px + 0.995 * this.py; this.px = x;
       this.t1 += (this.py - this.t1) * a1;
       this.t2 += (this.t1 - this.t2) * a1;
-      let y = this.t2 * c.gain * vg;
+      let y = this.t2 * c.gain * vg * grit + tonal * vg;
+      if (muf) { this.sl += (y - this.sl) * muf; this.sl2 += (this.sl - this.sl2) * muf; y = this.sl2; }
+      // rasp: the note driven into something that cannot take all of it
+      if (g && g.rasp) y = Math.tanh(y * drive) / dn;
       if (res) {
         // the raw pulses through the airbox resonances
         const src = xa + xb;
@@ -8306,28 +8386,28 @@ function rcFiring(cyl, step, banks) {
 }
 const RC_ENGINE = {
   // 2GR V6: even fire, alternate banks, a fairly quiet exhaust
-  is350c: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.4, pipeB: 3.9, fb: 0.55, damp: 0.5, tone: 2300, pw: 1.4, noise: 0.22, gain: 0.9 },
+  is350c: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.4, pipeB: 3.9, fb: 0.55, damp: 0.5, tone: 2300, pw: 1.4, noise: 0.22, gain: 0.9 , sig: { decay: 0.9, even: 0.6, whole: 0.12, half: 0.22, harms: 16, span: 3, formants: [[450, 0.5, 0.7], [1900, 0.45, 1.1], [3200, 0.5, 0.5]], floor: 0.15, rough: 0.07, rasp: 0.22, grit: 0.4, muffle: 3800, closed: 0.35, level: 0.4 } },
   // V10: every 72 degrees, short pipes, bright and hard
-  huracan: { fire: rcFiring(10, 72, [0, 1]), pipeA: 2.0, pipeB: 2.3, fb: 0.5, damp: 0.6, tone: 5200, pw: 0.7, noise: 0.25, gain: 0.8 },
+  huracan: { fire: rcFiring(10, 72, [0, 1]), pipeA: 2.0, pipeB: 2.3, fb: 0.5, damp: 0.6, tone: 5200, pw: 0.7, noise: 0.25, gain: 0.8 , sig: { decay: 0.7, even: 1.1, whole: 0.25, half: 0.45, harms: 22, span: 3, formants: [[380, 0.5, 0.8], [1700, 0.6, 1.0], [3600, 0.5, 0.6]], rough: 0.12, rasp: 0.35, grit: 0.6, closed: 0.25, level: 0.4 } },
   // turbo four: one pipe, and the turbine takes the edge off it
-  typer: { fire: rcFiring(4, 180, [0]), pipeA: 4.2, pipeB: 4.2, fb: 0.45, damp: 0.4, tone: 1800, pw: 1.8, noise: 0.38, gain: 1.1 },
+  typer: { fire: rcFiring(4, 180, [0]), pipeA: 4.2, pipeB: 4.2, fb: 0.45, damp: 0.4, tone: 1800, pw: 1.8, noise: 0.38, gain: 1.1 , sig: { decay: 1.3, even: 1.6, whole: 0.05, half: 0.02, harms: 12, span: 3, formants: [[180, 0.5, 0.5], [1100, 0.6, 1.0], [3000, 0.5, 0.5]], rough: 0.05, rasp: 0.2, grit: 0.5, muffle: 2400, closed: 0.5, level: 0.4 } },
   // RB26: straight six, smooth and even, twin turbos
-  r34: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.0, pipeB: 3.1, fb: 0.5, damp: 0.5, tone: 2600, pw: 1.2, noise: 0.3, gain: 0.95 },
+  r34: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.0, pipeB: 3.1, fb: 0.5, damp: 0.5, tone: 2600, pw: 1.2, noise: 0.3, gain: 0.95 , sig: { decay: 0.85, even: 0.7, whole: 0.05, half: 0.03, harms: 18, span: 3, formants: [[480, 0.5, 0.7], [2400, 0.5, 1.0], [4800, 0.4, 0.4]], rough: 0.04, rasp: 0.25, grit: 0.45, muffle: 4200, closed: 0.3, level: 0.4 } },
   // flat six: the rasp is the two banks in pipes of different lengths
-  carrera: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.8, pipeB: 3.4, fb: 0.58, damp: 0.55, tone: 2600, pw: 1.1, noise: 0.28, gain: 0.9 },
+  carrera: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.8, pipeB: 3.4, fb: 0.58, damp: 0.55, tone: 2600, pw: 1.1, noise: 0.28, gain: 0.9 , sig: { decay: 0.9, even: 0.5, whole: 0.2, half: 0.3, harms: 18, span: 3, formants: [[300, 0.6, 0.7], [1100, 0.5, 0.7], [3000, 0.5, 0.6]], rough: 0.06, rasp: 0.2, grit: 0.5, closed: 0.3, level: 0.4 } },
   // 2JZ: the six breathing through one big pipe, deep for a six
-  supra: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.5, pipeB: 3.6, fb: 0.52, damp: 0.45, tone: 2200, pw: 1.4, noise: 0.32, gain: 0.95 },
+  supra: { fire: rcFiring(6, 120, [0, 1]), pipeA: 3.5, pipeB: 3.6, fb: 0.52, damp: 0.45, tone: 2200, pw: 1.4, noise: 0.32, gain: 0.95 , sig: { decay: 1.25, even: 1.2, whole: 0.1, half: 0.05, harms: 14, span: 3, formants: [[160, 0.6, 1.0], [850, 0.6, 0.6]], rough: 0.05, rasp: 0.08, grit: 0.45, muffle: 1900, closed: 0.5, level: 0.4 } },
   // S54: short pipes, a hard metallic edge, and it keeps going to eight thousand
-  m3: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.6, pipeB: 2.9, fb: 0.56, damp: 0.6, tone: 4200, pw: 0.9, noise: 0.26, gain: 0.9 },
+  m3: { fire: rcFiring(6, 120, [0, 1]), pipeA: 2.6, pipeB: 2.9, fb: 0.56, damp: 0.6, tone: 4200, pw: 0.9, noise: 0.26, gain: 0.9 , sig: { decay: 0.75, even: 0.9, whole: 0.15, half: 0.1, harms: 20, span: 3, formants: [[620, 0.5, 0.6], [2100, 0.4, 1.2], [3400, 0.5, 0.5]], rough: 0.08, rasp: 0.45, grit: 0.55, closed: 0.2, level: 0.4 } },
   // crossplane V8: 1-8-4-3-6-5-7-2, left right right left right left left right
-  cruiser: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 5.6, pipeB: 6.2, fb: 0.62, damp: 0.35, tone: 1200, pw: 2.4, noise: 0.18, gain: 0.7 },
+  cruiser: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 5.6, pipeB: 6.2, fb: 0.62, damp: 0.35, tone: 1200, pw: 2.4, noise: 0.18, gain: 0.7 , sig: { decay: 1.6, even: 1.0, whole: 0.15, half: 0.4, harms: 12, span: 3, formants: [[90, 0.6, 1.0], [300, 0.6, 0.5]], rough: 0.06, grit: 0.3, muffle: 700, closed: 0.6, level: 0.4 } },
   /* The same crossplane order in a shorter, harder pipe. The lumpy off beat
      of an American V8 is not the engine being rough, it is the two banks
      firing unevenly into their own sides of the exhaust, which is what the
      bank pattern is already doing. */
-  stang: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 4.3, pipeB: 4.8, fb: 0.60, damp: 0.42, tone: 1550, pw: 2.0, noise: 0.22, gain: 0.9 },
+  stang: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 4.3, pipeB: 4.8, fb: 0.60, damp: 0.42, tone: 1550, pw: 2.0, noise: 0.22, gain: 0.9 , sig: { decay: 1.2, even: 1.3, whole: 0.3, half: 0.9, harms: 14, span: 3, formants: [[120, 0.5, 1.2], [480, 0.6, 0.6]], rough: 0.25, lope: 0.9, uneven: 0.6, rasp: 0.12, grit: 0.7, muffle: 2800, closed: 0.6, overrun: 0.35, level: 0.4 } },
   // hot vee, turbos in the middle of it: flatter, harder, and a lot less of it
-  rs6: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.6, pipeB: 4.0, fb: 0.48, damp: 0.52, tone: 1900, pw: 1.6, noise: 0.30, gain: 0.85 },
+  rs6: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.6, pipeB: 4.0, fb: 0.48, damp: 0.52, tone: 1900, pw: 1.6, noise: 0.30, gain: 0.85 , sig: { decay: 1.35, even: 1.1, whole: 0.2, half: 0.55, harms: 14, span: 3, formants: [[150, 0.6, 1.0], [650, 0.6, 0.5]], rough: 0.1, lope: 0.1, rasp: 0.08, grit: 0.45, muffle: 1300, closed: 0.55, level: 0.4 } },
   /* Flat-plane V8s fire bank to bank in strict alternation, which is why they
      sound like two fours wailing rather than a V8 burbling. The McLaren's
      turbos and short pipes give it a hard, raspy edge; the Ferrari is the same
@@ -8342,7 +8422,7 @@ const RC_ENGINE = {
      thread of valvetrain whine under it all. */
   lfa: { fire: rcFiring(10, 72, [0, 1]), pipeA: 1.55, pipeB: 1.55, fb: 0.5, damp: 0.68, tone: 7400, pw: 0.40, noise: 0.14, gain: 0.82,
     intake: { gain: 0.9, res: [[2, 9, 0, 1.0], [4, 11, 0, 0.7], [0, 3.2, 1150, 0.55], [6, 14, 0, 0.3]] },
-    valve: 3800, whine: [10, 0.012] },
+    valve: 3800, whine: [10, 0.012] , sig: { decay: 0.55, even: 1.2, whole: 0.04, half: 0, harms: 20, span: 3, formants: [[1150, 0.45, 1.3], [2300, 0.4, 1.0], [3450, 0.4, 0.6], [600, 0.6, 0.4]], floor: 0.1, rough: 0.02, rasp: 0.05, grit: 0.25, closed: 0.2, overrun: 0.3, level: 0.4 } },
   /* The two of them sounded like each other and like nothing much: the same
      engine with a different tone knob. Now the McLaren is the gruff one: wider
      pulses, longer pipes, a lot of rasp in the noise, its intake leaning on
@@ -8352,11 +8432,11 @@ const RC_ENGINE = {
      fourth harmonics like the LFA's but with its own vowel higher up, the
      valves open from 5,200, and a thread of cam whine on top. */
   mclaren: { fire: rcFiring(8, 90, [0, 1]), pipeA: 2.6, pipeB: 2.75, fb: 0.52, damp: 0.50, tone: 3000, pw: 1.0, noise: 0.40, gain: 0.88,
-    intake: { gain: 0.55, res: [[2, 5, 0, 0.6], [3, 7, 0, 0.45], [0, 2.2, 640, 0.5]] }, valve: 4200 },
+    intake: { gain: 0.55, res: [[2, 5, 0, 0.6], [3, 7, 0, 0.45], [0, 2.2, 640, 0.5]] }, valve: 4200 , sig: { decay: 0.95, even: 1.3, whole: 0.6, half: 0.04, harms: 18, span: 3, formants: [[260, 0.5, 0.6], [900, 0.5, 0.8], [2100, 0.5, 0.7]], rough: 0.1, rasp: 0.5, grit: 0.6, muffle: 2400, closed: 0.35, level: 0.4 } },
   f458: { fire: rcFiring(8, 90, [0, 1]), pipeA: 1.5, pipeB: 1.65, fb: 0.55, damp: 0.66, tone: 7800, pw: 0.45, noise: 0.18, gain: 0.82,
-    intake: { gain: 0.8, res: [[2, 8, 0, 0.9], [4, 10, 0, 0.55], [0, 3.0, 1450, 0.5], [3, 9, 0, 0.22]] }, valve: 5200, whine: [8, 0.008] },
+    intake: { gain: 0.8, res: [[2, 8, 0, 0.9], [4, 10, 0, 0.55], [0, 3.0, 1450, 0.5], [3, 9, 0, 0.22]] }, valve: 5200, whine: [8, 0.008] , sig: { decay: 0.6, even: 1.4, whole: 0.35, half: 0.03, harms: 24, span: 3, formants: [[1450, 0.5, 1.2], [2900, 0.5, 0.9], [5000, 0.4, 0.4]], floor: 0.15, rough: 0.04, rasp: 0.15, grit: 0.4, closed: 0.25, level: 0.4 } },
   // crossplane, long pipes and a big resonance: the deepest thing here bar the Land Cruiser
-  amggtr: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.9, pipeB: 4.4, fb: 0.60, damp: 0.40, tone: 1700, pw: 2.1, noise: 0.24, gain: 0.9 }
+  amggtr: { fire: rcFiring(8, 90, [0, 1, 1, 0, 1, 0, 0, 1]), pipeA: 3.9, pipeB: 4.4, fb: 0.60, damp: 0.40, tone: 1700, pw: 2.1, noise: 0.24, gain: 0.9 , sig: { decay: 1.0, even: 1.2, whole: 0.35, half: 0.8, harms: 16, span: 3, formants: [[140, 0.5, 1.1], [600, 0.5, 0.7], [1800, 0.6, 0.5]], rough: 0.18, lope: 0.45, uneven: 0.45, rasp: 0.55, grit: 0.75, muffle: 3200, closed: 0.5, overrun: 0.5, level: 0.4 } }
 };
 
 let rcAC = null, rcSnd = null;
